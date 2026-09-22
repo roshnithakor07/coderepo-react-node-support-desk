@@ -55,15 +55,29 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                     <form onSubmit={handleSubmit}>
                         <label>
                             Title
-                            <input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={120} autoFocus />
+                            <input
+                                value={title}
+                                onChange={(event) => setTitle(event.target.value)}
+                                required
+                                maxLength={120}
+                                autoFocus
+                                placeholder="e.g. Billing - Refund Processed"
+                            />
                         </label>
                         <label>
                             Category
-                            <input value={category} onChange={(event) => setCategory(event.target.value)} required maxLength={60} />
+                            <input value={category} onChange={(event) => setCategory(event.target.value)} required maxLength={60} placeholder="billing" />
                         </label>
                         <label>
                             Body
-                            <textarea value={body} onChange={(event) => setBody(event.target.value)} required maxLength={3000} rows={5} />
+                            <textarea
+                                value={body}
+                                onChange={(event) => setBody(event.target.value)}
+                                required
+                                maxLength={3000}
+                                rows={5}
+                                placeholder="Write the reusable reply text agents will insert into the reply box."
+                            />
                         </label>
                         {error && <p className="form-error">{error}</p>}
                         <div className="modal-actions">

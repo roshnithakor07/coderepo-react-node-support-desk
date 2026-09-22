@@ -20,11 +20,25 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
             <form onSubmit={handleSubmit}>
                 <label>
                     Title
-                    <input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={140} autoFocus />
+                    <input
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        required
+                        maxLength={140}
+                        autoFocus
+                        placeholder="e.g. Cannot log into my account"
+                    />
                 </label>
                 <label>
                     Description
-                    <textarea value={description} onChange={(event) => setDescription(event.target.value)} required maxLength={5000} rows={5} />
+                    <textarea
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        required
+                        maxLength={5000}
+                        rows={5}
+                        placeholder="Describe what's happening, when it started, and any steps you've already tried."
+                    />
                 </label>
                 <div className="form-row">
                     <label>

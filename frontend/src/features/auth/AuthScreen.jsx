@@ -1,5 +1,12 @@
 import { useState } from "react";
 
+const DEMO_PASSWORD = "SupportDesk@2026";
+const DEMO_ACCOUNTS = [
+    { role: "Admin", email: "admin1@supportdesk.io" },
+    { role: "Agent", email: "agent1@supportdesk.io" },
+    { role: "Customer", email: "customer1@supportdesk.io" },
+];
+
 export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
     const [mode, setMode] = useState("login");
     const [name, setName] = useState("");
@@ -10,6 +17,12 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
         event.preventDefault();
         if (mode === "login") onLogin({ email, password });
         else onRegister({ name, email, password });
+    }
+
+    function handleQuickFill(account) {
+        setMode("login");
+        setEmail(account.email);
+        setPassword(DEMO_PASSWORD);
     }
 
     return (
@@ -31,7 +44,14 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                     {mode === "register" && (
                         <label>
                             Full name
-                            <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoComplete="name" />
+                            <input
+                                value={name}
+                                onChange={(event) => setName(event.target.value)}
+                                required
+                                maxLength={80}
+                                autoComplete="name"
+                                placeholder="Jordan Lee"
+                            />
                         </label>
                     )}
                     <label>
@@ -43,6 +63,7 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                             required
                             maxLength={160}
                             autoComplete="email"
+                            placeholder="admin1@supportdesk.io"
                         />
                     </label>
                     <label>
@@ -55,6 +76,7 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                             minLength={8}
                             maxLength={100}
                             autoComplete={mode === "login" ? "current-password" : "new-password"}
+                            placeholder={mode === "login" ? "SupportDesk@2026" : "At least 8 characters"}
                         />
                     </label>
                     {error && <p className="form-error">{error}</p>}
@@ -63,6 +85,20 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                     </button>
                 </form>
                 {mode === "register" && <p className="auth-hint">New accounts are created as customers. Agent and admin access is provisioned by an admin.</p>}
+
+                {mode === "login" && (
+                    <div className="demo-accounts">
+                        <p className="auth-hint">Demo accounts for testing (password: {DEMO_PASSWORD}):</p>
+                        <div className="demo-account-list">
+                            {DEMO_ACCOUNTS.map((account) => (
+                                <button type="button" key={account.role} className="demo-account-chip" onClick={() => handleQuickFill(account)}>
+                                    <span className="demo-account-role">{account.role}</span>
+                                    <span className="demo-account-email">{account.email}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

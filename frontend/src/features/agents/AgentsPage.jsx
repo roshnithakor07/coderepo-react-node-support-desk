@@ -58,15 +58,30 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                     <form onSubmit={handleSubmit}>
                         <label>
                             Full name
-                            <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus />
+                            <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus placeholder="Jordan Lee" />
                         </label>
                         <label>
                             Email
-                            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={160} />
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(event) => setEmail(event.target.value)}
+                                required
+                                maxLength={160}
+                                placeholder="jordan.lee@supportdesk.io"
+                            />
                         </label>
                         <label>
                             Temporary password
-                            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} maxLength={100} />
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(event) => setPassword(event.target.value)}
+                                required
+                                minLength={8}
+                                maxLength={100}
+                                placeholder="At least 8 characters"
+                            />
                         </label>
                         {error && <p className="form-error">{error}</p>}
                         <div className="modal-actions">

@@ -130,6 +130,50 @@ button {
     color: var(--muted);
 }
 
+.demo-accounts {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.demo-accounts .auth-hint {
+    margin-top: 0;
+    margin-bottom: 0.6rem;
+}
+
+.demo-account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.demo-account-chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.7rem;
+    color: var(--ink);
+    text-align: left;
+}
+
+.demo-account-chip:hover {
+    border-color: var(--accent);
+}
+
+.demo-account-role {
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.demo-account-email {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
 label {
     display: flex;
     flex-direction: column;

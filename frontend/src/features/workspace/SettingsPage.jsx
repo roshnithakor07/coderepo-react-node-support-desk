@@ -46,7 +46,7 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
                 </div>
                 <label>
                     Categories (comma-separated)
-                    <input value={categories} onChange={(event) => setCategories(event.target.value)} />
+                    <input value={categories} onChange={(event) => setCategories(event.target.value)} placeholder="general, billing, technical, account" />
                 </label>
                 {error && <p className="form-error">{error}</p>}
                 <button type="submit" className="button-primary" disabled={isBusy}>
