@@ -1,0 +1,32 @@
+import dotenv from "dotenv";
+import { createApp } from "./app.js";
+import { connectDatabase, disconnectDatabase } from "./shared/config/database.js";
+import { initConfig } from "./shared/config/index.js";
+import { connectRedis, disconnectRedis } from "./shared/config/redis.js";
+import { startSlaChecker, stopSlaChecker } from "./shared/jobs/sla-checker.js";
+
+dotenv.config({ quiet: true });
+const config = initConfig();
+const HOST = "0.0.0.0";
+
+connectRedis(config.redisUrl);
+await connectDatabase(config.mongodbUri);
+startSlaChecker();
+
+const server = createApp().listen(config.port, HOST, () => {
+    console.log(`Server running on port ${config.port}`);
+    console.log(`Environment: ${config.nodeEnv}`);
+});
+
+async function shutdown(signal) {
+    console.log(`${signal} received; closing the API.`);
+    stopSlaChecker();
+    server.close(async () => {
+        await disconnectDatabase();
+        await disconnectRedis();
+        process.exit(0);
+    });
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
