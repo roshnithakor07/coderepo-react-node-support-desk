@@ -191,3 +191,29 @@
 **Verification:** Read through `App.jsx` against every `*.api.js` and page component to confirm prop names/handlers match; full runtime verification (bun install + dev servers + manual click-through) still pending - see next entries.
 
 **Commit:** `feat: add frontend app layout, routing, and auth guard`
+
+---
+
+## [2026-09-22T06:50:00+00:00] Backend runtime smoke test (Mongo via user's Docker + portable Redis)
+
+**Built:** No app changes. User started MongoDB via Docker; started the portable `redis-server` extracted earlier. Ran `bun install` (clean, 160 packages), `frontend && bun run build` (clean production build, no errors), then full API smoke test against the real seeded database: admin login, RBAC-scoped ticket listing, analytics dashboard, unauthenticated request rejected (401), customer ticket creation (verified auto-assign picked the least-loaded agent and computed a correct SLA deadline), inbound email webhook (auto-provisioned a new customer + ticket), agent reply (verified auto-transition open -> in_progress and notification delivered to the customer), cross-agent ticket access correctly rejected (403), and a same-list status transition (in_progress -> closed, a legal transition).
+
+**Verification:** All of the above passed against live Mongo/Redis - not mocked. `vite build` output: `45 modules transformed`, zero errors.
+
+**Note:** No browser automation tool is available in this environment (only `WebFetch`, which cannot reach localhost), so the frontend has not been visually click-tested in a real browser - this is a disclosed gap, not a claimed pass.
+
+---
+
+## [2026-09-22T06:58:00+00:00] README, bun.lock commit, and full clean-checkout verification
+
+**Built:** `README.md` (product identity, tech stack with WebSocket/email/dependency-freeze notes, annotated structure tree, prerequisites, Mongo/seed behavior, run instructions, commands table, seeded credentials for all three roles). Also discovered and fixed a real gap: `README.md` and the Bun-generated `bun.lock` had never been `git add`ed in earlier commits, so `git archive HEAD` was missing the README entirely - committed both.
+
+**Files created/changed:** `README.md`, `bun.lock`
+
+**Verification (matches `skills/validate/references/static-checks.md` S04/S11/S12/S18/S19):**
+- `git archive HEAD`: 330 KB (well under the 5 MB limit); `README.md` present; `GUIDELINES.md` and `skills/` correctly absent (export-ignore working); no `.env`/`.mongodb`/`.redis`/`node_modules`/`*.log` tracked.
+- No competing JS lockfile tracked (`git ls-files | grep lock` -> only `bun.lock`).
+- `hackerrank.yml` parses; every `readonly_paths` and `default_open_files` entry resolves to a real file.
+- **Full clean-checkout run**: deleted `node_modules` (all three) and all `.env` files, then ran the *exact* declared commands - `bun install && bash setup.sh --seed` (install + env bootstrap + Mongo/Redis check + seed, all succeeded) followed by `bun start` (prestart reseed, then backend :8000 + frontend :3000 both came up clean). Confirmed `/api/v1/health` reports `{status: ok, database: connected}`, frontend returns 200, login works, and a restart reproduces exactly 20 seeded tickets (deterministic baseline restore, per S09/R-series runtime checks).
+
+**Commit:** `docs: add README and commit bun workspace lockfile`
