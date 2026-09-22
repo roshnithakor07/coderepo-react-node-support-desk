@@ -177,3 +177,17 @@
 **Files created:** see above; full list in the commit that follows this entry.
 
 **In progress:** Feature page components (auth screen done; tickets list/detail, agents page done so far; agents/canned-responses/analytics/notifications/workspace shell/App.jsx still in progress).
+
+---
+
+## [2026-09-22T06:45:00+00:00] Frontend app layout, routing, and auth guard
+
+**Built:** Completed all remaining frontend feature pages and wired them together in `App.jsx`, which owns all top-level state (no router library, no global store - matches the reference app's plain-`useState`/props-down convention): session bootstrap from a stored JWT, role-scoped navigation (Sidebar hides Agents/Canned Responses for customers, Analytics/Settings to admin only), ticket list/detail/create/reply/assign/status flows, agents management, canned responses, analytics dashboard (admin), SLA/category settings (admin), profile + theme toggle, and a notification bell that polls `GET /notifications` every 15s (the WebSocket-free "real-time" substitute) and marks-read on open.
+
+**Files created:** `frontend/package.json`, `vite.config.js`, `.env.example`, `index.html`, `public/favicon.svg`, `src/main.jsx`, `src/App.jsx`, `src/styles.css` (hand-written dark/light theme via CSS custom properties, priority color-coding: critical=red/high=orange/medium=yellow/low=green), `src/shared/api/client.js`, `src/shared/components/{Modal,Badge,Table,Charts}.jsx`, `src/shared/utils/{format,theme}.js`, and per-feature `*.api.js` + page components under `src/features/{auth,tickets,agents,canned-responses,notifications,analytics,workspace}/`. Also added `backend/public/index.html` + `favicon.svg` (static placeholder page Express serves at `/`).
+
+**Decisions made:** Charts (volume line chart, status donut, resolution-by-priority bar chart) are hand-rolled inline SVG components rather than a new charting library dependency, per the guidelines' dependency-freeze rule.
+
+**Verification:** Read through `App.jsx` against every `*.api.js` and page component to confirm prop names/handlers match; full runtime verification (bun install + dev servers + manual click-through) still pending - see next entries.
+
+**Commit:** `feat: add frontend app layout, routing, and auth guard`
