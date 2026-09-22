@@ -15,6 +15,15 @@ A full-stack customer support ticketing platform inspired by Zendesk/Freshdesk. 
 
 Real-time UI updates (notifications) are delivered via short-interval polling rather than WebSockets, and the "email confirmation" on the inbound webhook is delivered as an in-app notification rather than an outbound email, in both cases to stay within the platform's dependency constraints.
 
+### Dependency additions beyond the reference stack
+
+The reference calendar app has no cache layer and no scheduler. Two dependencies were added, both explicitly requested in the product's own technical spec:
+
+- **`ioredis`** — JWT logout blacklist, login/webhook rate limiting, and 60s-300s caching for the analytics dashboard and SLA settings. `setup.sh` provisions a local Redis instance the same way it provisions Mongo.
+- **`node-cron`** — the in-process SLA breach/warning sweep (`shared/jobs/sla-checker.js`, runs every minute). No dependency in the reference stack provides in-process scheduling.
+
+No other dependency was added, removed, or replaced; all other package versions match or exceed the reference app's pinned versions.
+
 ## Project Structure
 
 ```text
