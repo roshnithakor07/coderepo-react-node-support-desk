@@ -118,3 +118,29 @@ export function SearchIcon(props) {
         </svg>
     );
 }
+
+export function ClockIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3.5 2" />
+        </svg>
+    );
+}
+
+export function TagIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <path d="M20.59 13.41 12 22l-9-9V4a1 1 0 0 1 1-1h9Z" transform="rotate(180 12 12)" />
+            <circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" stroke="none" />
+        </svg>
+    );
+}
+
+export function PlusIcon(props) {
+    return (
+        <svg {...base} width={16} height={16} {...props} aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+        </svg>
+    );
+}

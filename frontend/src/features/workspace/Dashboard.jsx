@@ -51,9 +51,17 @@ export function Dashboard({ currentUser, tickets, onSelectTicket, onNewTicket, o
                 )}
             </div>
             {tickets.length === 0 ? (
-                <div className="table-empty">
-                    <InboxIcon className="table-empty-icon" />
-                    <p>No tickets yet.{currentUser.role === "customer" ? " Create one to get help from our team." : ""}</p>
+                <div className="empty-state">
+                    <InboxIcon className="empty-state-icon" />
+                    <p className="empty-state-title">No tickets yet</p>
+                    <p className="empty-state-description">
+                        {currentUser.role === "customer" ? "Create your first ticket to get help from our team." : "Tickets will show up here once customers create them."}
+                    </p>
+                    {currentUser.role === "customer" && (
+                        <button type="button" className="button-primary" onClick={onNewTicket}>
+                            New ticket
+                        </button>
+                    )}
                 </div>
             ) : (
                 <ul className="dashboard-ticket-list">

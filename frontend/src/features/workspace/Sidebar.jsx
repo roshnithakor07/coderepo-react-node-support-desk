@@ -1,4 +1,5 @@
 import { ChartIcon, HomeIcon, MessageIcon, SettingsIcon, TicketIcon, UsersIcon } from "../../shared/components/Icon.jsx";
+import { initials } from "../../shared/utils/format.js";
 
 const NAV_ITEMS = [
     { key: "dashboard", label: "Dashboard", roles: ["admin", "agent", "customer"], Icon: HomeIcon },
@@ -9,7 +10,7 @@ const NAV_ITEMS = [
     { key: "settings", label: "Settings", roles: ["admin"], Icon: SettingsIcon },
 ];
 
-export function Sidebar({ currentUser, activeView, onNavigate, isCollapsed, onToggleCollapse }) {
+export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, isCollapsed, onToggleCollapse }) {
     return (
         <aside className={`sidebar ${isCollapsed ? "sidebar-collapsed" : ""}`}>
             <div className="sidebar-brand">
@@ -31,6 +32,23 @@ export function Sidebar({ currentUser, activeView, onNavigate, isCollapsed, onTo
                     </button>
                 ))}
             </nav>
+
+            <button
+                type="button"
+                className="sidebar-profile"
+                onClick={onOpenProfile}
+                aria-current={activeView === "profile" ? "page" : undefined}
+                title={isCollapsed ? `${currentUser.name} (${currentUser.role})` : undefined}
+            >
+                <span className="sidebar-profile-avatar">{initials(currentUser.name)}</span>
+                {!isCollapsed && (
+                    <span className="sidebar-profile-meta">
+                        <span className="sidebar-profile-name">{currentUser.name}</span>
+                        <span className="sidebar-profile-role">{currentUser.role}</span>
+                    </span>
+                )}
+            </button>
+
             <button type="button" className="sidebar-collapse-toggle" onClick={onToggleCollapse} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
                 {isCollapsed ? "»" : "«"}
             </button>

@@ -70,6 +70,12 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
         setPassword(DEMO_PASSWORD);
     }
 
+    function fieldClass(field, value) {
+        if (fieldErrors[field]) return "field-invalid";
+        if (touched[field] && value) return "field-valid";
+        return "";
+    }
+
     return (
         <div className="auth-screen">
             <div className="auth-card">
@@ -94,7 +100,9 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                 <form onSubmit={handleSubmit} className="auth-form" noValidate>
                     {mode === "register" && (
                         <label htmlFor="auth-name">
-                            Full name
+                            <span className="label-row">
+                                Full name<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="auth-name"
                                 value={name}
@@ -105,7 +113,7 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                                 placeholder="Jordan Lee"
                                 aria-invalid={Boolean(fieldErrors.name)}
                                 aria-describedby={fieldErrors.name ? "auth-name-error" : undefined}
-                                className={fieldErrors.name ? "field-invalid" : ""}
+                                className={fieldClass("name", name)}
                             />
                             {fieldErrors.name && (
                                 <span className="field-error" id="auth-name-error">
@@ -115,7 +123,9 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                         </label>
                     )}
                     <label htmlFor="auth-email">
-                        Email
+                        <span className="label-row">
+                            Email<span className="required-mark">*</span>
+                        </span>
                         <input
                             id="auth-email"
                             type="email"
@@ -127,7 +137,7 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                             placeholder="admin1@supportdesk.io"
                             aria-invalid={Boolean(fieldErrors.email)}
                             aria-describedby={fieldErrors.email ? "auth-email-error" : undefined}
-                            className={fieldErrors.email ? "field-invalid" : ""}
+                            className={fieldClass("email", email)}
                         />
                         {fieldErrors.email && (
                             <span className="field-error" id="auth-email-error">
@@ -136,7 +146,9 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                         )}
                     </label>
                     <label htmlFor="auth-password">
-                        Password
+                        <span className="label-row">
+                            Password<span className="required-mark">*</span>
+                        </span>
                         <input
                             id="auth-password"
                             type="password"
@@ -148,7 +160,7 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                             placeholder={mode === "login" ? "SupportDesk@2026" : "At least 8 characters"}
                             aria-invalid={Boolean(fieldErrors.password)}
                             aria-describedby={fieldErrors.password ? "auth-password-error" : undefined}
-                            className={fieldErrors.password ? "field-invalid" : ""}
+                            className={fieldClass("password", password)}
                         />
                         {fieldErrors.password && (
                             <span className="field-error" id="auth-password-error">

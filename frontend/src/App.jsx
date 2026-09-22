@@ -324,7 +324,7 @@ export default function App() {
         agentApi
             .setActive(id, isActive)
             .then(() => {
-                pushToast("success", `Agent ${verb}d.`);
+                pushToast(isActive ? "success" : "warning", `Agent ${verb}d.`);
                 loadAgents();
             })
             .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't update this agent. Please try again.")));
@@ -417,12 +417,12 @@ export default function App() {
                 currentUser={currentUser}
                 activeView={activeView}
                 onNavigate={handleNavigate}
+                onOpenProfile={() => setActiveView("profile")}
                 isCollapsed={isSidebarCollapsed}
                 onToggleCollapse={() => setIsSidebarCollapsed((value) => !value)}
             />
             <div className="app-main">
                 <header className="topbar">
-                    <div />
                     <div className="topbar-actions">
                         <NotificationBell
                             notifications={notifications}
@@ -431,9 +431,6 @@ export default function App() {
                             onClear={handleClearNotifications}
                             onOpenTicket={loadTicketDetail}
                         />
-                        <button type="button" className="topbar-profile" onClick={() => setActiveView("profile")}>
-                            {currentUser.name}
-                        </button>
                     </div>
                 </header>
 

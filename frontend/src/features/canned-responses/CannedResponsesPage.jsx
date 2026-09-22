@@ -62,9 +62,13 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
             </div>
 
             {responses.length === 0 ? (
-                <div className="table-empty">
-                    <InboxIcon className="table-empty-icon" />
-                    <p>No canned responses yet. Create your first template to speed up replies.</p>
+                <div className="empty-state">
+                    <InboxIcon className="empty-state-icon" />
+                    <p className="empty-state-title">No canned responses yet</p>
+                    <p className="empty-state-description">Create your first template to speed up replies for common questions.</p>
+                    <button type="button" className="button-primary" onClick={() => setShowCreate(true)}>
+                        New template
+                    </button>
                 </div>
             ) : (
                 <div className="canned-response-grid">
@@ -76,7 +80,7 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                                     <h3>{response.title}</h3>
                                     <Badge tone={response.isGlobal ? "info" : "neutral"}>{response.isGlobal ? "Global" : "Personal"}</Badge>
                                 </header>
-                                <p className="canned-response-category">{response.category}</p>
+                                <span className="tag">{response.category}</span>
                                 <p className="canned-response-body">{response.body}</p>
                                 {canDelete && (
                                     <button type="button" className="link-button link-button-danger" onClick={() => handleDelete(response)}>
@@ -94,7 +98,9 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                     <h2>New template</h2>
                     <form onSubmit={handleSubmit} noValidate>
                         <label htmlFor="canned-title">
-                            Title
+                            <span className="label-row">
+                                Title<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="canned-title"
                                 value={title}
@@ -114,7 +120,9 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                             )}
                         </label>
                         <label htmlFor="canned-category">
-                            Category
+                            <span className="label-row">
+                                Category<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="canned-category"
                                 value={category}
@@ -133,7 +141,9 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                             )}
                         </label>
                         <label htmlFor="canned-body">
-                            Body
+                            <span className="label-row">
+                                Body<span className="required-mark">*</span>
+                            </span>
                             <textarea
                                 id="canned-body"
                                 value={body}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { Table } from "../../shared/components/Table.jsx";
 import { Badge } from "../../shared/components/Badge.jsx";
@@ -10,6 +10,18 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [fieldErrors, setFieldErrors] = useState({});
+    const [sort, setSort] = useState({ key: "openTicketCount", direction: "asc" });
+
+    const sortedAgents = useMemo(() => {
+        const copy = [...agents];
+        copy.sort((a, b) => {
+            const left = a[sort.key] ?? 0;
+            const right = b[sort.key] ?? 0;
+            const comparison = typeof left === "string" ? left.localeCompare(right) : left - right;
+            return sort.direction === "asc" ? comparison : -comparison;
+        });
+        return copy;
+    }, [agents, sort]);
 
     function validate() {
         const errors = {};
@@ -69,13 +81,17 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
 
             <Table
                 rowKey={(row) => row._id}
-                emptyMessage="No agents yet. Add your first agent to start assigning tickets."
-                rows={agents}
+                emptyTitle="No agents yet"
+                emptyDescription="Add your first agent so tickets can be assigned and worked on."
+                emptyAction={isAdmin ? { label: "Add agent", onClick: () => setShowCreate(true) } : undefined}
+                rows={sortedAgents}
                 isLoading={isLoading}
+                sort={sort}
+                onSortChange={setSort}
                 columns={[
-                    { key: "name", header: "Name" },
+                    { key: "name", header: "Name", sortable: true },
                     { key: "email", header: "Email" },
-                    { key: "openTicketCount", header: "Open tickets", render: (row) => row.openTicketCount ?? 0 },
+                    { key: "openTicketCount", header: "Open tickets", sortable: true, render: (row) => <span className="mono">{row.openTicketCount ?? 0}</span> },
                     {
                         key: "isActive",
                         header: "Status",
@@ -86,9 +102,11 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                         header: "",
                         render: (row) =>
                             isAdmin ? (
-                                <button type="button" className="link-button" onClick={() => handleToggleActive(row)}>
-                                    {row.isActive ? "Deactivate" : "Activate"}
-                                </button>
+                                <div className="row-actions">
+                                    <button type="button" className="link-button row-action" onClick={() => handleToggleActive(row)}>
+                                        {row.isActive ? "Deactivate" : "Activate"}
+                                    </button>
+                                </div>
                             ) : null,
                     },
                 ]}
@@ -99,7 +117,9 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                     <h2>Add agent</h2>
                     <form onSubmit={handleSubmit} noValidate>
                         <label htmlFor="agent-name">
-                            Full name
+                            <span className="label-row">
+                                Full name<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="agent-name"
                                 value={name}
@@ -119,7 +139,9 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                             )}
                         </label>
                         <label htmlFor="agent-email">
-                            Email
+                            <span className="label-row">
+                                Email<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="agent-email"
                                 type="email"
@@ -139,7 +161,9 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                             )}
                         </label>
                         <label htmlFor="agent-password">
-                            Temporary password
+                            <span className="label-row">
+                                Temporary password<span className="required-mark">*</span>
+                            </span>
                             <input
                                 id="agent-password"
                                 type="password"

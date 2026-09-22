@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
 import { SearchIcon } from "../../shared/components/Icon.jsx";
 import { Table } from "../../shared/components/Table.jsx";
@@ -7,7 +8,19 @@ const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
 
 export function TicketList({ tickets, total, filters, onFilterChange, onSelectTicket, onNewTicket, isLoading, canCreate = true }) {
+    const [sort, setSort] = useState({ key: "createdAt", direction: "desc" });
     const hasActiveFilters = Boolean(filters.search || filters.status || filters.priority);
+
+    const sortedTickets = useMemo(() => {
+        const copy = [...tickets];
+        copy.sort((a, b) => {
+            const left = sort.key === "createdAt" ? new Date(a.createdAt).getTime() : a[sort.key];
+            const right = sort.key === "createdAt" ? new Date(b.createdAt).getTime() : b[sort.key];
+            const comparison = typeof left === "string" ? left.localeCompare(right) : left - right;
+            return sort.direction === "asc" ? comparison : -comparison;
+        });
+        return copy;
+    }, [tickets, sort]);
 
     function clearFilters() {
         onFilterChange({ page: 1, pageSize: filters.pageSize || 20 });
@@ -72,13 +85,23 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
             <Table
                 rowKey={(row) => row._id}
                 onRowClick={(row) => onSelectTicket(row._id)}
-                emptyMessage={hasActiveFilters ? "No tickets match your filters. Try clearing them." : "No tickets yet."}
-                rows={tickets}
+                emptyTitle={hasActiveFilters ? "No matching tickets" : "No tickets yet"}
+                emptyDescription={
+                    hasActiveFilters
+                        ? "Try clearing your filters to see more results."
+                        : canCreate
+                          ? "Create your first ticket to get help from our team."
+                          : "Tickets will show up here once they're created."
+                }
+                emptyAction={hasActiveFilters ? { label: "Clear filters", onClick: clearFilters } : canCreate ? { label: "New ticket", onClick: onNewTicket } : undefined}
+                rows={sortedTickets}
                 isLoading={isLoading}
+                sort={sort}
+                onSortChange={setSort}
                 columns={[
-                    { key: "title", header: "Title", render: (row) => <span className="ticket-title-cell">{row.title}</span> },
-                    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status} /> },
-                    { key: "priority", header: "Priority", render: (row) => <PriorityBadge priority={row.priority} /> },
+                    { key: "title", header: "Title", sortable: true, render: (row) => <span className="ticket-title-cell">{row.title}</span> },
+                    { key: "status", header: "Status", sortable: true, render: (row) => <StatusBadge status={row.status} /> },
+                    { key: "priority", header: "Priority", sortable: true, render: (row) => <PriorityBadge priority={row.priority} /> },
                     { key: "assignedTo", header: "Assigned to", render: (row) => row.assignedTo?.name || "Unassigned" },
                     {
                         key: "sla",
@@ -87,7 +110,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                             <span className={row.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(row.slaDeadline, row.slaBreached)}</span>
                         ),
                     },
-                    { key: "createdAt", header: "Created", render: (row) => formatDateTime(row.createdAt) },
+                    { key: "createdAt", header: "Created", sortable: true, render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span> },
                 ]}
             />
 

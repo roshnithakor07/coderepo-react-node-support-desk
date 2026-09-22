@@ -33,7 +33,9 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
             <h2>New ticket</h2>
             <form onSubmit={handleSubmit} noValidate>
                 <label htmlFor="ticket-title">
-                    Title
+                    <span className="label-row">
+                        Title<span className="required-mark">*</span>
+                    </span>
                     <input
                         id="ticket-title"
                         value={title}
@@ -53,7 +55,9 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
                     )}
                 </label>
                 <label htmlFor="ticket-description">
-                    Description
+                    <span className="label-row">
+                        Description<span className="required-mark">*</span>
+                    </span>
                     <textarea
                         id="ticket-description"
                         value={description}

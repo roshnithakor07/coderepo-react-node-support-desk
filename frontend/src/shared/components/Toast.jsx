@@ -4,6 +4,7 @@ import { AlertCircleIcon, CheckCircleIcon, CloseIcon, InfoIcon } from "./Icon.js
 const ICONS = {
     success: CheckCircleIcon,
     error: AlertCircleIcon,
+    warning: AlertCircleIcon,
     info: InfoIcon,
 };
 
@@ -24,7 +25,7 @@ function ToastItem({ toast, onDismiss }) {
     useEffect(() => {
         // Intentionally keyed on toast.id only: this toast is dismissed and unmounted by id,
         // so the auto-dismiss timer should not reset if onDismiss's identity changes.
-        timerRef.current = setTimeout(() => onDismiss(toast.id), toast.duration || 5000);
+        timerRef.current = setTimeout(() => onDismiss(toast.id), toast.duration || 4000);
         return () => clearTimeout(timerRef.current);
     }, [toast.id]);
 
@@ -33,8 +34,8 @@ function ToastItem({ toast, onDismiss }) {
     return (
         <div
             className={`toast toast-${toast.type}`}
-            role={toast.type === "error" ? "alert" : "status"}
-            aria-live={toast.type === "error" ? "assertive" : "polite"}
+            role={toast.type === "error" || toast.type === "warning" ? "alert" : "status"}
+            aria-live={toast.type === "error" || toast.type === "warning" ? "assertive" : "polite"}
             onMouseEnter={() => clearTimeout(timerRef.current)}
             onMouseLeave={() => {
                 timerRef.current = setTimeout(() => onDismiss(toast.id), 2000);
