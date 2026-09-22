@@ -8,14 +8,17 @@ export function ProfilePage({ currentUser, onLogout, theme, onToggleTheme }) {
                 <div>
                     <h2>{currentUser.name}</h2>
                     <p className="ticket-meta">{currentUser.email}</p>
-                    <span className={`badge badge-info`}>{currentUser.role}</span>
+                    <span className="badge badge-info">{currentUser.role}</span>
                 </div>
             </div>
 
             <div className="profile-actions">
-                <label className="internal-toggle">
-                    <input type="checkbox" checked={theme === "light"} onChange={onToggleTheme} />
-                    Light theme
+                <label className="theme-toggle">
+                    <span>Light theme</span>
+                    <span className="theme-switch">
+                        <input type="checkbox" checked={theme === "light"} onChange={onToggleTheme} aria-label="Toggle light theme" />
+                        <span className="theme-switch-track" aria-hidden="true" />
+                    </span>
                 </label>
                 <button type="button" className="button-secondary" onClick={onLogout}>
                     Sign out

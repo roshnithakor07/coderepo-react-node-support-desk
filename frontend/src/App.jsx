@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentApi } from "./features/agents/agent.api.js";
 import { analyticsApi } from "./features/analytics/analytics.api.js";
 import { authApi } from "./features/auth/auth.api.js";
@@ -19,7 +19,9 @@ import { settingsApi } from "./features/workspace/settings.api.js";
 import { SettingsPage } from "./features/workspace/SettingsPage.jsx";
 import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
+import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
+import { friendlyErrorMessage } from "./shared/utils/validate.js";
 
 const NOTIFICATION_POLL_MS = 15000;
 
@@ -34,18 +36,21 @@ export default function App() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [selectedTicketId, setSelectedTicketId] = useState(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+    const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+    const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
 
     const [tickets, setTickets] = useState([]);
     const [ticketsTotal, setTicketsTotal] = useState(0);
     const [ticketFilters, setTicketFilters] = useState({ page: 1, pageSize: 20 });
     const [ticketsLoading, setTicketsLoading] = useState(false);
-    const [ticketError, setTicketError] = useState("");
+    const [ticketCreateError, setTicketCreateError] = useState("");
     const [isReplying, setIsReplying] = useState(false);
 
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [auditTrail, setAuditTrail] = useState(null);
 
     const [agents, setAgents] = useState([]);
+    const [agentsLoading, setAgentsLoading] = useState(false);
     const [agentError, setAgentError] = useState("");
     const [agentBusy, setAgentBusy] = useState(false);
 
@@ -63,6 +68,19 @@ export default function App() {
     const [settings, setSettings] = useState(null);
     const [settingsBusy, setSettingsBusy] = useState(false);
     const [settingsError, setSettingsError] = useState("");
+
+    const [toasts, setToasts] = useState([]);
+    const toastIdRef = useRef(0);
+
+    const pushToast = useCallback((type, message) => {
+        toastIdRef.current += 1;
+        const id = toastIdRef.current;
+        setToasts((current) => [...current, { id, type, message }]);
+    }, []);
+
+    const dismissToast = useCallback((id) => {
+        setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, []);
 
     useEffect(() => {
         applyTheme(theme);
@@ -86,24 +104,24 @@ export default function App() {
     useEffect(() => {
         function handleExpired() {
             setCurrentUser(null);
+            pushToast("info", "Your session expired. Please sign in again.");
         }
         window.addEventListener("support-desk-session-expired", handleExpired);
         return () => window.removeEventListener("support-desk-session-expired", handleExpired);
-    }, []);
+    }, [pushToast]);
 
     const loadTickets = useCallback(() => {
         if (!currentUser) return;
         setTicketsLoading(true);
-        setTicketError("");
         ticketApi
             .list(ticketFilters)
             .then((result) => {
                 setTickets(result.tickets);
                 setTicketsTotal(result.total);
             })
-            .catch((error) => setTicketError(error.message))
+            .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again.")))
             .finally(() => setTicketsLoading(false));
-    }, [currentUser, ticketFilters]);
+    }, [currentUser, ticketFilters, pushToast]);
 
     useEffect(() => {
         if (currentUser && (activeView === "tickets" || activeView === "dashboard")) loadTickets();
@@ -111,10 +129,12 @@ export default function App() {
 
     const loadAgents = useCallback(() => {
         if (!currentUser || currentUser.role === "customer") return;
+        setAgentsLoading(true);
         agentApi
             .list()
             .then(setAgents)
-            .catch((error) => setAgentError(error.message));
+            .catch((error) => setAgentError(friendlyErrorMessage(error, "Couldn't load agents. Please try again.")))
+            .finally(() => setAgentsLoading(false));
     }, [currentUser]);
 
     useEffect(() => {
@@ -126,7 +146,7 @@ export default function App() {
         cannedResponseApi
             .list()
             .then(setCannedResponses)
-            .catch((error) => setCannedError(error.message));
+            .catch((error) => setCannedError(friendlyErrorMessage(error, "Couldn't load canned responses.")));
     }, [canManage]);
 
     useEffect(() => {
@@ -157,8 +177,9 @@ export default function App() {
         analyticsApi
             .getDashboard(analyticsFilters)
             .then(setAnalyticsDashboard)
+            .catch(() => pushToast("error", "Couldn't load analytics. Please try again."))
             .finally(() => setAnalyticsLoading(false));
-    }, [currentUser, activeView, analyticsFilters]);
+    }, [currentUser, activeView, analyticsFilters, pushToast]);
 
     useEffect(() => {
         if (!currentUser || activeView !== "settings") return;
@@ -166,6 +187,7 @@ export default function App() {
     }, [currentUser, activeView]);
 
     function loadTicketDetail(id) {
+        if (!id) return;
         setSelectedTicketId(id);
         setActiveView("ticket-detail");
         setSelectedTicket(null);
@@ -173,9 +195,15 @@ export default function App() {
         ticketApi
             .get(id)
             .then(setSelectedTicket)
-            .catch((error) => setTicketError(error.message));
+            .catch((error) => {
+                pushToast("error", friendlyErrorMessage(error, "Couldn't open that ticket."));
+                setActiveView("tickets");
+            });
         if (currentUser?.role === "admin") {
-            ticketApi.audit(id).then(setAuditTrail).catch(() => {});
+            ticketApi
+                .audit(id)
+                .then(setAuditTrail)
+                .catch(() => {});
         }
     }
 
@@ -187,7 +215,7 @@ export default function App() {
             setSessionToken(result.token);
             setCurrentUser(result.user);
         } catch (error) {
-            setAuthError(error.message);
+            setAuthError(friendlyErrorMessage(error, "Couldn't sign in. Please try again."));
         } finally {
             setAuthBusy(false);
         }
@@ -200,8 +228,9 @@ export default function App() {
             const result = await authApi.register({ name, email, password });
             setSessionToken(result.token);
             setCurrentUser(result.user);
+            pushToast("success", `Welcome, ${result.user.name.split(" ")[0]}! Your account is ready.`);
         } catch (error) {
-            setAuthError(error.message);
+            setAuthError(friendlyErrorMessage(error, "Couldn't create your account. Please try again."));
         } finally {
             setAuthBusy(false);
         }
@@ -219,26 +248,46 @@ export default function App() {
     }
 
     async function handleCreateTicket(input) {
-        setTicketError("");
+        setIsCreatingTicket(true);
+        setTicketCreateError("");
         try {
             await ticketApi.create(input);
             setShowNewTicketModal(false);
+            pushToast("success", "Ticket created successfully.");
             loadTickets();
         } catch (error) {
-            setTicketError(error.message);
+            setTicketCreateError(friendlyErrorMessage(error, "Failed to create ticket. Please try again."));
+        } finally {
+            setIsCreatingTicket(false);
         }
     }
 
     async function handleUpdateTicket(patch) {
-        const updated = await ticketApi.update(selectedTicketId, patch);
-        setSelectedTicket(updated);
-        loadTickets();
+        setIsUpdatingTicket(true);
+        try {
+            const updated = await ticketApi.update(selectedTicketId, patch);
+            setSelectedTicket(updated);
+            pushToast("success", "Ticket updated.");
+            loadTickets();
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't update the ticket. Please try again."));
+        } finally {
+            setIsUpdatingTicket(false);
+        }
     }
 
     async function handleAssignTicket(agentId) {
         if (!agentId) return;
-        const updated = await ticketApi.assign(selectedTicketId, agentId);
-        setSelectedTicket(updated);
+        setIsUpdatingTicket(true);
+        try {
+            const updated = await ticketApi.assign(selectedTicketId, agentId);
+            setSelectedTicket(updated);
+            pushToast("success", "Ticket reassigned.");
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't reassign the ticket. Please try again."));
+        } finally {
+            setIsUpdatingTicket(false);
+        }
     }
 
     async function handleReply(input) {
@@ -246,7 +295,11 @@ export default function App() {
         try {
             const updated = await ticketApi.reply(selectedTicketId, input);
             setSelectedTicket(updated);
+            pushToast("success", input.isInternal ? "Internal note added." : "Reply sent.");
             return updated;
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't send your reply. Please try again."));
+            throw error;
         } finally {
             setIsReplying(false);
         }
@@ -257,17 +310,24 @@ export default function App() {
         setAgentError("");
         try {
             await agentApi.create(input);
+            pushToast("success", "Agent added successfully.");
             loadAgents();
         } catch (error) {
-            setAgentError(error.message);
+            setAgentError(friendlyErrorMessage(error, "Couldn't add this agent. Please try again."));
             throw error;
         } finally {
             setAgentBusy(false);
         }
     }
 
-    function handleSetAgentActive(id, isActive) {
-        agentApi.setActive(id, isActive).then(loadAgents);
+    function handleSetAgentActive(id, isActive, verb) {
+        agentApi
+            .setActive(id, isActive)
+            .then(() => {
+                pushToast("success", `Agent ${verb}d.`);
+                loadAgents();
+            })
+            .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't update this agent. Please try again.")));
     }
 
     async function handleCreateCannedResponse(input) {
@@ -275,9 +335,10 @@ export default function App() {
         setCannedError("");
         try {
             await cannedResponseApi.create(input);
+            pushToast("success", "Template saved.");
             loadCannedResponses();
         } catch (error) {
-            setCannedError(error.message);
+            setCannedError(friendlyErrorMessage(error, "Couldn't save this template. Please try again."));
             throw error;
         } finally {
             setCannedBusy(false);
@@ -285,7 +346,13 @@ export default function App() {
     }
 
     function handleDeleteCannedResponse(id) {
-        cannedResponseApi.remove(id).then(loadCannedResponses);
+        cannedResponseApi
+            .remove(id)
+            .then(() => {
+                pushToast("success", "Template deleted.");
+                loadCannedResponses();
+            })
+            .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't delete this template. Please try again.")));
     }
 
     function handleMarkNotificationsRead() {
@@ -293,7 +360,13 @@ export default function App() {
     }
 
     function handleClearNotifications() {
-        notificationApi.clear().then(loadNotifications);
+        notificationApi
+            .clear()
+            .then(() => {
+                loadNotifications();
+                pushToast("success", "Notifications cleared.");
+            })
+            .catch(() => pushToast("error", "Couldn't clear notifications. Please try again."));
     }
 
     async function handleSaveSettings(patch) {
@@ -302,8 +375,9 @@ export default function App() {
         try {
             const updated = await settingsApi.update(patch);
             setSettings(updated);
+            pushToast("success", "Settings saved.");
         } catch (error) {
-            setSettingsError(error.message);
+            setSettingsError(friendlyErrorMessage(error, "Couldn't save settings. Please try again."));
         } finally {
             setSettingsBusy(false);
         }
@@ -329,7 +403,12 @@ export default function App() {
     }
 
     if (!currentUser) {
-        return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} isBusy={authBusy} />;
+        return (
+            <>
+                <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} isBusy={authBusy} />
+                <ToastStack toasts={toasts} onDismiss={dismissToast} />
+            </>
+        );
     }
 
     return (
@@ -365,6 +444,7 @@ export default function App() {
                             tickets={tickets}
                             onSelectTicket={loadTicketDetail}
                             onNewTicket={() => setShowNewTicketModal(true)}
+                            onViewAllTickets={() => handleNavigate("tickets")}
                             analyticsSummary={analyticsSummary}
                         />
                     )}
@@ -393,7 +473,15 @@ export default function App() {
                             onReply={handleReply}
                             onAssign={handleAssignTicket}
                             isReplying={isReplying}
+                            isUpdating={isUpdatingTicket}
                         />
+                    )}
+
+                    {activeView === "ticket-detail" && !selectedTicket && (
+                        <section className="panel">
+                            <span className="skeleton skeleton-block" style={{ height: "2rem", width: "50%" }} />
+                            <span className="skeleton skeleton-block" style={{ height: "6rem" }} />
+                        </section>
                     )}
 
                     {activeView === "agents" && (
@@ -404,6 +492,7 @@ export default function App() {
                             isAdmin={currentUser.role === "admin"}
                             error={agentError}
                             isBusy={agentBusy}
+                            isLoading={agentsLoading}
                         />
                     )}
 
@@ -437,7 +526,16 @@ export default function App() {
                 </main>
             </div>
 
-            {showNewTicketModal && <NewTicketModal onClose={() => setShowNewTicketModal(false)} onCreate={handleCreateTicket} error={ticketError} />}
+            {showNewTicketModal && (
+                <NewTicketModal
+                    onClose={() => setShowNewTicketModal(false)}
+                    onCreate={handleCreateTicket}
+                    error={ticketCreateError}
+                    isBusy={isCreatingTicket}
+                />
+            )}
+
+            <ToastStack toasts={toasts} onDismiss={dismissToast} />
         </div>
     );
 }

@@ -5,7 +5,22 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
         return (
             <section className="panel">
                 <h2>Analytics</h2>
-                <div className="table-empty">Loading analytics...</div>
+                <div className="stat-row">
+                    {["critical", "high", "medium", "low"].map((key) => (
+                        <div className="stat-tile" key={key}>
+                            <span className="skeleton skeleton-block" style={{ height: "1.6rem", width: "50%" }} />
+                            <span className="skeleton skeleton-block" style={{ height: "0.8rem", width: "70%" }} />
+                        </div>
+                    ))}
+                </div>
+                <div className="chart-grid">
+                    {["volume", "status", "resolution", "agents"].map((key) => (
+                        <div className="chart-card" key={key}>
+                            <span className="skeleton skeleton-block" style={{ height: "1rem", width: "40%", marginBottom: "1rem" }} />
+                            <span className="skeleton skeleton-block" style={{ height: "140px" }} />
+                        </div>
+                    ))}
+                </div>
             </section>
         );
     }
@@ -21,13 +36,23 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
             <div className="panel-header">
                 <h2>Analytics</h2>
                 <div className="filter-bar">
-                    <label>
+                    <label htmlFor="analytics-from">
                         From
-                        <input type="date" value={filters.dateFrom || ""} onChange={(event) => onFilterChange({ ...filters, dateFrom: event.target.value })} />
+                        <input
+                            id="analytics-from"
+                            type="date"
+                            value={filters.dateFrom || ""}
+                            onChange={(event) => onFilterChange({ ...filters, dateFrom: event.target.value })}
+                        />
                     </label>
-                    <label>
+                    <label htmlFor="analytics-to">
                         To
-                        <input type="date" value={filters.dateTo || ""} onChange={(event) => onFilterChange({ ...filters, dateTo: event.target.value })} />
+                        <input
+                            id="analytics-to"
+                            type="date"
+                            value={filters.dateTo || ""}
+                            onChange={(event) => onFilterChange({ ...filters, dateTo: event.target.value })}
+                        />
                     </label>
                 </div>
             </div>
@@ -45,7 +70,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                     <span className="stat-value">{dashboard.openCount}</span>
                     <span className="stat-label">Open</span>
                 </div>
-                <div className="stat-tile">
+                <div className={`stat-tile ${dashboard.breachedTickets > 0 ? "stat-tile-danger" : ""}`}>
                     <span className="stat-value">{dashboard.breachedTickets}</span>
                     <span className="stat-label">SLA breached</span>
                 </div>
@@ -66,26 +91,30 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                 </div>
                 <div className="chart-card">
                     <h3>Agent performance</h3>
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Agent</th>
-                                <th>Assigned</th>
-                                <th>Resolved</th>
-                                <th>Avg resolution (h)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {dashboard.agentPerformance.map((row) => (
-                                <tr key={row.agentId}>
-                                    <td>{row.agentName}</td>
-                                    <td>{row.totalAssigned}</td>
-                                    <td>{row.resolved}</td>
-                                    <td>{row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}</td>
+                    {dashboard.agentPerformance.length === 0 ? (
+                        <div className="chart-empty">No agent activity in this range yet.</div>
+                    ) : (
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Agent</th>
+                                    <th>Assigned</th>
+                                    <th>Resolved</th>
+                                    <th>Avg resolution (h)</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {dashboard.agentPerformance.map((row) => (
+                                    <tr key={row.agentId}>
+                                        <td>{row.agentName}</td>
+                                        <td>{row.totalAssigned}</td>
+                                        <td>{row.resolved}</td>
+                                        <td>{row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </section>

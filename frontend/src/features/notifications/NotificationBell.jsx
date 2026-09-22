@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime, titleCase } from "../../shared/utils/format.js";
+import { InboxIcon } from "../../shared/components/Icon.jsx";
 
 export function NotificationBell({ notifications, unreadCount, onMarkRead, onClear, onOpenTicket }) {
     const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
 
     function toggle() {
         const next = !isOpen;
@@ -10,14 +12,30 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
         if (next && unreadCount > 0) onMarkRead();
     }
 
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        function handleClickOutside(event) {
+            if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
+        }
+        function handleEscape(event) {
+            if (event.key === "Escape") setIsOpen(false);
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleEscape);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEscape);
+        };
+    }, [isOpen]);
+
     return (
-        <div className="notification-bell">
-            <button type="button" className="icon-button" onClick={toggle} aria-label="Notifications">
+        <div className="notification-bell" ref={containerRef}>
+            <button type="button" className="icon-button" onClick={toggle} aria-label="Notifications" aria-haspopup="true" aria-expanded={isOpen}>
                 <BellIcon />
                 {unreadCount > 0 && <span className="notification-count">{unreadCount > 9 ? "9+" : unreadCount}</span>}
             </button>
             {isOpen && (
-                <div className="notification-panel">
+                <div className="notification-panel" role="region" aria-label="Notifications">
                     <div className="notification-panel-header">
                         <span>Notifications</span>
                         {notifications.length > 0 && (
@@ -27,7 +45,12 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                         )}
                     </div>
                     <div className="notification-list">
-                        {notifications.length === 0 && <p className="notification-empty">You're all caught up.</p>}
+                        {notifications.length === 0 && (
+                            <div className="notification-empty">
+                                <InboxIcon className="table-empty-icon" />
+                                <p>You&rsquo;re all caught up.</p>
+                            </div>
+                        )}
                         {notifications.map((notification) => (
                             <button
                                 type="button"
@@ -52,7 +75,7 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
 
 function BellIcon() {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>

@@ -5,8 +5,9 @@ import { formatDateTime, formatSlaCountdown, initials } from "../../shared/utils
 const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
 
-export function TicketDetail({ ticket, currentUser, agents, cannedResponses, auditTrail, onBack, onUpdate, onReply, onAssign, isReplying }) {
+export function TicketDetail({ ticket, currentUser, agents, cannedResponses, auditTrail, onBack, onUpdate, onReply, onAssign, isReplying, isUpdating }) {
     const [replyBody, setReplyBody] = useState("");
+    const [replyError, setReplyError] = useState("");
     const [isInternal, setIsInternal] = useState(false);
     const [showCanned, setShowCanned] = useState(false);
 
@@ -14,19 +15,29 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
 
     function submitReply(event) {
         event.preventDefault();
-        if (!replyBody.trim()) return;
-        onReply({ body: replyBody.trim(), isInternal }).then(() => setReplyBody(""));
+        const trimmed = replyBody.trim();
+        if (!trimmed) {
+            setReplyError("Write a reply before sending.");
+            return;
+        }
+        setReplyError("");
+        onReply({ body: trimmed, isInternal })
+            .then(() => setReplyBody(""))
+            .catch(() => {
+                // Failure is already surfaced via toast; keep the draft so the user doesn't lose it.
+            });
     }
 
     function insertCanned(response) {
         setReplyBody((current) => (current ? `${current}\n\n${response.body}` : response.body));
+        setReplyError("");
         setShowCanned(false);
     }
 
     return (
         <section className="panel ticket-detail">
             <button type="button" className="link-button back-link" onClick={onBack}>
-                &larr; Back to tickets
+                <span aria-hidden="true">&larr;</span> Back to tickets
             </button>
 
             <div className="ticket-detail-header">
@@ -47,9 +58,14 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
 
             {canManage && (
                 <div className="ticket-controls">
-                    <label>
+                    <label htmlFor="ticket-status">
                         Status
-                        <select value={ticket.status} onChange={(event) => onUpdate({ status: event.target.value })}>
+                        <select
+                            id="ticket-status"
+                            value={ticket.status}
+                            onChange={(event) => onUpdate({ status: event.target.value })}
+                            disabled={isUpdating}
+                        >
                             {STATUS_OPTIONS.map((status) => (
                                 <option key={status} value={status}>
                                     {status.replace("_", " ")}
@@ -57,9 +73,14 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                             ))}
                         </select>
                     </label>
-                    <label>
+                    <label htmlFor="ticket-priority-select">
                         Priority
-                        <select value={ticket.priority} onChange={(event) => onUpdate({ priority: event.target.value })}>
+                        <select
+                            id="ticket-priority-select"
+                            value={ticket.priority}
+                            onChange={(event) => onUpdate({ priority: event.target.value })}
+                            disabled={isUpdating}
+                        >
                             {PRIORITY_OPTIONS.map((priority) => (
                                 <option key={priority} value={priority}>
                                     {priority}
@@ -67,9 +88,14 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                             ))}
                         </select>
                     </label>
-                    <label>
+                    <label htmlFor="ticket-assignee">
                         Assigned to
-                        <select value={ticket.assignedTo?._id || ""} onChange={(event) => onAssign(event.target.value)}>
+                        <select
+                            id="ticket-assignee"
+                            value={ticket.assignedTo?._id || ""}
+                            onChange={(event) => onAssign(event.target.value)}
+                            disabled={isUpdating}
+                        >
                             <option value="" disabled>
                                 Select agent
                             </option>
@@ -80,12 +106,17 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                             ))}
                         </select>
                     </label>
+                    {isUpdating && (
+                        <span className="ticket-controls-status">
+                            <span className="spinner" aria-hidden="true" /> Saving...
+                        </span>
+                    )}
                 </div>
             )}
 
             <div className="ticket-thread">
                 <h3>Conversation</h3>
-                {ticket.replies.length === 0 && <p className="table-empty">No replies yet.</p>}
+                {ticket.replies.length === 0 && <p className="table-empty ticket-thread-empty">No replies yet. Be the first to respond.</p>}
                 {ticket.replies.map((reply) => (
                     <div key={reply._id} className={`reply-item ${reply.isInternal ? "reply-internal" : ""}`}>
                         <div className="reply-avatar">{initials(reply.author?.name)}</div>
@@ -101,11 +132,17 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                 ))}
             </div>
 
-            <form className="reply-form" onSubmit={submitReply}>
+            <form className="reply-form" onSubmit={submitReply} noValidate>
                 <div className="reply-form-toolbar">
                     {canManage && cannedResponses.length > 0 && (
                         <div className="canned-picker">
-                            <button type="button" className="button-secondary" onClick={() => setShowCanned((value) => !value)}>
+                            <button
+                                type="button"
+                                className="button-secondary"
+                                onClick={() => setShowCanned((value) => !value)}
+                                aria-expanded={showCanned}
+                                aria-haspopup="true"
+                            >
                                 Insert canned response
                             </button>
                             {showCanned && (
@@ -128,15 +165,31 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                         </label>
                     )}
                 </div>
+                <label htmlFor="reply-body" className="visually-hidden">
+                    Reply
+                </label>
                 <textarea
+                    id="reply-body"
                     value={replyBody}
-                    onChange={(event) => setReplyBody(event.target.value)}
+                    onChange={(event) => {
+                        setReplyBody(event.target.value);
+                        if (replyError) setReplyError("");
+                    }}
                     placeholder="Write a reply..."
                     rows={4}
                     maxLength={5000}
-                    required
+                    aria-invalid={Boolean(replyError)}
+                    aria-describedby={replyError ? "reply-body-error" : undefined}
+                    className={replyError ? "field-invalid" : ""}
+                    disabled={isReplying}
                 />
+                {replyError && (
+                    <span className="field-error" id="reply-body-error">
+                        {replyError}
+                    </span>
+                )}
                 <button type="submit" className="button-primary" disabled={isReplying}>
+                    {isReplying && <span className="spinner" aria-hidden="true" />}
                     {isReplying ? "Sending..." : "Send reply"}
                 </button>
             </form>
@@ -144,14 +197,18 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
             {currentUser.role === "admin" && auditTrail && (
                 <div className="audit-trail">
                     <h3>Audit trail</h3>
-                    <ul>
-                        {auditTrail.map((entry) => (
-                            <li key={entry._id}>
-                                <span className="audit-action">{entry.action}</span> by {entry.performedBy?.name || "system"} &middot;{" "}
-                                {formatDateTime(entry.createdAt)}
-                            </li>
-                        ))}
-                    </ul>
+                    {auditTrail.length === 0 ? (
+                        <p className="table-empty">No activity recorded yet.</p>
+                    ) : (
+                        <ul>
+                            {auditTrail.map((entry) => (
+                                <li key={entry._id}>
+                                    <span className="audit-action">{entry.action}</span> by {entry.performedBy?.name || "system"} &middot;{" "}
+                                    {formatDateTime(entry.createdAt)}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             )}
         </section>

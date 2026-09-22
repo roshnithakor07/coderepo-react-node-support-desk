@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { CloseIcon } from "./Icon.jsx";
 
 export function Modal({ children, className = "", label = "Dialog", labelledBy, onClose }) {
     const reference = useRef(null);
@@ -14,8 +15,21 @@ export function Modal({ children, className = "", label = "Dialog", labelledBy, 
         return () => dialog.removeEventListener("cancel", cancel);
     }, [onClose]);
 
+    function handleBackdropClick(event) {
+        if (event.target === reference.current) onClose();
+    }
+
     return (
-        <dialog aria-label={labelledBy ? undefined : label} aria-labelledby={labelledBy} ref={reference} className={`modal ${className}`}>
+        <dialog
+            aria-label={labelledBy ? undefined : label}
+            aria-labelledby={labelledBy}
+            ref={reference}
+            className={`modal ${className}`}
+            onClick={handleBackdropClick}
+        >
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Close dialog">
+                <CloseIcon />
+            </button>
             {children}
         </dialog>
     );
