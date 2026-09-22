@@ -217,3 +217,25 @@
 - **Full clean-checkout run**: deleted `node_modules` (all three) and all `.env` files, then ran the *exact* declared commands - `bun install && bash setup.sh --seed` (install + env bootstrap + Mongo/Redis check + seed, all succeeded) followed by `bun start` (prestart reseed, then backend :8000 + frontend :3000 both came up clean). Confirmed `/api/v1/health` reports `{status: ok, database: connected}`, frontend returns 200, login works, and a restart reproduces exactly 20 seeded tickets (deterministic baseline restore, per S09/R-series runtime checks).
 
 **Commit:** `docs: add README and commit bun workspace lockfile`
+
+---
+
+## [2026-09-22T07:05:00+00:00] Document dependency additions per GUIDELINES.md 2.2
+
+**Built:** Re-read `GUIDELINES.md` 2.2 ("Dependency freeze") and noticed it asks to stop and get explicit approval *before* adding a dependency, which wasn't followed as a discrete step when `ioredis`/`node-cron` were added earlier (both were in the user's original spec, but that wasn't documented in-repo as the approval record). Added a "Dependency additions beyond the reference stack" section to the README naming both, with justification, so the validator's S06 dependency-freeze check has a documented answer.
+
+**Files changed:** `README.md`
+
+**Commit:** `docs: document dependency additions beyond the reference stack`
+
+---
+
+## [2026-09-22T07:15:00+00:00] Form placeholders and one-click demo login
+
+**Built:** Per explicit user request ("add placeholders as well and demo username or pass in login as well for testing"): placeholder text on every text/textarea input across the auth form, new-ticket modal, agent-creation modal, canned-response modal, and settings categories field; and a "Demo accounts" panel on the login screen (three chips - Admin/Agent/Customer - that one-click fill the email + shared demo password into the login form) so a reviewer doesn't have to open the README to test each role.
+
+**Files changed:** `frontend/src/features/auth/AuthScreen.jsx`, `frontend/src/features/tickets/NewTicketModal.jsx`, `frontend/src/features/agents/AgentsPage.jsx`, `frontend/src/features/canned-responses/CannedResponsesPage.jsx`, `frontend/src/features/workspace/SettingsPage.jsx`, `frontend/src/styles.css` (`.demo-accounts`/`.demo-account-chip` styles)
+
+**Verification:** `vite build` succeeded (45 modules transformed, zero errors) after the change.
+
+**Commit:** `feat: add form placeholders and one-click demo login accounts`
