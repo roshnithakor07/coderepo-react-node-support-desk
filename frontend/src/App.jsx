@@ -21,9 +21,21 @@ import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
 import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
+import { initials } from "./shared/utils/format.js";
 import { friendlyErrorMessage } from "./shared/utils/validate.js";
 
 const NOTIFICATION_POLL_MS = 15000;
+
+const PAGE_TITLES = {
+    dashboard: "Dashboard",
+    tickets: "Tickets",
+    "ticket-detail": "Ticket",
+    agents: "Agents",
+    "canned-responses": "Canned Responses",
+    analytics: "Analytics",
+    settings: "Settings",
+    profile: "Profile",
+};
 
 export default function App() {
     const [theme, setTheme] = useState(getStoredTheme());
@@ -418,11 +430,13 @@ export default function App() {
                 activeView={activeView}
                 onNavigate={handleNavigate}
                 onOpenProfile={() => setActiveView("profile")}
+                onLogout={handleLogout}
                 isCollapsed={isSidebarCollapsed}
                 onToggleCollapse={() => setIsSidebarCollapsed((value) => !value)}
             />
             <div className="app-main">
                 <header className="topbar">
+                    <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
                     <div className="topbar-actions">
                         <NotificationBell
                             notifications={notifications}
@@ -431,6 +445,10 @@ export default function App() {
                             onClear={handleClearNotifications}
                             onOpenTicket={loadTicketDetail}
                         />
+                        <button type="button" className="topbar-profile-chip" onClick={() => setActiveView("profile")}>
+                            <span className="topbar-profile-avatar">{initials(currentUser.name)}</span>
+                            <span className="topbar-profile-name">{currentUser.name}</span>
+                        </button>
                     </div>
                 </header>
 
@@ -505,7 +523,12 @@ export default function App() {
                     )}
 
                     {activeView === "analytics" && currentUser.role === "admin" && (
-                        <AnalyticsPage dashboard={analyticsDashboard} filters={analyticsFilters} onFilterChange={setAnalyticsFilters} isLoading={analyticsLoading} />
+                        <AnalyticsPage
+                            dashboard={analyticsDashboard}
+                            filters={analyticsFilters}
+                            onFilterChange={setAnalyticsFilters}
+                            isLoading={analyticsLoading}
+                        />
                     )}
 
                     {activeView === "settings" && currentUser.role === "admin" && (

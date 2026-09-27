@@ -27,12 +27,17 @@ export function formatSlaCountdown(slaDeadline, slaBreached) {
     return `${minutes}m left`;
 }
 
-export function titleCase(value) {
-    if (!value) return "";
-    return value
-        .split("_")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
+export function getSlaProgress(createdAt, slaDeadline, slaBreached) {
+    const start = new Date(createdAt).getTime();
+    const deadline = new Date(slaDeadline).getTime();
+    const totalWindow = Math.max(deadline - start, 1);
+    const now = Date.now();
+    const elapsedFraction = slaBreached ? 1 : Math.min(Math.max((now - start) / totalWindow, 0), 1);
+    const percent = Math.round(elapsedFraction * 100);
+    let tone = "success";
+    if (slaBreached || elapsedFraction >= 1) tone = "danger";
+    else if (elapsedFraction >= 0.7) tone = "warning";
+    return { percent, tone };
 }
 
 export function initials(name) {
