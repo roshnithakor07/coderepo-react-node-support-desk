@@ -410,3 +410,40 @@ The user approved the branch and kept all three choices:
 - Build OK; Prettier passes on the touched files.
 
 **Not changed (for later):** after an agent hands their own ticket to someone else, the ticket view stays open, but they no longer have access, so the next action returns 403. Phase 2 ticket UX could route them back to the list.
+
+## [2026-09-27T11:41:23+00:00] Task 13 (Phase 1.6): `fix/analytics-range`
+
+**Defects (audit, verified):**
+1. The end date was compared at midnight, so **the end day was excluded**. The e2e run showed the 7D preset at 13 vs 20 for all time.
+2. An invalid date was silently ignored (200).
+3. The dashboard was cached for 60s with **no invalidation**. In the e2e run, "All time" showed 20 right after a ticket was created (it should have been 21).
+
+**Fix:**
+- **Controller:** `dateFrom` / `dateTo` must be real `YYYY-MM-DD` calendar dates, with the start on or before the end; otherwise 400 `VALIDATION_ERROR`.
+- **Service:** ranges are whole UTC days, from the start of `dateFrom` to the end of `dateTo` (inclusive). The repository uses `$gte` start and `$lt` the next day.
+- **Cache:** a version counter (`analytics:version`) is part of every cache key. `analyticsService.invalidate()` bumps it after every ticket create, update, assign and reply, and after an SLA sweep that marks breaches.
+- **UI:** the From/To pickers get `max` / `min`, so you can't pick an inverted range.
+
+**Bug caught by the tests during the fix:** my first calendar check called `toISOString()` on an Invalid Date. Zod v4 still runs `.refine` after the regex fails, so `?dateFrom=not-a-date` returned **500** (RangeError). I made the check safe (NaN guard) and the test passed.
+
+**Decisions (mine, open to the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Cache invalidation | A) version counter in the key (O(1); old keys expire in 60s). B) SCAN + DEL `analytics:*`. C) drop the cache. | A | Constant cost per write; keeps the 60s cache the spec asked for. |
+| Where to invalidate | A) explicitly in `ticketService` after each write. B) Mongoose post-save hook on the model. | A | Business rules stay in services (GUIDELINES.md:209); the model stays free of Redis. |
+| Time zone of a "day" | UTC (the presets already use `toISOString().slice(0,10)`) | UTC | Matches the frontend presets. A user far from UTC may see day edges shifted; noted for the theme / UX pass. |
+
+**Commit layout:** `analytics.repository.js` was not Prettier-clean on main, so it got a separate formatting-only commit.
+
+**Tests:**
+- **API** (`backend/tests/analytics.test.js`, 7):
+  - a range ending today includes today's ticket; 7 days equals all time
+  - `not-a-date`, `2026-02-30` and an inverted range each return 400
+  - a new ticket shows up immediately; resolving a ticket updates `resolvedCount` immediately
+- **E2E** (`frontend/tests/e2e/analytics.e2e.js`): the "Total tickets" value for 7D equals All time.
+
+**Proof:**
+- Before the fix: API **7 failed**; e2e **failed** (13 vs 20).
+- After the fix: API 36/36, e2e 10/10, build OK, Prettier OK.
+- Live: 400/400/400 for bad input, 200 for a valid range.
