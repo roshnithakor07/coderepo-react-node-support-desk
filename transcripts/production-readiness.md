@@ -295,3 +295,54 @@ The user approved the branch and kept all three choices:
 - one worker
 
 **User note for Phase 1:** the customer e2e journey passes even though customers still receive internal notes. It only checks that the Internal Note *tab* is hidden, not the note *content*. `fix/internal-notes-leak` must add API and e2e tests that assert internal-note content is absent for customers.
+
+## [2026-09-27T07:47:49+00:00] End of Phase 0: fresh-clone check (acceptance criterion)
+
+**Setup:**
+- Stopped the local dev app to free ports 3000/8000.
+- Cloned `origin/main` @ `5ea8ea9` into a temp folder in the session scratchpad, outside the repo.
+
+| Step | Command (exact) | Result |
+|---|---|---|
+| Clone | `git clone …/coderepo-react-node-support-desk.git` | OK. No `.env` files in the clone (nothing secret committed). |
+| Install (hackerrank.yml) | `bun install && bash setup.sh --seed` | exit 0. `setup.sh` created `backend/.env` and `frontend/.env` from the examples. Seed OK. No error or warning lines. |
+| Start (hackerrank.yml) | `bun start` | Ready in about 4s. `:8000/api/v1/health` returns 200 `{status:ok, database:connected}`; `:3000` returns 200; the `/api` proxy returns 200. Admin, agent and customer logins all return 200. The processes' working directory was the clone. No error or warning lines in the log. |
+| Build | `cd frontend && bun run build` | OK |
+| API tests | `bun run test` | 10 pass, 0 fail |
+| E2E tests | `bun run test:e2e` | 7 passed |
+| Hygiene | `git status` after all runs; `git archive HEAD` | Clean tree. Archive is 542,720 bytes (< 5 MB). `GUIDELINES.md` and `skills/` are excluded. |
+
+**Cleanup:**
+- Stopped the clone's processes and deleted the clone.
+- Restarted the dev app from the main repo.
+
+**Mistake during cleanup (no damage):** my first `pgrep -f "…bun start…"` also matched my own shell, whose command line contained that text, and killed it (exit 144). The ports were confirmed free afterwards. Later stops select processes by working directory and exclude the current shell.
+
+**Result: Phase 0 passes the fresh-clone criterion.** This entry is committed on the first Phase 1 branch (commits never go directly to main).
+
+## [2026-09-27T07:55:13+00:00] Task 8 (Phase 1.1): `fix/register-role`
+
+**Defect (audit, verified live):** `POST /auth/register` accepted `role`, so anyone could self-register as `admin`.
+
+**Fix:**
+- `role` removed from the strict register schema.
+- The service always creates `role: "customer"`, as a second line of defense.
+- Agent and admin accounts still come only from the admin-only Agents page.
+
+**Decision (mine, open to the user's review):**
+
+| Options | Chosen | Why |
+|---|---|---|
+| A) reject any request containing `role` with 400 `VALIDATION_ERROR`. B) silently ignore `role`. | A | Consistent with the existing `.strict()` schemas (unknown fields are rejected everywhere). An explicit 400 is clearer than a silent downgrade. The frontend never sends `role`. |
+
+**Harness change, `e8d9601` ("capture seed baseline before tests run"):** `bun test` runs files alphabetically, so tests that create data (like this one) would run before `seed.test.js` and break its counts. `setup.js` now snapshots the baseline right after seeding, and `seed.test.js` asserts the snapshot. The same commit is cherry-picked onto the other Phase 1 branches.
+
+**Tests (`backend/tests/auth.test.js`, 5):**
+- a new customer registers, is signed in, and has role customer
+- `role` set to admin, agent or customer each returns 400 and **no account is created**
+- a new customer gets 403 on `/analytics`
+
+**Proof:**
+- Before the fix: 3 failed (the self-assigned role tests).
+- After the fix: 15/15 pass.
+- Prettier passes on the touched files.

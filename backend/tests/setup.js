@@ -5,6 +5,7 @@ import { createApp } from "../src/app.js";
 import { connectDatabase, disconnectDatabase } from "../src/shared/config/database.js";
 import { initConfig } from "../src/shared/config/index.js";
 import { connectRedis, disconnectRedis, getRedis } from "../src/shared/config/redis.js";
+import { captureSeedBaseline } from "./helpers/baseline.js";
 
 const backendDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mongodbUri = process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27017/support_desk_test";
@@ -35,6 +36,7 @@ try {
     throw new Error(`Redis is required for tests at ${redisUrl}: ${error.message}`);
 }
 await connectDatabase(mongodbUri);
+await captureSeedBaseline();
 
 const server = createApp().listen(0, "127.0.0.1");
 await new Promise((resolve) => server.once("listening", resolve));

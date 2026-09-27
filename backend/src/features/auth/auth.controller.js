@@ -6,7 +6,6 @@ const registerSchema = z
         name: z.string().trim().min(1).max(80),
         email: z.string().trim().email().max(160),
         password: z.string().min(8).max(100),
-        role: z.enum(["admin", "agent", "customer"]).optional(),
     })
     .strict();
 

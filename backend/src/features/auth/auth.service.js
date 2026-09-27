@@ -31,7 +31,7 @@ export const authService = {
             name: input.name,
             email: input.email,
             password: passwordHash,
-            role: input.role || "customer",
+            role: "customer",
         });
         const token = signToken(user);
         return { user: toPublicUser(user), token };
