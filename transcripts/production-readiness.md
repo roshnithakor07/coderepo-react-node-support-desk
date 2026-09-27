@@ -319,3 +319,30 @@ The user approved the branch and kept all three choices:
 **Mistake during cleanup (no damage):** my first `pgrep -f "…bun start…"` also matched my own shell, whose command line contained that text, and killed it (exit 144). The ports were confirmed free afterwards. Later stops select processes by working directory and exclude the current shell.
 
 **Result: Phase 0 passes the fresh-clone criterion.** This entry is committed on the first Phase 1 branch (commits never go directly to main).
+
+## [2026-09-27T07:55:13+00:00] Task 8 (Phase 1.1): `fix/register-role`
+
+**Defect (audit, verified live):** `POST /auth/register` accepted `role`, so anyone could self-register as `admin`.
+
+**Fix:**
+- `role` removed from the strict register schema.
+- The service always creates `role: "customer"`, as a second line of defense.
+- Agent and admin accounts still come only from the admin-only Agents page.
+
+**Decision (mine, open to the user's review):**
+
+| Options | Chosen | Why |
+|---|---|---|
+| A) reject any request containing `role` with 400 `VALIDATION_ERROR`. B) silently ignore `role`. | A | Consistent with the existing `.strict()` schemas (unknown fields are rejected everywhere). An explicit 400 is clearer than a silent downgrade. The frontend never sends `role`. |
+
+**Harness change, `e8d9601` ("capture seed baseline before tests run"):** `bun test` runs files alphabetically, so tests that create data (like this one) would run before `seed.test.js` and break its counts. `setup.js` now snapshots the baseline right after seeding, and `seed.test.js` asserts the snapshot. The same commit is cherry-picked onto the other Phase 1 branches.
+
+**Tests (`backend/tests/auth.test.js`, 5):**
+- a new customer registers, is signed in, and has role customer
+- `role` set to admin, agent or customer each returns 400 and **no account is created**
+- a new customer gets 403 on `/analytics`
+
+**Proof:**
+- Before the fix: 3 failed (the self-assigned role tests).
+- After the fix: 15/15 pass.
+- Prettier passes on the touched files.
