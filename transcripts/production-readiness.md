@@ -544,3 +544,101 @@ The user approved the branch and kept all three choices:
 **Proof:**
 - Before the fix: the 404 test **failed**.
 - After the fix: API 54/54, e2e 12/12, build OK, Prettier OK.
+
+## [2026-09-27T12:04:16+00:00] Task 15: `fix/app-shell-layout` (items 1, 2, 4-7 + UTC hint done; item 3 awaiting the user's pick)
+
+**Root cause of items 1-2 (measured in Chromium with a long conversation):**
+- `html` scrolled to 2051px while `body` / `#root` / the shell were 961px.
+- `overflow-x: hidden` on `html` and `body` turns both into vertical scroll containers, so there were **two scrollbars**.
+- The visually-hidden form labels (`position: absolute`, no positioned ancestor) were placed relative to the page. The one inside the reply form (y = 2051) stretched the document.
+- Scrolling the page moved the whole 961px shell up, so the sidebar seemed to "stop" partway down.
+
+**Fix:**
+- `overflow-x: clip` on html/body
+- the shell `100dvh` (fallback `100vh`) with `overflow: hidden`
+- `.app-main` / `.app-content` `min-height: 0`
+- `.app-content` `position: relative` (the only scroll area)
+- mobile keeps the same model: the nav is one compact row, the content scrolls
+
+**Items 4-7:**
+- **Sidebar:** 240px, nav items 36px with 2px gaps. `«` collapses it to a **72px icon rail** (every control keeps a `title` tooltip; sign-out stays available in the rail), remembered in localStorage (`support-desk-sidebar-collapsed`). On mobile the sidebar is always a full-width row.
+- **Side column:** sticky (`top: 16px`) at >900px.
+- **Reply composer:** pinned (sticky bottom) at >900px; a **"Jump to reply"** button (focus + scroll) at ≤900px.
+- **Top bar:** shows `#<last 6 of id> · <title>`, matching the number format in inbound-email confirmations, truncated with an ellipsis.
+- **Categories:** title case in Ticket info, the New Ticket options and the Settings chips. Canned-response tags keep the app-wide uppercase tag style.
+- **Analytics:** "Dates in UTC" hint.
+
+**Note on "sidebar ~360px":** measured, the app sidebar was already 240px; the 359px element is the ticket side column. The collapse, rail and spacing work was done as asked.
+
+**Decisions (mine, open to the user's review):**
+- Reply reachability: **both** options, depending on width. A pinned composer on wide screens (zero clicks); on phones a pinned 220px composer would take too much of the screen, so it's a Jump button instead.
+- One hard-coded shadow color I added was removed again, since the theme refresh will tokenize everything.
+
+**Tests (`frontend/tests/e2e/layout.e2e.js`, 6):**
+- at 1920x961 and at 375x812: the shell equals the viewport height, the document doesn't scroll, and the only scroll area is `app-content`
+- side column and reply box in view after scrolling (desktop)
+- top bar `#xxxxxx · title` and category `^[A-Z][a-z]+$`
+- 240 → 72 rail, remembered after reload, tooltip present, expands back
+- UTC hint
+- mobile: Jump to reply focuses the field in view
+- a long conversation is simulated by cloning message cards **in the page (no DB writes)**
+
+**Proof:**
+- Before: **6 failed** (for example "document scrolls: true", "shell 3600 vs 812" on mobile, top bar "Ticket", no UTC hint).
+- After: all pass.
+- `internal-notes.e2e.js` now targets the panel heading with `level: 2`, because the top bar h1 also contains the title.
+
+**Results:** API 52/52. E2E: 18/18 on 2 full runs; **1 intermittent failure** in the agent smoke journey on an earlier full run (a `toBeVisible` timeout, 16s, not reproduced). Its artifacts were overwritten by a rerun, so the cause is not known yet. Build OK; Prettier OK.
+
+**Commits (local, not pushed yet):** `3e8a1a9` style (formatting-only for NewTicketModal / SettingsPage, which were unformatted on main), `ad910f3` fix, `268f0c1` test.
+
+**Item 3 (e2e test DB): options proposed to the user, waiting for a pick:**
+- **A) Stop-and-swap** on 3000/8000: the e2e run stops the dev app (processes on those ports inside this repo), starts `bun start` with `MONGODB_URI=…/support_desk_test` + `REDIS_URL=…/2` (env overrides beat `.env`; `setup.sh` seeds the test DB), then shuts it down afterwards. Pros: uses the real start command. Cons: kills the user's dev session every run; can't develop and test at the same time.
+- **B) Parallel isolated stack** (recommended): the e2e run starts its own backend on **8100** (test DB + Redis index 2, seeded first) and Vite on **3100** (`--port` flag) with `VITE_API_URL=http://localhost:8100/api/v1`. The dev app keeps running and nothing read-only changes. Cons: not literally `bun start`, and the browser calls the API cross-origin (CORS is open today; `fix/hardening` must allow the test origin via env).
+- **C) Guard only:** e2e refuses to run unless the app on 3000 reports a test database (health would expose `database: "support_desk_test"`); the user stops the dev app and starts a test one manually. Cons: manual steps, and it adds DB info to health.
+- Shared DB caveat for A/B: the API tests also use `support_desk_test` and reseed it, so running both suites at the same moment would collide; sequential runs are fine. A separate `support_desk_e2e` is possible if preferred.
+
+## [2026-09-27T12:43:16+00:00] Task 15 (cont.): e2e isolation, flaky-test root cause, ticket detail redesign
+
+**User decision (item 3):** option 2, a parallel test app on 3100/8100 with its own database, `support_desk_e2e`. Reason given: the dev app keeps running and its data is never touched.
+
+**Built:**
+- `backend/tests/e2e-server.js` refuses any database name not ending in `_e2e`, seeds with the real seed script, runs `FLUSHDB` on Redis index 2, then imports the real `src/index.js` on port 8100.
+- The Playwright `webServer` runs that server plus the frontend on 3100 with `VITE_API_URL=http://localhost:8100/api/v1`.
+- All e2e URLs are centralized in `support/sessions.js` (`APP_URL` / `API_URL`).
+- The shared fixture now fails any test whose page requests `localhost:3000` / `8000`.
+
+**Proof:**
+- Dev DB fingerprint unchanged (same user ids) across a full e2e run.
+- `support_desk_e2e` seeded and used.
+- The dev app stayed up; 3100/8100 were released afterwards.
+
+**Flaky agent-journey investigation (root cause):**
+- A later full run failed a *different* test (the sidebar rail).
+- The retained trace showed the timeout on the width poll right after `page.reload()`: in 5s only one measurement happened, because the reloaded app hadn't rendered yet.
+- Pattern across both failures: 14-18s tests (normally about 3s) and 2-3 minute runs. The Vite **dev** server compiles modules on demand for each page load, and under load (dev app + e2e app + Chromium on WSL2) some loads went past the 5s expect timeout.
+- **Fix:** e2e now runs against a **production build** (`vite build` + `vite preview` on 3100). Pages load one bundled file, which is also closer to what users get.
+- **Result:** 3/3 full runs green (46-67s, was 2-3 min), and `smoke` + `layout` `--repeat-each=5`: **53/53**.
+- **Decision (mine):** a prod build rather than longer timeouts, which would only hide slowness. Trade-off: React dev-only warnings no longer surface in e2e.
+
+**Ticket detail redesign (user spec, current colors):**
+- **Header:** pinned: back button, `#number`, title (ellipsis), status/priority badges (smaller) + SLA chip; the "Opened by" line underneath. It is 76px, flush under the top bar.
+- **Conversation:** one `<ol>` list that fills the column (`flex: 1`); no outer panel card, so no box inside a box. Messages use pre-wrap / overflow-wrap (no clipping), 26px avatars, 13-14px text, and a lock SVG replaces the emoji. **Auto-scroll** to the latest message on open and when replies arrive.
+- **Composer:** docked at the bottom (sticky) on >900px; tabs; the textarea starts at 2 rows and auto-grows to 200px; compact 30px buttons on one row; the canned list opens upward.
+- **Properties:** ONE card with rows for Status, Priority, Assignee (inline selects for staff, title-case values for customers), Requester, Category, Created, SLA due. The admin audit trail is a collapsible inside the same card.
+- **≤900px:** one column, Properties first, header not pinned, "Jump to reply" kept. Message headers wrap so the author name never disappears (a 375px bug found in my own screenshot review).
+- **Key constraint:** the existing layout tests require exactly one scroll area (`.app-content`). So the design pins the header, properties and composer with sticky positioning inside that one scroll area, instead of giving the conversation its own scrollbar.
+- **Bug found by measurement:** Chrome places sticky elements inside the scroll area's padding, which pushed the header 24px down over the "Conversation" label and would have let messages peek under the docked composer.
+  - First fix: a modifier class on `<main>`. That broke 2 layout tests, which compare `className` exactly.
+  - Final fix: `.app-content:has(> .ticket-detail)` drops the vertical padding; there are no markup changes and the tests are untouched.
+- **Verification:** API 52/52; e2e 18/18 (+6 opt-in screenshot tests skipped); build OK; Prettier OK.
+- **Screenshots:** in `../screenshots/ticket-detail-redesign/`, captured with `E2E_SCREENSHOTS=1` in the isolated e2e app, with a realistic 6-message thread including one internal note, so no dev data was written.
+
+**Commits (local, NOT pushed; waiting for the user's OK):**
+- `262eff5` test (e2e isolation)
+- the redesign `feat` commit
+- the screenshots `test` commit
+
+**Open points for the user:**
+- The top bar and the page header both show the number and title. The top bar could become a breadcrumb later, but the layout test currently asserts it.
+- The docked composer leaves empty space above it on short tickets (by design, per "fills the column height").
