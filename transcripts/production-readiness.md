@@ -186,3 +186,11 @@ Approved by the user; `fix/restore-roboto` merged next.
 - `.prettierignore`: ours has one extra line, `.redis`. It is inert: Prettier only picks up supported file types when it scans a folder, and `.redis/` holds only Redis data and log files. Left unchanged pending the user's decision:
   - A) remove it, so `.prettierignore` is also byte-identical to the reference *(recommended)*
   - B) keep it, alongside the `.redis/` line in `.gitignore`
+
+## [2026-09-27T07:30:49+00:00] Decision: `.prettierignore` `.redis` line (user)
+
+| Decision | Options considered | User's choice | Reason |
+|---|---|---|---|
+| `.redis` line in `.prettierignore` | A) remove it, so `.prettierignore` is byte-identical to the reference. B) keep it, alongside the `.gitignore` entry. | **A: remove** | INSTRUCTIONS.md:40 (preserve the reference Prettier configuration). The line had no effect, because Prettier ignores `.redis/` data and log files anyway. |
+
+Result: `.prettierrc`, `.prettierignore` and `.editorconfig` are all byte-identical to the reference. `.gitignore` keeps `.redis/`.
