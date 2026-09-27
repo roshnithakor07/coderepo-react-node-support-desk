@@ -1,8 +1,39 @@
 import { useMemo, useState } from "react";
-import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
+import { StatusBadge } from "../../shared/components/Badge.jsx";
 import { SearchIcon } from "../../shared/components/Icon.jsx";
 import { Table } from "../../shared/components/Table.jsx";
-import { formatDateTime, formatSlaCountdown } from "../../shared/utils/format.js";
+import { formatDateTime, formatSlaCountdown, getSlaProgress, initials } from "../../shared/utils/format.js";
+
+function PriorityCell({ priority }) {
+    return (
+        <span className="priority-cell">
+            <span className={`priority-dot priority-dot-${priority}`} aria-hidden="true" />
+            {priority}
+        </span>
+    );
+}
+
+function AgentCell({ agent }) {
+    if (!agent) return <span className="table-muted-cell">Unassigned</span>;
+    return (
+        <span className="agent-cell">
+            <span className="agent-cell-avatar">{initials(agent.name)}</span>
+            {agent.name}
+        </span>
+    );
+}
+
+function SlaCell({ ticket }) {
+    const { percent, tone } = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
+    return (
+        <span className="sla-cell">
+            <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}</span>
+            <span className="sla-progress-track">
+                <span className={`sla-progress-fill sla-progress-fill-${tone}`} style={{ width: `${percent}%` }} />
+            </span>
+        </span>
+    );
+}
 
 const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
@@ -101,15 +132,9 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                 columns={[
                     { key: "title", header: "Title", sortable: true, render: (row) => <span className="ticket-title-cell">{row.title}</span> },
                     { key: "status", header: "Status", sortable: true, render: (row) => <StatusBadge status={row.status} /> },
-                    { key: "priority", header: "Priority", sortable: true, render: (row) => <PriorityBadge priority={row.priority} /> },
-                    { key: "assignedTo", header: "Assigned to", render: (row) => row.assignedTo?.name || "Unassigned" },
-                    {
-                        key: "sla",
-                        header: "SLA",
-                        render: (row) => (
-                            <span className={row.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(row.slaDeadline, row.slaBreached)}</span>
-                        ),
-                    },
+                    { key: "priority", header: "Priority", sortable: true, render: (row) => <PriorityCell priority={row.priority} /> },
+                    { key: "assignedTo", header: "Assigned to", render: (row) => <AgentCell agent={row.assignedTo} /> },
+                    { key: "sla", header: "SLA", render: (row) => <SlaCell ticket={row} /> },
                     { key: "createdAt", header: "Created", sortable: true, render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span> },
                 ]}
             />

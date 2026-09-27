@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { formatRelativeTime, titleCase } from "../../shared/utils/format.js";
-import { InboxIcon } from "../../shared/components/Icon.jsx";
+import { formatRelativeTime } from "../../shared/utils/format.js";
+import { AlertCircleIcon, ClockIcon, InboxIcon, InfoIcon, MessageIcon, TicketIcon } from "../../shared/components/Icon.jsx";
+
+const TYPE_ICONS = {
+    ticket_created: TicketIcon,
+    ticket_assigned: TicketIcon,
+    ticket_reply: MessageIcon,
+    sla_warning: ClockIcon,
+    sla_breached: AlertCircleIcon,
+    status_changed: InfoIcon,
+};
 
 export function NotificationBell({ notifications, unreadCount, onMarkRead, onClear, onOpenTicket }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -38,11 +47,18 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                 <div className="notification-panel" role="region" aria-label="Notifications">
                     <div className="notification-panel-header">
                         <span>Notifications</span>
-                        {notifications.length > 0 && (
-                            <button type="button" className="link-button" onClick={onClear}>
-                                Clear all
-                            </button>
-                        )}
+                        <div className="notification-panel-actions">
+                            {unreadCount > 0 && (
+                                <button type="button" className="link-button" onClick={onMarkRead}>
+                                    Mark all as read
+                                </button>
+                            )}
+                            {notifications.length > 0 && (
+                                <button type="button" className="link-button" onClick={onClear}>
+                                    Clear all
+                                </button>
+                            )}
+                        </div>
                     </div>
                     <div className="notification-list">
                         {notifications.length === 0 && (
@@ -51,21 +67,28 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                                 <p>You&rsquo;re all caught up.</p>
                             </div>
                         )}
-                        {notifications.map((notification) => (
-                            <button
-                                type="button"
-                                key={notification._id}
-                                className={`notification-item ${notification.isRead ? "" : "unread"}`}
-                                onClick={() => {
-                                    setIsOpen(false);
-                                    onOpenTicket(notification.ticketId?._id || notification.ticketId);
-                                }}
-                            >
-                                <span className="notification-type">{titleCase(notification.type)}</span>
-                                <span className="notification-message">{notification.message}</span>
-                                <span className="notification-time">{formatRelativeTime(notification.createdAt)}</span>
-                            </button>
-                        ))}
+                        {notifications.map((notification) => {
+                            const TypeIcon = TYPE_ICONS[notification.type] || InfoIcon;
+                            return (
+                                <button
+                                    type="button"
+                                    key={notification._id}
+                                    className={`notification-item ${notification.isRead ? "" : "unread"}`}
+                                    onClick={() => {
+                                        setIsOpen(false);
+                                        onOpenTicket(notification.ticketId?._id || notification.ticketId);
+                                    }}
+                                >
+                                    <span className="notification-item-icon">
+                                        <TypeIcon />
+                                    </span>
+                                    <span className="notification-item-body">
+                                        <span className="notification-message">{notification.message}</span>
+                                        <span className="notification-time">{formatRelativeTime(notification.createdAt)}</span>
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             )}
