@@ -1,4 +1,4 @@
-import { readSavedToken, sessionFile } from "./support/sessions.js";
+import { API_URL, readSavedToken, sessionFile } from "./support/sessions.js";
 import { expect, test } from "./support/fixtures.js";
 
 test.use({ storageState: sessionFile("admin") });
@@ -6,10 +6,10 @@ test.use({ storageState: sessionFile("admin") });
 test.beforeAll(async ({ playwright }) => {
     // A ticket created now guarantees today has data, whatever time the suite runs.
     const customerApi = await playwright.request.newContext({
-        baseURL: "http://localhost:3000",
+        baseURL: `${API_URL}/`,
         extraHTTPHeaders: { Authorization: `Bearer ${readSavedToken("customer")}` },
     });
-    const response = await customerApi.post("/api/v1/tickets", {
+    const response = await customerApi.post("tickets", {
         data: { title: `Analytics range check (${Date.now()})`, description: "Created by the e2e suite.", priority: "low" },
     });
     expect(response.status()).toBe(201);
