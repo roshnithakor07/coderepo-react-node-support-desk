@@ -17,10 +17,11 @@ Real-time UI updates (notifications) are delivered via short-interval polling ra
 
 ### Dependency additions beyond the reference stack
 
-The reference calendar app has no cache layer and no scheduler. Two dependencies were added, both explicitly requested in the product's own technical spec:
+The reference calendar app has no cache layer, no scheduler, and no browser test runner. Three dependencies were added: the first two were explicitly requested in the product's own technical spec, and the third is a test-only dev dependency:
 
 - **`ioredis`** — JWT logout blacklist, login/webhook rate limiting, and 60s-300s caching for the analytics dashboard and SLA settings. `setup.sh` provisions a local Redis instance the same way it provisions Mongo.
 - **`node-cron`** — the in-process SLA breach/warning sweep (`shared/jobs/sla-checker.js`, runs every minute). No dependency in the reference stack provides in-process scheduling.
+- **`@playwright/test`** (frontend dev dependency) — browser end-to-end tests of each role's journey. The reference stack has no browser test runner; API tests use Bun's built-in `bun test` and need no dependency. Added with the project owner's explicit approval.
 
 No other dependency was added, removed, or replaced: the frontend keeps the reference's `@fontsource/roboto` (5.3.0), and every other package version matches the reference app's pinned versions.
 
@@ -106,5 +107,7 @@ New accounts created through the "Create account" tab on the sign-in screen are 
 | `bun run seed` | Re-seed the database (clears and re-inserts the baseline) |
 | `cd frontend && bun run build` | Production frontend build |
 | `bun run test` | API tests (`bun test`) against an isolated `support_desk_test` database and Redis index 1; requires MongoDB and Redis to be running |
+| `cd frontend && bunx playwright install chromium` | One-time download of the Chromium build used by the browser tests |
+| `bun run test:e2e` | Browser smoke journeys for each role (Playwright). Reuses a running `bun start`, or starts one, which reseeds the database. Requires Node.js 18+ |
 
 `hackerrank.yml` install/run commands: `bun install && bash setup.sh --seed` / `bun start`.
