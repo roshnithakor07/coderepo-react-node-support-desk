@@ -410,3 +410,46 @@ The user approved the branch and kept all three choices:
 - Build OK; Prettier passes on the touched files.
 
 **Not changed (for later):** after an agent hands their own ticket to someone else, the ticket view stays open, but they no longer have access, so the next action returns 403. Phase 2 ticket UX could route them back to the list.
+
+## [2026-09-27T11:33:21+00:00] Task 11 (Phase 1.4): `fix/objectid-and-json-errors`
+
+**Defect (verified live before the fix): 9 requests returned 500.**
+- malformed `:ticketId` on GET, PUT, replies, assign and audit
+- malformed `:agentId` on PATCH `/agents/:agentId/status`
+- malformed `:responseId` on DELETE `/canned-responses/:responseId`
+- `?assignedTo=not-an-id`
+- malformed JSON
+- a body over 100 KB
+
+**Fix:**
+1. **Route guard:** `shared/middleware/validate-object-id.js`, registered with `router.param` for `ticketId`, `agentId` and `responseId`, rejects malformed ids with 400 `INVALID_ID` before any database call.
+2. **Error handler backstop:**
+   - Mongoose `CastError` / `BSONError` → 400 `INVALID_ID` (covers ids in query strings and any future path)
+   - body-parser `entity.parse.failed` → 400 `INVALID_JSON`
+   - `entity.too.large` → 413 `PAYLOAD_TOO_LARGE`
+   - No internals leak into responses.
+
+**Decisions (mine, open to the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Status for a malformed id | A) 400 `INVALID_ID`. B) 404. | A | It is invalid input, not a missing resource (GUIDELINES.md:205-207). A well-formed id that doesn't exist still returns 404. |
+| Where to validate | A) `router.param` guard plus an error-handler backstop. B) a Zod rule in each controller. | A | One place per router, and the backstop means a new endpoint can't regress to 500. |
+| Order vs role checks | `router.param` runs before the route's `requireRole`, so a malformed id returns 400 even for a role that would get 403 | accepted | Id format isn't sensitive information. |
+
+**Commit layout:** `error-handler.js` was not Prettier-clean on main, so it got a separate formatting-only commit.
+
+**Tests (`backend/tests/errors.test.js`, 11):**
+- 7 URL-id cases
+- a well-formed missing id → 404
+- the query-string id
+- malformed JSON
+- a 120 KB body
+- each checks status + code **and that no stack, CastError or BSON text is in the response**
+
+**Proof:**
+- Before the fix: **10 failed** (the 404 test already passed).
+- After the fix: API 40/40, e2e 9/9, build OK.
+- Live re-probe of all 9 requests: 400/413 with the expected codes.
+
+**Not changed (for later):** `GET /tickets/<well-formed missing id>/audit` returns 200 `[]` instead of 404 (admin-only, low impact).
