@@ -160,3 +160,12 @@ Task entries and design decisions for making Support Desk reviewer-ready. Append
 - In the browser, `document.fonts` has loaded only Roboto 400/500/600/700.
 - The 3-role smoke check shows 0 console errors, 0 page errors, 0 HTTP 5xx.
 - Prettier `--no-use-tabs` passes on touched files.
+
+## [2026-09-27T07:27:55+00:00] Decision: font weights and monospace font (user)
+
+| Decision | Options considered | User's choice | Reason |
+|---|---|---|---|
+| Roboto weights | A) 400/500 only, like the reference (weights 600/700 flatten or fake-bold). B) 400/500/600/700 from the same approved package. | **B: keep 400/500/600/700** | Our CSS uses weight 600 (20 rules) and 700 (15 rules); the extra files add no new dependency. |
+| Monospace font | A) system monospace stack (no dependency; varies slightly by OS). B) a font package (would be a new dependency). | **A: keep the system stack** | The reference ships no mono font; the dependency freeze applies (GUIDELINES.md:65). |
+
+Approved by the user; `fix/restore-roboto` merged next.
