@@ -453,3 +453,37 @@ The user approved the branch and kept all three choices:
 - Live re-probe of all 9 requests: 400/413 with the expected codes.
 
 **Not changed (for later):** `GET /tickets/<well-formed missing id>/audit` returns 200 `[]` instead of 404 (admin-only, low impact).
+
+## [2026-09-27T11:36:27+00:00] Task 12 (Phase 1.5): `fix/agents-list-inactive`
+
+**Defect (audit, verified live):** `GET /agents` returned only **active** agents (4 of 5), so a deactivated agent disappeared from the Agents page and the **Activate** button could never be reached.
+
+**Fix:**
+- **Repository:** `authRepository.findAgentsWithWorkload({ activeOnly = true })`. Auto-assignment keeps the default (active only).
+- **Service:** `agentService.listWithWorkload()` asks for all agents.
+- **UI:** the ticket assignee picker shows active agents only. If the ticket's current assignee is inactive, they appear as a disabled "Name (inactive)" option, so the select never shows a blank value.
+
+**Decision (mine, open to the user's review):**
+
+| Options | Chosen | Why |
+|---|---|---|
+| A) one list endpoint returns everyone; the picker filters active agents in the UI. B) add an `?active=true` query to the API. | A | The Agents page needs everyone anyway. Auto-assignment already uses an active-only query on the backend, so no extra API surface is needed. |
+
+**Commit layout:** `auth.repository.js` was not Prettier-clean on main, so it got a separate formatting-only commit.
+
+**Tests:**
+- **API** (`backend/tests/agents.test.js`, 5):
+  - the list includes all 5 agents, with `isActive` and `openTicketCount`, and no password field
+  - agents can read the full list too
+  - deactivate agent4: stays listed as inactive; reactivate works
+  - activating the seeded inactive agent5 works
+  - auto-assignment never picks an inactive agent
+  - `afterAll` restores agent4 active and agent5 inactive
+- **E2E** (`frontend/tests/e2e/agents.e2e.js`, 2):
+  - as admin: Sofia Rossi (inactive) is listed; **Activate** makes her active; **Deactivate** (confirm dialog accepted) restores her
+  - the ticket assignee picker offers no inactive agent
+
+**Proof:**
+- Before the fix: API **3 failed**; e2e reactivation journey **failed**.
+- After the fix: API 34/34, e2e 11/11.
+- Build and Prettier OK. The dev DB still has agent5 inactive after the run.

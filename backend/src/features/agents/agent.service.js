@@ -5,7 +5,7 @@ import { agentRepository } from "./agent.repository.js";
 
 export const agentService = {
     listWithWorkload() {
-        return authRepository.findAgentsWithWorkload();
+        return authRepository.findAgentsWithWorkload({ activeOnly: false });
     },
 
     async create(input) {

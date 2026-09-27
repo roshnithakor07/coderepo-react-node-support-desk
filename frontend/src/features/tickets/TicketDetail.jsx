@@ -266,11 +266,13 @@ export function TicketDetail({
                                 <option value="" disabled>
                                     Select agent
                                 </option>
-                                {agents.map((agent) => (
-                                    <option key={agent._id} value={agent._id}>
-                                        {agent.name}
-                                    </option>
-                                ))}
+                                {agents
+                                    .filter((agent) => agent.isActive || agent._id === ticket.assignedTo?._id)
+                                    .map((agent) => (
+                                        <option key={agent._id} value={agent._id} disabled={!agent.isActive}>
+                                            {agent.isActive ? agent.name : `${agent.name} (inactive)`}
+                                        </option>
+                                    ))}
                             </select>
                         </div>
                     )}
