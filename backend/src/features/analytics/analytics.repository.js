@@ -1,11 +1,12 @@
 import { Ticket } from "../tickets/ticket.model.js";
 
+// dateTo is exclusive: the service passes the start of the day after the selected end date.
 function buildDateMatch(dateFrom, dateTo) {
     const match = {};
     if (dateFrom || dateTo) {
         match.createdAt = {};
         if (dateFrom) match.createdAt.$gte = dateFrom;
-        if (dateTo) match.createdAt.$lte = dateTo;
+        if (dateTo) match.createdAt.$lt = dateTo;
     }
     return match;
 }
@@ -41,7 +42,11 @@ export const analyticsRepository = {
                     resolved: { $sum: { $cond: [{ $in: ["$status", ["resolved", "closed"]] }, 1, 0] } },
                     avgResolutionHours: {
                         $avg: {
-                            $cond: [{ $ne: ["$resolvedAt", null] }, { $divide: [{ $subtract: ["$resolvedAt", "$createdAt"] }, 3600000] }, null],
+                            $cond: [
+                                { $ne: ["$resolvedAt", null] },
+                                { $divide: [{ $subtract: ["$resolvedAt", "$createdAt"] }, 3600000] },
+                                null,
+                            ],
                         },
                     },
                 },
