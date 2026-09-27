@@ -79,7 +79,12 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
                 <div className="form-row">
                     <label htmlFor="ticket-priority">
                         Priority
-                        <select id="ticket-priority" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={isBusy}>
+                        <select
+                            id="ticket-priority"
+                            value={priority}
+                            onChange={(event) => setPriority(event.target.value)}
+                            disabled={isBusy}
+                        >
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
@@ -88,7 +93,12 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
                     </label>
                     <label htmlFor="ticket-category">
                         Category
-                        <select id="ticket-category" value={category} onChange={(event) => setCategory(event.target.value)} disabled={isBusy}>
+                        <select
+                            id="ticket-category"
+                            value={category}
+                            onChange={(event) => setCategory(event.target.value)}
+                            disabled={isBusy}
+                        >
                             {CATEGORIES.map((option) => (
                                 <option key={option} value={option}>
                                     {option}
