@@ -41,7 +41,11 @@ export const analyticsRepository = {
                     resolved: { $sum: { $cond: [{ $in: ["$status", ["resolved", "closed"]] }, 1, 0] } },
                     avgResolutionHours: {
                         $avg: {
-                            $cond: [{ $ne: ["$resolvedAt", null] }, { $divide: [{ $subtract: ["$resolvedAt", "$createdAt"] }, 3600000] }, null],
+                            $cond: [
+                                { $ne: ["$resolvedAt", null] },
+                                { $divide: [{ $subtract: ["$resolvedAt", "$createdAt"] }, 3600000] },
+                                null,
+                            ],
                         },
                     },
                 },
