@@ -169,6 +169,7 @@ export const ticketService = {
     async assign(id, agentId, actor) {
         const ticket = await ticketRepository.findById(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+        assertCanView(ticket, actor);
 
         const agent = await authRepository.findById(agentId);
         if (!agent || agent.role !== "agent" || !agent.isActive) {
