@@ -14,7 +14,13 @@ export const authRepository = {
                     from: "tickets",
                     let: { agentId: "$_id" },
                     pipeline: [
-                        { $match: { $expr: { $and: [{ $eq: ["$assignedTo", "$$agentId"] }, { $in: ["$status", ["open", "in_progress", "pending"]] }] } } },
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [{ $eq: ["$assignedTo", "$$agentId"] }, { $in: ["$status", ["open", "in_progress", "pending"]] }],
+                                },
+                            },
+                        },
                         { $count: "count" },
                     ],
                     as: "openTickets",
