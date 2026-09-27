@@ -169,3 +169,20 @@ Task entries and design decisions for making Support Desk reviewer-ready. Append
 | Monospace font | A) system monospace stack (no dependency; varies slightly by OS). B) a font package (would be a new dependency). | **A: keep the system stack** | The reference ships no mono font; the dependency freeze applies (GUIDELINES.md:65). |
 
 Approved by the user; `fix/restore-roboto` merged next.
+
+## [2026-09-27T07:29:04+00:00] Task 5 (Phase 0b): `chore/prettier-reference`
+
+**Goal (decision 3A):** make `.prettierrc` byte-identical to the reference (`coderepo-react-node-calendar` @ a671eef), per INSTRUCTIONS.md:40 ("Preserve the reference Prettier configuration and editor configuration").
+
+**Change:** copied the reference `.prettierrc` byte-for-byte. The only difference was layout: the `overrides` array was written on one line. `cmp` confirms byte-identical (sha256 prefix 771ebd9c3d3f).
+
+**No behavior change, verified:**
+- the parsed JSON options are equal before and after
+- `prettier --check --no-use-tabs` flags the same 12 files before and after (down from 18 before Phase 0a formatted 6)
+- no source files reformatted (no mass reformat, per decision 3)
+
+**Other config files vs the reference:**
+- `.editorconfig`: identical
+- `.prettierignore`: ours has one extra line, `.redis`. It is inert: Prettier only picks up supported file types when it scans a folder, and `.redis/` holds only Redis data and log files. Left unchanged pending the user's decision:
+  - A) remove it, so `.prettierignore` is also byte-identical to the reference *(recommended)*
+  - B) keep it, alongside the `.redis/` line in `.gitignore`
