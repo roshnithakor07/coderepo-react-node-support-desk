@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { requireRole } from "../../shared/middleware/rbac.js";
+import { validateObjectIdParam } from "../../shared/middleware/validate-object-id.js";
 import { addReply, assignTicket, createTicket, getTicket, getTicketAudit, listTickets, updateTicket } from "./ticket.controller.js";
 
 export const ticketRouter = Router();
+
+ticketRouter.param("ticketId", validateObjectIdParam);
 
 ticketRouter.get("/", listTickets);
 ticketRouter.post("/", createTicket);
