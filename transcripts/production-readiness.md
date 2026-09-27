@@ -379,3 +379,34 @@ The user approved the branch and kept all three choices:
 - Build OK; Prettier passes on the touched files.
 
 **Note:** e2e runs against the dev DB, so each run adds one timestamped note and reply there. `bun start` reseeds, as usual.
+
+## [2026-09-27T08:01:56+00:00] Task 10 (Phase 1.3): `fix/assign-authz`
+
+**Defects (audit, verified live):**
+- any agent could reassign **any** ticket, including tickets they can't view
+- a malformed `agentId` returned **500**
+
+**User's rule (decision 5b):** agents can assign only tickets they can view; admins can assign any ticket.
+
+**Fix (2 lines):**
+- `ticketService.assign` now calls the existing `assertCanView(ticket, actor)`: admins always pass; agents only on tickets assigned to them.
+- `assignSchema` validates `agentId` as a 24-hex MongoDB id, so malformed input gets 400 `VALIDATION_ERROR` ("Select a valid agent.").
+- The existing `INVALID_AGENT` check still covers unknown, inactive and non-agent ids.
+
+**Branch layout:** cherry-picked the identical baseline commit and the identical `ticket.service.js` formatting commit from `fix/internal-notes-leak`, so the three branches merge in order without formatting conflicts.
+
+**Tests (`backend/tests/assign.test.js`, 8):**
+- an agent gets 403 on another agent's ticket, and the assignment is unchanged
+- an agent can hand their own ticket to another agent
+- an admin can assign any ticket
+- a customer gets 403
+- a malformed id returns 400 `VALIDATION_ERROR` (was 500)
+- an unknown id, an inactive agent (agent5) and an admin's id each return 400 `INVALID_AGENT`
+- `afterAll` restores both assignments, and the tickets used avoid the seeded customer's tickets that the internal-notes tests use
+
+**Proof:**
+- Before the fix: **2 failed** (cross-agent reassign; malformed id → 500).
+- After the fix: 18/18 API, 7/7 e2e.
+- Build OK; Prettier passes on the touched files.
+
+**Not changed (for later):** after an agent hands their own ticket to someone else, the ticket view stays open, but they no longer have access, so the next action returns 403. Phase 2 ticket UX could route them back to the list.

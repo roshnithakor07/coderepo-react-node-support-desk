@@ -29,7 +29,7 @@ const replySchema = z
     })
     .strict();
 
-const assignSchema = z.object({ agentId: z.string().min(1) }).strict();
+const assignSchema = z.object({ agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
 
 const listQuerySchema = z.object({
     status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
