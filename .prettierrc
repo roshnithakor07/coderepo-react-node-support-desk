@@ -9,5 +9,12 @@
     "bracketSpacing": true,
     "arrowParens": "always",
     "htmlWhitespaceSensitivity": "strict",
-    "overrides": [{ "files": "*.html", "options": { "printWidth": 1000 } }]
+    "overrides": [
+        {
+            "files": "*.html",
+            "options": {
+                "printWidth": 1000
+            }
+        }
+    ]
 }
