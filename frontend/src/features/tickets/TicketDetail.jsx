@@ -24,7 +24,19 @@ function MessageCard({ author, body, isInternal, createdAt }) {
     );
 }
 
-export function TicketDetail({ ticket, currentUser, agents, cannedResponses, auditTrail, onBack, onUpdate, onReply, onAssign, isReplying, isUpdating }) {
+export function TicketDetail({
+    ticket,
+    currentUser,
+    agents,
+    cannedResponses,
+    auditTrail,
+    onBack,
+    onUpdate,
+    onReply,
+    onAssign,
+    isReplying,
+    isUpdating,
+}) {
     const [replyBody, setReplyBody] = useState("");
     const [replyError, setReplyError] = useState("");
     const [isInternal, setIsInternal] = useState(false);
@@ -71,7 +83,9 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                     <StatusBadge status={ticket.status} />
                     <PriorityBadge priority={ticket.priority} />
                     <span className="sla-timer-pill">
-                        <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}</span>
+                        <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
+                            {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
+                        </span>
                         <span className="sla-progress-track sla-timer-pill-track">
                             <span className={`sla-progress-fill sla-progress-fill-${sla.tone}`} style={{ width: `${sla.percent}%` }} />
                         </span>
@@ -85,7 +99,13 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                         <h3>Conversation</h3>
                         <MessageCard author={ticket.createdBy} body={ticket.description} isInternal={false} createdAt={ticket.createdAt} />
                         {ticket.replies.map((reply) => (
-                            <MessageCard key={reply._id} author={reply.author} body={reply.body} isInternal={reply.isInternal} createdAt={reply.createdAt} />
+                            <MessageCard
+                                key={reply._id}
+                                author={reply.author}
+                                body={reply.body}
+                                isInternal={reply.isInternal}
+                                createdAt={reply.createdAt}
+                            />
                         ))}
                     </div>
 
@@ -178,8 +198,8 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                                 <ul>
                                     {auditTrail.map((entry) => (
                                         <li key={entry._id}>
-                                            <span className="audit-action">{entry.action}</span> by {entry.performedBy?.name || "system"} &middot;{" "}
-                                            {formatDateTime(entry.createdAt)}
+                                            <span className="audit-action">{entry.action}</span> by {entry.performedBy?.name || "system"}{" "}
+                                            &middot; {formatDateTime(entry.createdAt)}
                                         </li>
                                     ))}
                                 </ul>
@@ -194,7 +214,12 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                             <h4>Ticket Details</h4>
                             <label htmlFor="ticket-status">
                                 Status
-                                <select id="ticket-status" value={ticket.status} onChange={(event) => onUpdate({ status: event.target.value })} disabled={isUpdating}>
+                                <select
+                                    id="ticket-status"
+                                    value={ticket.status}
+                                    onChange={(event) => onUpdate({ status: event.target.value })}
+                                    disabled={isUpdating}
+                                >
                                     {STATUS_OPTIONS.map((status) => (
                                         <option key={status} value={status}>
                                             {status.replace("_", " ")}
@@ -231,7 +256,12 @@ export function TicketDetail({ ticket, currentUser, agents, cannedResponses, aud
                             <label htmlFor="ticket-assignee" className="visually-hidden">
                                 Assigned to
                             </label>
-                            <select id="ticket-assignee" value={ticket.assignedTo?._id || ""} onChange={(event) => onAssign(event.target.value)} disabled={isUpdating}>
+                            <select
+                                id="ticket-assignee"
+                                value={ticket.assignedTo?._id || ""}
+                                onChange={(event) => onAssign(event.target.value)}
+                                disabled={isUpdating}
+                            >
                                 <option value="" disabled>
                                     Select agent
                                 </option>

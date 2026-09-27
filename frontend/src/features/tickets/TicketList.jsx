@@ -27,7 +27,9 @@ function SlaCell({ ticket }) {
     const { percent, tone } = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
     return (
         <span className="sla-cell">
-            <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}</span>
+            <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
+                {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
+            </span>
             <span className="sla-progress-track">
                 <span className={`sla-progress-fill sla-progress-fill-${tone}`} style={{ width: `${percent}%` }} />
             </span>
@@ -124,24 +126,44 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                           ? "Create your first ticket to get help from our team."
                           : "Tickets will show up here once they're created."
                 }
-                emptyAction={hasActiveFilters ? { label: "Clear filters", onClick: clearFilters } : canCreate ? { label: "New ticket", onClick: onNewTicket } : undefined}
+                emptyAction={
+                    hasActiveFilters
+                        ? { label: "Clear filters", onClick: clearFilters }
+                        : canCreate
+                          ? { label: "New ticket", onClick: onNewTicket }
+                          : undefined
+                }
                 rows={sortedTickets}
                 isLoading={isLoading}
                 sort={sort}
                 onSortChange={setSort}
                 columns={[
-                    { key: "title", header: "Title", sortable: true, render: (row) => <span className="ticket-title-cell">{row.title}</span> },
+                    {
+                        key: "title",
+                        header: "Title",
+                        sortable: true,
+                        render: (row) => <span className="ticket-title-cell">{row.title}</span>,
+                    },
                     { key: "status", header: "Status", sortable: true, render: (row) => <StatusBadge status={row.status} /> },
                     { key: "priority", header: "Priority", sortable: true, render: (row) => <PriorityCell priority={row.priority} /> },
                     { key: "assignedTo", header: "Assigned to", render: (row) => <AgentCell agent={row.assignedTo} /> },
                     { key: "sla", header: "SLA", render: (row) => <SlaCell ticket={row} /> },
-                    { key: "createdAt", header: "Created", sortable: true, render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span> },
+                    {
+                        key: "createdAt",
+                        header: "Created",
+                        sortable: true,
+                        render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span>,
+                    },
                 ]}
             />
 
             {!isLoading && total > tickets.length && (
                 <div className="pagination">
-                    <button type="button" disabled={(filters.page || 1) <= 1} onClick={() => onFilterChange({ ...filters, page: (filters.page || 1) - 1 })}>
+                    <button
+                        type="button"
+                        disabled={(filters.page || 1) <= 1}
+                        onClick={() => onFilterChange({ ...filters, page: (filters.page || 1) - 1 })}
+                    >
                         Previous
                     </button>
                     <span>

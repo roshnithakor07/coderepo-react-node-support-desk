@@ -39,7 +39,14 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
 
     return (
         <div className="notification-bell" ref={containerRef}>
-            <button type="button" className="icon-button" onClick={toggle} aria-label="Notifications" aria-haspopup="true" aria-expanded={isOpen}>
+            <button
+                type="button"
+                className="icon-button"
+                onClick={toggle}
+                aria-label="Notifications"
+                aria-haspopup="true"
+                aria-expanded={isOpen}
+            >
                 <BellIcon />
                 {unreadCount > 0 && <span className="notification-count">{unreadCount > 9 ? "9+" : unreadCount}</span>}
             </button>

@@ -523,7 +523,12 @@ export default function App() {
                     )}
 
                     {activeView === "analytics" && currentUser.role === "admin" && (
-                        <AnalyticsPage dashboard={analyticsDashboard} filters={analyticsFilters} onFilterChange={setAnalyticsFilters} isLoading={analyticsLoading} />
+                        <AnalyticsPage
+                            dashboard={analyticsDashboard}
+                            filters={analyticsFilters}
+                            onFilterChange={setAnalyticsFilters}
+                            isLoading={analyticsLoading}
+                        />
                     )}
 
                     {activeView === "settings" && currentUser.role === "admin" && (

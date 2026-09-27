@@ -75,7 +75,12 @@ export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, on
                 )}
             </div>
 
-            <button type="button" className="sidebar-collapse-toggle" onClick={onToggleCollapse} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            <button
+                type="button"
+                className="sidebar-collapse-toggle"
+                onClick={onToggleCollapse}
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
                 {isCollapsed ? "»" : "«"}
             </button>
         </aside>
