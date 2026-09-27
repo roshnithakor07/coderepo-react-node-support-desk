@@ -286,3 +286,12 @@ The user approved the branch and kept all three proposals:
 - The e2e runner needs **Node.js 18+**, because the Playwright test runner runs on Node, not on Bun's runtime.
 - A **one-time browser download** is needed: `cd frontend && bunx playwright install chromium`.
 - A cold `bun run test:e2e` **reseeds the dev database** (same as `bun start`).
+
+## [2026-09-27T07:45:13+00:00] User confirmed `test/e2e-harness` design choices
+
+The user approved the branch and kept all three choices:
+- `*.e2e.js` naming
+- artifacts in `frontend/node_modules/.cache/e2e/`
+- one worker
+
+**User note for Phase 1:** the customer e2e journey passes even though customers still receive internal notes. It only checks that the Internal Note *tab* is hidden, not the note *content*. `fix/internal-notes-leak` must add API and e2e tests that assert internal-note content is absent for customers.
