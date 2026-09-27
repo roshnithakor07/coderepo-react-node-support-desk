@@ -10,7 +10,8 @@
 		"dev:frontend": "cd frontend && bun run dev",
 		"dev:backend": "cd backend && bun run dev",
 		"seed": "cd backend && bun run seed",
-		"test": "cd backend && bun run test"
+		"test": "cd backend && bun run test",
+		"test:e2e": "cd frontend && bun run test:e2e"
 	},
 	"devDependencies": {
 		"concurrently": "9.2.1"

@@ -244,3 +244,54 @@ The user approved the branch and kept all three proposals:
 1. Tests live in `backend/tests/`.
 2. The harness uses `bun test --preload` (no `bunfig.toml`).
 3. `// prettier-ignore` on the seed's ticket blueprint table.
+
+## [2026-09-27T07:43:14+00:00] Task 7 (Phase 0d): `test/e2e-harness`
+
+**Dependency (approval already recorded, GUIDELINES.md:78):** the only manifest change is `@playwright/test` **1.63.0** (exact pin, latest) in `frontend` devDependencies. The lockfile also gains its own internal dependencies, `playwright` and `playwright-core` 1.63.0; no other packages. A written reason was added to the README "Dependency additions" section (INSTRUCTIONS.md:37).
+
+**Files:**
+- `frontend/playwright.config.js`
+- `frontend/tests/e2e/auth.setup.js`
+- `frontend/tests/e2e/smoke.e2e.js`
+- `frontend/tests/e2e/support/{sessions,fixtures}.js`
+- scripts: `frontend` gets `test:e2e`, root gets `test:e2e`
+
+**Design decisions (my proposals, for the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Location (user: "match the reference shape") | A) `frontend/playwright.config.js` + `frontend/tests/e2e/`. B) a root `e2e/` folder with the dependency at the root. C) a separate workspace. | A | Mirrors `backend/tests/` from 0c; the e2e tests drive the frontend; the root and the workspace list stay as in the reference. |
+| Artifacts (saved sessions, results) | A) `frontend/node_modules/.cache/e2e/` (already ignored). B) new `.gitignore` lines. | A | `.gitignore` stays close to the reference; `node_modules/.cache` is a common tool-cache convention. |
+| Test file naming | A) `*.e2e.js` via `testMatch`. B) Playwright's default `*.spec.js`. | A | `bun test` auto-discovers `*.spec.*`, so a stray root-level `bun test` could pick up browser tests; `.e2e.js` avoids that. |
+| webServer | `bun start` from the repo root, health URL through the Vite proxy, `reuseExistingServer: true`, 180s timeout | as stated | Uses the real start command. Ports 3000/8000 are fixed by the read-only `vite.config.js`, so a running dev app has to be reused. |
+| Saved sessions | Setup project signs each role in through the real login form and saves `storageState`; a still-valid saved token is reused (checked via `/auth/me`) | as stated | Keeps repeated runs under the 10/min login limit (only 1 fresh sign-in per run once sessions exist). |
+| Sign-out journey | Fresh context and fresh login, not a saved session | as stated | Logout blacklists the token, which would break the saved sessions for later tests. |
+| Browser-error guard | An auto fixture fails any test with a console error, page error, or HTTP 5xx | as stated | Enforces the "no console errors" rule in every e2e test. |
+| Workers | 1 | as stated | All tests share one database and one login rate-limit bucket. |
+
+**Journeys:**
+- **customer:** nav is exactly Dashboard/Tickets; ticket detail has Public Reply, no Internal Note, no Audit trail.
+- **agent:** team nav; Agents page with no Add agent button; canned templates listed; Internal Note tab and canned picker present.
+- **admin:** full nav; Add agent; Analytics "Total tickets"; Settings "SLA response targets"; Audit trail on the ticket.
+- **sign in and sign out:** from the demo chip.
+
+**Verification:**
+- **Warm run** (reusing the running app): **7 passed**. Setup reused all 3 sessions, about 0.2s each.
+- **Cold run** (app stopped): Playwright started `bun start` itself (reseeding the DB), signed all roles in fresh, **7 passed**, then stopped the app; ports 3000/8000 were released.
+- **Guard proof:** a throwaway spec calling `console.error` failed with "browser errors during the test"; the spec was deleted afterwards.
+- **First attempt failed (my test's fault):** `getByRole("heading", { name: "Agents" })` matched both the top-bar h1 and the panel h2. Fixed with `level: 2`.
+- API tests: 10/10. Build OK. Prettier `--no-use-tabs` passes on all 5 new files.
+
+**Open points for the user:**
+- The e2e runner needs **Node.js 18+**, because the Playwright test runner runs on Node, not on Bun's runtime.
+- A **one-time browser download** is needed: `cd frontend && bunx playwright install chromium`.
+- A cold `bun run test:e2e` **reseeds the dev database** (same as `bun start`).
+
+## [2026-09-27T07:45:13+00:00] User confirmed `test/e2e-harness` design choices
+
+The user approved the branch and kept all three choices:
+- `*.e2e.js` naming
+- artifacts in `frontend/node_modules/.cache/e2e/`
+- one worker
+
+**User note for Phase 1:** the customer e2e journey passes even though customers still receive internal notes. It only checks that the Internal Note *tab* is hidden, not the note *content*. `fix/internal-notes-leak` must add API and e2e tests that assert internal-note content is absent for customers.
