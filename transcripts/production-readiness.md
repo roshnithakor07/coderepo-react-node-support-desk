@@ -237,3 +237,10 @@ Result: `.prettierrc`, `.prettierignore` and `.editorconfig` are all byte-identi
 - Prettier `--no-use-tabs` passes on all 5 touched JS files.
 
 **Noted for later (not changed here):** `CATEGORIES` in `seed.js` is unused (dead code, Phase 4).
+
+## [2026-09-27T07:37:35+00:00] User confirmed `test/api-harness` decisions
+
+The user approved the branch and kept all three proposals:
+1. Tests live in `backend/tests/`.
+2. The harness uses `bun test --preload` (no `bunfig.toml`).
+3. `// prettier-ignore` on the seed's ticket blueprint table.
