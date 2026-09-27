@@ -62,7 +62,12 @@ export const ticketService = {
         await auditLogService.record(ticket._id, "created", actor.id, { priority: input.priority, autoAssigned: Boolean(autoAssignee) });
 
         if (autoAssignee) {
-            await notificationService.notify(autoAssignee._id, "ticket_assigned", `You were auto-assigned ticket "${ticket.title}".`, ticket._id);
+            await notificationService.notify(
+                autoAssignee._id,
+                "ticket_assigned",
+                `You were auto-assigned ticket "${ticket.title}".`,
+                ticket._id,
+            );
         }
 
         return ticketRepository.findByIdLean(ticket._id);
@@ -83,7 +88,10 @@ export const ticketService = {
         const pageSize = filters.pageSize || 20;
         const skip = (page - 1) * pageSize;
 
-        const [tickets, total] = await Promise.all([ticketRepository.findMany(query, { skip, limit: pageSize }), ticketRepository.count(query)]);
+        const [tickets, total] = await Promise.all([
+            ticketRepository.findMany(query, { skip, limit: pageSize }),
+            ticketRepository.count(query),
+        ]);
         return { tickets, total, page, pageSize };
     },
 
@@ -147,7 +155,12 @@ export const ticketService = {
         }
 
         if (changes.status && String(ticket.createdBy) !== actor.id) {
-            await notificationService.notify(ticket.createdBy, "status_changed", `Ticket "${ticket.title}" status changed to ${ticket.status}.`, ticket._id);
+            await notificationService.notify(
+                ticket.createdBy,
+                "status_changed",
+                `Ticket "${ticket.title}" status changed to ${ticket.status}.`,
+                ticket._id,
+            );
         }
 
         return ticketRepository.findByIdLean(ticket._id);
@@ -218,7 +231,12 @@ export const ticketService = {
             ticket.slaWarningNotifiedAt = now;
             await ticketRepository.save(ticket);
             const recipients = [ticket.assignedTo].filter(Boolean);
-            await notificationService.notifyMany(recipients, "sla_warning", `SLA due within 30 minutes for ticket "${ticket.title}".`, ticket._id);
+            await notificationService.notifyMany(
+                recipients,
+                "sla_warning",
+                `SLA due within 30 minutes for ticket "${ticket.title}".`,
+                ticket._id,
+            );
         }
 
         return { breached: overdue.length, warned: approaching.length };
