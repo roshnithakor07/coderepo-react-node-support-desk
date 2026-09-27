@@ -96,3 +96,34 @@ Task entries and design decisions for making Support Desk reviewer-ready. Append
 - any Prettier formatting (depends on decision 1)
 
 **Not pushed yet:** the pre-push rule "Prettier passes on changed files" can't be met until the Prettier option is chosen.
+
+## [2026-09-27T06:57:07+00:00] Decisions recorded (user choices on guideline conflicts)
+
+| Decision | Options considered | User's choice | User's reason |
+|---|---|---|---|
+| Prettier | A) keep reference `.prettierrc` byte-identical; format and check touched files with `--no-use-tabs`. B) keep config, reformat everything to tabs. C) change config to spaces (earlier plan). | **A** | INSTRUCTIONS.md:40, "Preserve the reference Prettier configuration and editor configuration." |
+| Fonts | A) restore `@fontsource/roboto` 5.3.0 and remove Inter / JetBrains Mono. B) keep Inter with a written reason. | **A**, on branch `fix/restore-roboto` right after `chore/ui-shell-wip`; also fix the README claim | GUIDELINES.md:65 (no dependency replacement) and the design-system rule (INSTRUCTIONS.md:41) |
+| Theme approach | A) teal and warm neutrals within the reference token structure. B) keep our token set, new colors. | **A** | Preserve the design system and still look distinctive |
+| SLA pill fix | Add to `chore/ui-shell-wip`, or defer to the theme refresh | **Add** (plus unused CSS removal) | (none given) |
+
+**Plan additions (user):**
+- Phase 2: a `ConfirmationDialog` component matching the reference, replacing `window.confirm`.
+- Phase 4: a real product screenshot in `assets/`, shown at the top of the README like the reference.
+
+**Superseded:** the earlier "switch `.prettierrc` to spaces" decision (Task 1), and branch `chore/prettier-spaces`, which becomes `chore/prettier-reference`.
+
+## Task 2 (Phase 0a), completed: `chore/ui-shell-wip`
+
+**Commits:**
+1. `34bed58`: the WIP 8 files, as they were.
+2. `a747daa`: this transcript.
+3. `585bd76`: SLA pill styles; removed the unused `.ticket-controls`, `.ticket-thread-empty` and `.ticket-description` rules.
+4. `0534728`: Prettier 3.9.9 `--no-use-tabs` on the touched code files only (formatting only).
+5. `94fcf87`: **bug found by the browser check.** `.sla-progress-fill` is an inline `<span>`, so its width and height were ignored and every SLA progress bar (ticket list and the new header pill) rendered at 0×0. Fixed with `display: block`. Now 20/20 list bars and the pill bar render.
+
+**Verification:**
+- Frontend build passes.
+- Prettier check passes on the touched files.
+- Throwaway Playwright (session scratchpad, not in the repo) signed in as admin, agent and customer, visited every sidebar view, opened a ticket, opened the notifications panel and signed out. 0 console errors or warnings, 0 page errors, 0 HTTP 5xx.
+
+**Design decision (mine, minor):** the SLA pill uses only existing tokens (`--bg-elevated`, `--border`, `--radius-button`) so the theme refresh can re-skin it with no extra work.
