@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
-import { formatDateTime, formatSlaCountdown, getSlaProgress, initials } from "../../shared/utils/format.js";
+import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
 
 const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
@@ -41,6 +41,7 @@ export function TicketDetail({
     const [replyError, setReplyError] = useState("");
     const [isInternal, setIsInternal] = useState(false);
     const [showCanned, setShowCanned] = useState(false);
+    const replyFieldRef = useRef(null);
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
@@ -65,6 +66,11 @@ export function TicketDetail({
         setReplyBody((current) => (current ? `${current}\n\n${response.body}` : response.body));
         setReplyError("");
         setShowCanned(false);
+    }
+
+    function jumpToReply() {
+        replyFieldRef.current.focus();
+        replyFieldRef.current.scrollIntoView({ block: "center" });
     }
 
     return (
@@ -97,7 +103,12 @@ export function TicketDetail({
             <div className="ticket-detail-layout">
                 <div className="ticket-detail-main">
                     <div className="ticket-thread">
-                        <h3>Conversation</h3>
+                        <div className="ticket-thread-header">
+                            <h3>Conversation</h3>
+                            <button type="button" className="link-button jump-to-reply" onClick={jumpToReply}>
+                                Jump to reply
+                            </button>
+                        </div>
                         <MessageCard author={ticket.createdBy} body={ticket.description} isInternal={false} createdAt={ticket.createdAt} />
                         {visibleReplies.map((reply) => (
                             <MessageCard
@@ -138,6 +149,7 @@ export function TicketDetail({
                         </label>
                         <textarea
                             id="reply-body"
+                            ref={replyFieldRef}
                             value={replyBody}
                             onChange={(event) => {
                                 setReplyBody(event.target.value);
@@ -286,7 +298,7 @@ export function TicketDetail({
                             </div>
                             <div className="ticket-info-row">
                                 <span className="ticket-info-label">Category</span>
-                                <span className="ticket-info-value">{ticket.category || "General"}</span>
+                                <span className="ticket-info-value">{titleCase(ticket.category || "general")}</span>
                             </div>
                             <div className="ticket-info-row">
                                 <span className="ticket-info-label">Created</span>

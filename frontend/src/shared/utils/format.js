@@ -49,3 +49,16 @@ export function initials(name) {
         .join("")
         .toUpperCase();
 }
+
+// The short ticket number people see, matching the one in inbound email confirmations.
+export function ticketNumber(id) {
+    return `#${String(id).slice(-6)}`;
+}
+
+export function titleCase(value) {
+    if (!value) return "";
+    return String(value)
+        .split(/[_\s]+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}

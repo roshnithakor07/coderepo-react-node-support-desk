@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PriorityBadge } from "../../shared/components/Badge.jsx";
 import { ClockIcon, CloseIcon, PlusIcon, TagIcon } from "../../shared/components/Icon.jsx";
+import { titleCase } from "../../shared/utils/format.js";
 
 const PRIORITIES = ["critical", "high", "medium", "low"];
 
@@ -144,7 +145,7 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
                             {categories.map((category) => (
                                 <li key={category}>
                                     <span className="tag category-tag">
-                                        {category}
+                                        {titleCase(category)}
                                         <button
                                             type="button"
                                             className="category-tag-remove"

@@ -53,7 +53,7 @@
     --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 
     --sidebar-width: 240px;
-    --sidebar-width-collapsed: 68px;
+    --sidebar-width-collapsed: 72px;
 }
 
 :root[data-theme="light"] {
@@ -87,8 +87,9 @@ body,
     height: 100%;
 }
 
+/* clip (not hidden): hidden would turn html and body into extra vertical scroll areas. */
 html {
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 html {
@@ -98,7 +99,7 @@ html {
 
 body {
     margin: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
     font-family: var(--font-ui);
     font-size: 14px;
     line-height: 1.5;
@@ -645,9 +646,12 @@ textarea:disabled {
 }
 
 /* App shell */
+/* The shell is exactly one viewport tall; only .app-content scrolls. */
 .app-shell {
     display: flex;
     height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -656,13 +660,29 @@ textarea:disabled {
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: 16px 12px;
+    padding: 12px 10px;
     transition: width var(--transition);
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .sidebar.sidebar-collapsed {
     width: var(--sidebar-width-collapsed);
+}
+
+/* Icon-only rail: labels are hidden and every control keeps a title tooltip. */
+.sidebar.sidebar-collapsed .sidebar-brand,
+.sidebar.sidebar-collapsed nav button,
+.sidebar.sidebar-collapsed .sidebar-profile {
+    justify-content: center;
+}
+
+.sidebar.sidebar-collapsed nav button {
+    padding: 0;
+}
+
+.sidebar.sidebar-collapsed .sidebar-footer {
+    flex-direction: column;
 }
 
 .sidebar-brand {
@@ -672,7 +692,7 @@ textarea:disabled {
     font-weight: 600;
     font-size: 15px;
     padding: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     white-space: nowrap;
     overflow: hidden;
 }
@@ -686,8 +706,16 @@ textarea:disabled {
 .sidebar nav {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.sidebar nav > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .sidebar-section-label {
@@ -697,8 +725,8 @@ textarea:disabled {
     letter-spacing: 0.08em;
     color: var(--text-muted);
     padding: 0 12px;
-    margin-top: 16px;
-    margin-bottom: 4px;
+    margin-top: 12px;
+    margin-bottom: 2px;
 }
 
 .sidebar-section-label:first-child {
@@ -708,8 +736,9 @@ textarea:disabled {
 .sidebar nav button {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 40px;
+    gap: 10px;
+    height: 36px;
+    flex-shrink: 0;
     text-align: left;
     background: transparent;
     border: none;
@@ -864,12 +893,14 @@ textarea:disabled {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
 }
 
 .topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
     height: 56px;
     padding: 0 24px;
     border-bottom: 1px solid var(--border);
@@ -879,9 +910,13 @@ textarea:disabled {
 
 .topbar-title {
     margin: 0;
+    min-width: 0;
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .topbar-profile-chip {
@@ -938,9 +973,13 @@ textarea:disabled {
     gap: 16px;
 }
 
+/* position: relative keeps absolutely positioned descendants (such as visually-hidden labels)
+   inside this scroll area instead of stretching the page. */
 .app-content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    position: relative;
     padding: 24px;
 }
 
@@ -1580,6 +1619,28 @@ textarea:disabled {
     text-align: right;
 }
 
+/* Wide screens: ticket details stay in view and the reply composer stays reachable
+   while a long conversation scrolls. */
+@media (min-width: 901px) {
+    .ticket-detail-sidebar {
+        position: sticky;
+        top: 16px;
+    }
+
+    .reply-form {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        padding: 16px 0;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border);
+    }
+
+    .jump-to-reply {
+        display: none;
+    }
+}
+
 @media (max-width: 900px) {
     .ticket-detail-layout {
         grid-template-columns: 1fr;
@@ -1604,6 +1665,13 @@ textarea:disabled {
 
 .ticket-thread h3 {
     margin-bottom: 4px;
+}
+
+.ticket-thread-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .message-card {
@@ -2657,16 +2725,17 @@ textarea:disabled {
 @media (max-width: 768px) {
     .app-shell {
         flex-direction: column;
-        height: auto;
-        min-height: 100vh;
     }
 
-    .sidebar {
+    /* A single compact row of nav icons and labels above the page. */
+    .sidebar,
+    .sidebar.sidebar-collapsed {
         width: 100%;
         flex-direction: row;
         align-items: center;
-        overflow-x: auto;
-        padding: 8px;
+        padding: 6px 8px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
     }
 
     .sidebar-brand {
@@ -2674,8 +2743,22 @@ textarea:disabled {
         padding-right: 12px;
     }
 
+    .sidebar-brand span {
+        display: none;
+    }
+
     .sidebar nav {
         flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .sidebar nav > div {
+        display: contents;
+    }
+
+    .sidebar-section-label {
+        display: none;
     }
 
     .sidebar nav button.active::before {
@@ -2740,4 +2823,10 @@ textarea:disabled {
     .stat-row {
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+.date-range-hint {
+    align-self: center;
+    font-size: 12px;
+    color: var(--text-muted);
 }

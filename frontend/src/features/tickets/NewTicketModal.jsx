@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "../../shared/components/Modal.jsx";
+import { titleCase } from "../../shared/utils/format.js";
 import { validateMaxLength, validateRequired } from "../../shared/utils/validate.js";
 
 const CATEGORIES = ["general", "billing", "technical", "account"];
@@ -101,7 +102,7 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
                         >
                             {CATEGORIES.map((option) => (
                                 <option key={option} value={option}>
-                                    {option}
+                                    {titleCase(option)}
                                 </option>
                             ))}
                         </select>
