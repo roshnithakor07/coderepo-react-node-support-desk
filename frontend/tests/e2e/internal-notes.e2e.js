@@ -30,7 +30,7 @@ async function openTicket(page) {
     await page.goto("/");
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" }).click();
     await page.locator("table tbody tr", { hasText: ticketTitle }).first().click();
-    await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
+    await expect(page.getByRole("heading", { name: ticketTitle, level: 2 })).toBeVisible();
 }
 
 test.describe("customer view", () => {
