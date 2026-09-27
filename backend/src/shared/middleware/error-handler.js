@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { ZodError } from "zod";
 import { AppError } from "../errors/app-error.js";
 
@@ -7,10 +8,21 @@ export function notFoundHandler(request, response) {
 
 export function errorHandler(error, request, response, next) {
     if (error instanceof ZodError) {
-        return response.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Request validation failed.", details: error.flatten() } });
+        return response
+            .status(400)
+            .json({ error: { code: "VALIDATION_ERROR", message: "Request validation failed.", details: error.flatten() } });
     }
     if (error instanceof AppError) {
         return response.status(error.statusCode).json({ error: { code: error.code, message: error.message, details: error.details } });
+    }
+    if (error instanceof mongoose.Error.CastError || error?.name === "BSONError") {
+        return response.status(400).json({ error: { code: "INVALID_ID", message: "One of the ids in the request is not valid." } });
+    }
+    if (error?.type === "entity.parse.failed") {
+        return response.status(400).json({ error: { code: "INVALID_JSON", message: "The request body is not valid JSON." } });
+    }
+    if (error?.type === "entity.too.large") {
+        return response.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: "The request body is too large." } });
     }
     console.error(error);
     return response.status(500).json({ error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } });
