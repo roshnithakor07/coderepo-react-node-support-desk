@@ -6,9 +6,9 @@ export const authRepository = {
     create: (input) => User.create(input),
     findMany: (filter) => User.find(filter).sort({ createdAt: -1 }).lean(),
     countActiveAgents: () => User.countDocuments({ role: "agent", isActive: true }),
-    findAgentsWithWorkload: async () => {
+    findAgentsWithWorkload: async ({ activeOnly = true } = {}) => {
         return User.aggregate([
-            { $match: { role: "agent", isActive: true } },
+            { $match: activeOnly ? { role: "agent", isActive: true } : { role: "agent" } },
             {
                 $lookup: {
                     from: "tickets",
