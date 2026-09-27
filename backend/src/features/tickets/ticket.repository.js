@@ -11,6 +11,8 @@ export const ticketRepository = {
 
     findByIdLean: (id) => Ticket.findById(id).populate(populateFields).lean(),
 
+    exists: (id) => Ticket.exists({ _id: id }),
+
     findMany: (filter, { skip = 0, limit = 25, sort = { createdAt: -1 } } = {}) =>
         Ticket.find(filter)
             .populate([
