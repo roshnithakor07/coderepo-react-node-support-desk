@@ -1,11 +1,12 @@
 import { Ticket } from "../tickets/ticket.model.js";
 
+// dateTo is exclusive: the service passes the start of the day after the selected end date.
 function buildDateMatch(dateFrom, dateTo) {
     const match = {};
     if (dateFrom || dateTo) {
         match.createdAt = {};
         if (dateFrom) match.createdAt.$gte = dateFrom;
-        if (dateTo) match.createdAt.$lte = dateTo;
+        if (dateTo) match.createdAt.$lt = dateTo;
     }
     return match;
 }

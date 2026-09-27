@@ -2,20 +2,33 @@ import { getRedis } from "../../shared/config/redis.js";
 import { analyticsRepository } from "./analytics.repository.js";
 
 const CACHE_TTL_SECONDS = 60;
+const CACHE_VERSION_KEY = "analytics:version";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function cacheKey(filters) {
-    return `analytics:dashboard:${filters.dateFrom || "-"}:${filters.dateTo || "-"}`;
+// Bumping the version makes every cached dashboard stale at once; old keys expire on their own.
+async function cacheKey(redis, filters) {
+    const version = (await redis.get(CACHE_VERSION_KEY)) || "0";
+    return `analytics:dashboard:v${version}:${filters.dateFrom || "-"}:${filters.dateTo || "-"}`;
+}
+
+// Ranges are whole UTC days: from the start of dateFrom up to the end of dateTo, inclusive.
+function startOfDay(date) {
+    return new Date(`${date}T00:00:00.000Z`);
 }
 
 export const analyticsService = {
+    invalidate() {
+        return getRedis().incr(CACHE_VERSION_KEY);
+    },
+
     async getDashboard(filters = {}) {
         const redis = getRedis();
-        const key = cacheKey(filters);
+        const key = await cacheKey(redis, filters);
         const cached = await redis.get(key);
         if (cached) return JSON.parse(cached);
 
-        const dateFrom = filters.dateFrom ? new Date(filters.dateFrom) : undefined;
-        const dateTo = filters.dateTo ? new Date(filters.dateTo) : undefined;
+        const dateFrom = filters.dateFrom ? startOfDay(filters.dateFrom) : undefined;
+        const dateTo = filters.dateTo ? new Date(startOfDay(filters.dateTo).getTime() + DAY_MS) : undefined;
 
         const [volumeOverTime, resolutionByPriority, agentPerformance, slaComplianceRows, statusCounts] = await Promise.all([
             analyticsRepository.volumeOverTime(dateFrom, dateTo),

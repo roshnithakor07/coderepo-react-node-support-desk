@@ -85,6 +85,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                             id="analytics-from"
                             type="date"
                             value={filters.dateFrom || ""}
+                            max={filters.dateTo || undefined}
                             onChange={(event) => onFilterChange({ ...filters, dateFrom: event.target.value })}
                         />
                     </label>
@@ -94,6 +95,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                             id="analytics-to"
                             type="date"
                             value={filters.dateTo || ""}
+                            min={filters.dateFrom || undefined}
                             onChange={(event) => onFilterChange({ ...filters, dateTo: event.target.value })}
                         />
                     </label>
