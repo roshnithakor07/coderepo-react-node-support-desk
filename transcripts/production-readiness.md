@@ -194,3 +194,53 @@ Approved by the user; `fix/restore-roboto` merged next.
 | `.redis` line in `.prettierignore` | A) remove it, so `.prettierignore` is byte-identical to the reference. B) keep it, alongside the `.gitignore` entry. | **A: remove** | INSTRUCTIONS.md:40 (preserve the reference Prettier configuration). The line had no effect, because Prettier ignores `.redis/` data and log files anyway. |
 
 Result: `.prettierrc`, `.prettierignore` and `.editorconfig` are all byte-identical to the reference. `.gitignore` keeps `.redis/`.
+
+## [2026-09-27T07:34:30+00:00] Task 6 (Phase 0c): `test/api-harness`
+
+**Goal:**
+- `bun test` harness with an isolated DB (`support_desk_test`), a `createApp()` boot helper, per-role login helpers, a root `test` script, and smoke tests
+- deterministic seed
+- American English
+
+**Files:**
+- `backend/tests/setup.js` (preload)
+- `backend/tests/helpers/api.js`
+- `backend/tests/smoke.test.js`
+- `backend/tests/seed.test.js`
+- `backend/package.json` gains `"test": "bun test --preload ./tests/setup.js"`
+- root `package.json` gains `"test": "cd backend && bun run test"`
+- README Commands table: new test row
+- `backend/src/scripts/seed.js`:
+  - `isRead: Math.random() > 0.5` becomes `index % 2 === 1`
+  - "Acknowledgement" becomes "Acknowledgment"
+  - `// prettier-ignore` added above the ticket blueprint table
+
+**Design decisions (my proposals, open to the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Test location | A) `backend/tests/` next to `src/`. B) `*.test.js` beside each feature in `src/features/*`. | A | Keeps `src/` identical in shape to the reference; the harness and helpers are cross-cutting. |
+| How the harness starts | A) `bun test --preload ./tests/setup.js` in the script. B) a `bunfig.toml` with `[test] preload`. | A | No new config file that the reference lacks. Verified that `--preload` and a global `afterAll` work on Bun 1.4.2. |
+| Test DB isolation | Always override `MONGODB_URI` with `TEST_MONGODB_URI` or `mongodb://127.0.0.1:27017/support_desk_test`, and **refuse any DB name not ending in `_test`**. | as stated | Bun auto-loads `backend/.env` (the dev DB); the guard makes wiping dev data impossible. |
+| Redis isolation | Use Redis DB index 1 (`TEST_REDIS_URL`), `FLUSHDB` at start | as stated | Login rate-limit keys (10/min/IP) and the token blacklist can't collide with the running dev app. |
+| Seeding | Run the real `src/scripts/seed.js` as a subprocess against the test DB | as stated | Tests exercise the exact seed that `bun start` uses; no refactor of the read-only seed path. |
+| Login helper | Cache one session per role per run | as stated | Stays under the 10/min login rate limit. |
+| Seed formatting | A) `// prettier-ignore` on `TICKET_BLUEPRINTS` only. B) let Prettier explode the table (141-line diff, mixed one-line and multi-line objects). C) leave `seed.js` unformatted. | A | Keeps the one-row-per-ticket table readable and still passes the "Prettier passes on changed files" rule. **Flagged for the user to confirm.** |
+
+**Verification:**
+- `bun run test`: **10 pass, 0 fail** (28 expects, about 3-10s).
+- **Dev DB untouched** (verified properly the second time; the first attempt ran from the repo root, where `mongoose` doesn't resolve, so both fingerprints were error output and proved nothing):
+  - `support_desk_db` had the same user ids before and after (…834fb3, …834fb4)
+  - `support_desk_test` was re-seeded with new ids
+- **Guard:** `TEST_MONGODB_URI=…/support_desk_db` fails with "Refusing to run tests against "support_desk_db"".
+- **Tests prove the fixes:** with the old `seed.js` stashed, exactly the 2 seed-fix tests fail (deterministic read state; American English), and 8 pass. With the fix restored, 10/10 pass.
+- Prettier `--no-use-tabs` passes on all 5 touched JS files.
+
+**Noted for later (not changed here):** `CATEGORIES` in `seed.js` is unused (dead code, Phase 4).
+
+## [2026-09-27T07:37:35+00:00] User confirmed `test/api-harness` decisions
+
+The user approved the branch and kept all three proposals:
+1. Tests live in `backend/tests/`.
+2. The harness uses `bun test --preload` (no `bunfig.toml`).
+3. `// prettier-ignore` on the seed's ticket blueprint table.

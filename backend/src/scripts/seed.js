@@ -86,7 +86,7 @@ async function seedCannedResponses(admins, agents) {
     console.log("\nSeeding canned responses...");
     const responses = await CannedResponse.insertMany([
         {
-            title: "Welcome & Acknowledgement",
+            title: "Welcome & Acknowledgment",
             body: "Hi there, thanks for reaching out. We've received your request and a member of our team will follow up shortly.",
             category: "general",
             createdBy: admins[0]._id,
@@ -127,6 +127,8 @@ async function seedCannedResponses(admins, agents) {
 
 const CATEGORIES = ["general", "billing", "technical", "account"];
 
+// One blueprint per line keeps the seeded tickets readable as a table.
+// prettier-ignore
 const TICKET_BLUEPRINTS = [
     { title: "Cannot log into my account", priority: "critical", category: "account", status: "open", ageHours: 2, slaOffsetHours: -0.5 },
     { title: "Payment failed but I was charged", priority: "critical", category: "billing", status: "in_progress", ageHours: 5, slaOffsetHours: -4 },
@@ -236,13 +238,13 @@ async function seedNotifications(tickets, agents, customers) {
     console.log("\nSeeding notifications...");
     const notifications = [];
 
-    tickets.slice(0, 8).forEach((ticket) => {
+    tickets.slice(0, 8).forEach((ticket, index) => {
         notifications.push({
             userId: ticket.assignedTo,
             type: "ticket_assigned",
             message: `You were assigned ticket "${ticket.title}".`,
             ticketId: ticket._id,
-            isRead: Math.random() > 0.5,
+            isRead: index % 2 === 1,
         });
         if (ticket.slaBreached) {
             notifications.push({
