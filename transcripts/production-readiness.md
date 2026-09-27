@@ -295,3 +295,36 @@ The user approved the branch and kept all three choices:
 - one worker
 
 **User note for Phase 1:** the customer e2e journey passes even though customers still receive internal notes. It only checks that the Internal Note *tab* is hidden, not the note *content*. `fix/internal-notes-leak` must add API and e2e tests that assert internal-note content is absent for customers.
+
+## [2026-09-27T08:00:04+00:00] Task 9 (Phase 1.2): `fix/internal-notes-leak`
+
+**Defect:** customers received internal notes. The audit verified this on ticket detail. Writing the tests showed that the **ticket list** and the **ticket returned after a customer reply** leaked too.
+
+**Fix:**
+- **Backend:** one `presentTicket(ticket, actor)` in `ticket.service.js` strips `isInternal` replies for customers. It is applied to **every** path that returns a ticket: create, list, detail, update, assign, reply.
+- **UI (second line of defense):** `TicketDetail` renders only non-internal replies for customers.
+
+**Decision (mine, open to the user's review):**
+
+| Options | Chosen | Why |
+|---|---|---|
+| A) filter in the service layer, for every ticket response. B) filter in each controller. C) a Mongo projection per query. | A | Business rule lives in the service (GUIDELINES.md:209); one function covers all 6 paths, so a new endpoint can't forget it. |
+
+**Commit layout:** `ticket.service.js` was not Prettier-clean on main, so it got a separate formatting-only commit (`style: format ticket service…`), keeping the fix diff to the lines that matter.
+
+**Tests:**
+- **API** (`backend/tests/internal-notes.test.js`): the agent posts a unique internal note and a public reply on a seeded customer ticket. Then for the customer:
+  - detail, list and the reply response must **not contain the note text** (the whole JSON is searched), with no `isInternal` replies, while the public reply is still present
+  - a customer can't create an internal note (the flag is forced to false)
+  - positive controls: the assigned agent and an admin still see the note
+- **E2E** (`frontend/tests/e2e/internal-notes.e2e.js`), as the user asked:
+  - the agent posts a timestamped note and public reply through the API
+  - **customer view:** the public reply is visible, and the note text and the "Internal Note" label have **0** matches on the page
+  - **agent view:** the note is visible
+
+**Proof:**
+- Before the fix: API **3 failed** (detail, list, reply response); e2e **customer view failed**.
+- After the fix: API 16/16, e2e 9/9.
+- Build OK; Prettier passes on the touched files.
+
+**Note:** e2e runs against the dev DB, so each run adds one timestamped note and reply there. `bun start` reseeds, as usual.
