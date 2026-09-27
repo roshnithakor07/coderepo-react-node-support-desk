@@ -43,6 +43,12 @@ function assertCanView(ticket, actor) {
     throw new AppError(403, "FORBIDDEN", "You do not have access to this ticket.");
 }
 
+// Customers never receive internal notes, whichever endpoint returns the ticket.
+function presentTicket(ticket, actor) {
+    if (!ticket || actor.role !== "customer") return ticket;
+    return { ...ticket, replies: ticket.replies.filter((reply) => !reply.isInternal) };
+}
+
 export const ticketService = {
     async create(input, actor) {
         const slaDeadline = await computeSlaDeadline(input.priority);
@@ -62,10 +68,15 @@ export const ticketService = {
         await auditLogService.record(ticket._id, "created", actor.id, { priority: input.priority, autoAssigned: Boolean(autoAssignee) });
 
         if (autoAssignee) {
-            await notificationService.notify(autoAssignee._id, "ticket_assigned", `You were auto-assigned ticket "${ticket.title}".`, ticket._id);
+            await notificationService.notify(
+                autoAssignee._id,
+                "ticket_assigned",
+                `You were auto-assigned ticket "${ticket.title}".`,
+                ticket._id,
+            );
         }
 
-        return ticketRepository.findByIdLean(ticket._id);
+        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async list(filters, actor) {
@@ -83,15 +94,18 @@ export const ticketService = {
         const pageSize = filters.pageSize || 20;
         const skip = (page - 1) * pageSize;
 
-        const [tickets, total] = await Promise.all([ticketRepository.findMany(query, { skip, limit: pageSize }), ticketRepository.count(query)]);
-        return { tickets, total, page, pageSize };
+        const [tickets, total] = await Promise.all([
+            ticketRepository.findMany(query, { skip, limit: pageSize }),
+            ticketRepository.count(query),
+        ]);
+        return { tickets: tickets.map((ticket) => presentTicket(ticket, actor)), total, page, pageSize };
     },
 
     async getById(id, actor) {
         const ticket = await ticketRepository.findByIdLean(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
-        return ticket;
+        return presentTicket(ticket, actor);
     },
 
     async update(id, patch, actor) {
@@ -147,10 +161,15 @@ export const ticketService = {
         }
 
         if (changes.status && String(ticket.createdBy) !== actor.id) {
-            await notificationService.notify(ticket.createdBy, "status_changed", `Ticket "${ticket.title}" status changed to ${ticket.status}.`, ticket._id);
+            await notificationService.notify(
+                ticket.createdBy,
+                "status_changed",
+                `Ticket "${ticket.title}" status changed to ${ticket.status}.`,
+                ticket._id,
+            );
         }
 
-        return ticketRepository.findByIdLean(ticket._id);
+        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async assign(id, agentId, actor) {
@@ -167,7 +186,7 @@ export const ticketService = {
         await auditLogService.record(ticket._id, "assigned", actor.id, { assignedTo: agent.name });
         await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
 
-        return ticketRepository.findByIdLean(ticket._id);
+        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async addReply(id, actor, { body, isInternal }) {
@@ -193,7 +212,7 @@ export const ticketService = {
             }
         }
 
-        return ticketRepository.findByIdLean(ticket._id);
+        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     getAuditTrail(id) {
@@ -218,7 +237,12 @@ export const ticketService = {
             ticket.slaWarningNotifiedAt = now;
             await ticketRepository.save(ticket);
             const recipients = [ticket.assignedTo].filter(Boolean);
-            await notificationService.notifyMany(recipients, "sla_warning", `SLA due within 30 minutes for ticket "${ticket.title}".`, ticket._id);
+            await notificationService.notifyMany(
+                recipients,
+                "sla_warning",
+                `SLA due within 30 minutes for ticket "${ticket.title}".`,
+                ticket._id,
+            );
         }
 
         return { breached: overdue.length, warned: approaching.length };

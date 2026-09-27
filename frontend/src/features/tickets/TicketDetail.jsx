@@ -43,6 +43,7 @@ export function TicketDetail({
     const [showCanned, setShowCanned] = useState(false);
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
+    const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
     const sla = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
 
     function submitReply(event) {
@@ -98,7 +99,7 @@ export function TicketDetail({
                     <div className="ticket-thread">
                         <h3>Conversation</h3>
                         <MessageCard author={ticket.createdBy} body={ticket.description} isInternal={false} createdAt={ticket.createdAt} />
-                        {ticket.replies.map((reply) => (
+                        {visibleReplies.map((reply) => (
                             <MessageCard
                                 key={reply._id}
                                 author={reply.author}
