@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { api, login, loginAs, SEEDED_ACCOUNTS } from "./helpers/api.js";
 
 describe("health", () => {
-    test("reports the API and MongoDB as up", async () => {
+    test("reports the API, MongoDB and Redis as up", async () => {
         const { status, body } = await api("/health");
         expect(status).toBe(200);
-        expect(body.data).toEqual({ status: "ok", database: "connected" });
+        expect(body.data).toEqual({ status: "ok", database: "connected", redis: "connected" });
     });
 });
 

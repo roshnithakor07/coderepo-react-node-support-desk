@@ -1,4 +1,4 @@
-import { getRedis } from "../../shared/config/redis.js";
+import { withRedis } from "../../shared/config/redis.js";
 import { analyticsRepository } from "./analytics.repository.js";
 
 const CACHE_TTL_SECONDS = 60;
@@ -18,13 +18,13 @@ function startOfDay(date) {
 
 export const analyticsService = {
     invalidate() {
-        return getRedis().incr(CACHE_VERSION_KEY);
+        return withRedis((redis) => redis.incr(CACHE_VERSION_KEY), null);
     },
 
+    // Without Redis the dashboard is computed on every request instead of cached.
     async getDashboard(filters = {}) {
-        const redis = getRedis();
-        const key = await cacheKey(redis, filters);
-        const cached = await redis.get(key);
+        const key = await withRedis((redis) => cacheKey(redis, filters), null);
+        const cached = key && (await withRedis((redis) => redis.get(key), null));
         if (cached) return JSON.parse(cached);
 
         const dateFrom = filters.dateFrom ? startOfDay(filters.dateFrom) : undefined;
@@ -61,7 +61,7 @@ export const analyticsService = {
             statusCounts: statusMap,
         };
 
-        await redis.set(key, JSON.stringify(dashboard), "EX", CACHE_TTL_SECONDS);
+        if (key) await withRedis((redis) => redis.set(key, JSON.stringify(dashboard), "EX", CACHE_TTL_SECONDS), null);
         return dashboard;
     },
 };

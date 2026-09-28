@@ -32,6 +32,12 @@ if (seed.exitCode !== 0) {
 initConfig();
 connectRedis(redisUrl);
 try {
+    // Commands do not queue while Redis connects, so wait until it is ready.
+    await new Promise((resolve, reject) => {
+        if (getRedis().status === "ready") return resolve();
+        getRedis().once("ready", resolve);
+        setTimeout(() => reject(new Error("timed out connecting")), 5000);
+    });
     await getRedis().flushdb();
 } catch (error) {
     throw new Error(`Redis is required for tests at ${redisUrl}: ${error.message}`);

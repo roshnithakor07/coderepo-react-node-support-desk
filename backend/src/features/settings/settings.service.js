@@ -1,4 +1,4 @@
-import { getRedis } from "../../shared/config/redis.js";
+import { withRedis } from "../../shared/config/redis.js";
 import { settingsRepository } from "./settings.repository.js";
 
 const CACHE_KEY = "settings:global";
@@ -6,11 +6,10 @@ const CACHE_TTL_SECONDS = 300;
 
 export const settingsService = {
     async getSettings() {
-        const redis = getRedis();
-        const cached = await redis.get(CACHE_KEY);
+        const cached = await withRedis((redis) => redis.get(CACHE_KEY), null);
         if (cached) return JSON.parse(cached);
         const settings = await settingsRepository.getOrCreate();
-        await redis.set(CACHE_KEY, JSON.stringify(settings), "EX", CACHE_TTL_SECONDS);
+        await withRedis((redis) => redis.set(CACHE_KEY, JSON.stringify(settings), "EX", CACHE_TTL_SECONDS), null);
         return settings;
     },
 
@@ -20,7 +19,7 @@ export const settingsService = {
         for (const [priority, hours] of Object.entries(input.slaHours || {})) changes[`slaHours.${priority}`] = hours;
         if (input.categories) changes.categories = input.categories;
         const updated = await settingsRepository.update(changes);
-        await getRedis().del(CACHE_KEY);
+        await withRedis((redis) => redis.del(CACHE_KEY), null);
         return updated;
     },
 
