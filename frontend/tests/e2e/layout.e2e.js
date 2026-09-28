@@ -63,13 +63,15 @@ test.describe("desktop 1920x961", () => {
         await page.screenshot({ path: `${ARTIFACTS_DIRECTORY}/screenshots/ticket-detail-1920.png` });
     });
 
-    test("the top bar shows the ticket number and title, and categories are title case", async ({ page }) => {
+    test("the top bar is a Tickets / #id breadcrumb, and categories are title case", async ({ page }) => {
         await openFirstTicketWithLongConversation(page);
-        const title = await page.locator(".ticket-detail-header h2").textContent();
-        await expect(page.locator(".topbar-title")).toHaveText(
-            new RegExp(`^#[0-9a-f]{6} · ${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
-        );
+        const number = await page.locator(".ticket-number").textContent();
+        await expect(page.locator(".topbar-title")).toHaveText(new RegExp(`^Tickets\\s*/\\s*${number}$`));
         await expect(page.locator(".ticket-info-row", { hasText: "Category" }).locator(".ticket-info-value")).toHaveText(/^[A-Z][a-z]+$/);
+
+        await page.locator(".topbar-title").getByRole("button", { name: "Tickets" }).click();
+        await expect(page.locator("table tbody tr").first()).toBeVisible();
+        await expect(page.locator(".topbar-title")).toHaveText("Tickets");
     });
 
     test("the sidebar is 240px and collapses to a remembered icon rail with tooltips", async ({ page }) => {
@@ -96,6 +98,33 @@ test.describe("desktop 1920x961", () => {
         await expect(page.getByText("Dates in UTC")).toBeVisible();
     });
 });
+
+for (const width of [1440, 1600]) {
+    test.describe(`laptop ${width}px`, () => {
+        test.use({ viewport: { width, height: 900 } });
+
+        for (const collapsed of [false, true]) {
+            test(`the sidebar renders ${collapsed ? "as a rail" : "expanded"} beside the content`, async ({ page }) => {
+                await page.addInitScript((value) => localStorage.setItem("support-desk-sidebar-collapsed", value), String(collapsed));
+                await page.goto("/");
+                const nav = page.getByRole("navigation", { name: "Main" }).getByRole("button");
+                await expect(nav).toHaveCount(6);
+                for (const button of await nav.all()) await expect(button).toBeVisible();
+
+                const metrics = await page.evaluate(() => {
+                    const sidebar = document.querySelector(".sidebar").getBoundingClientRect();
+                    return {
+                        left: Math.round(sidebar.left),
+                        width: Math.round(sidebar.width),
+                        mainLeft: Math.round(document.querySelector(".app-main").getBoundingClientRect().left),
+                        shellScrollLeft: document.querySelector(".app-shell").scrollLeft,
+                    };
+                });
+                expect(metrics).toEqual({ left: 0, width: collapsed ? 72 : 240, mainLeft: collapsed ? 72 : 240, shellScrollLeft: 0 });
+            });
+        }
+    });
+}
 
 test.describe("mobile 375x812", () => {
     test.use({ viewport: { width: 375, height: 812 } });
