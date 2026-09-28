@@ -68,11 +68,9 @@ export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, on
                         </span>
                     )}
                 </button>
-                {!isCollapsed && (
-                    <button type="button" className="sidebar-logout" onClick={onLogout} aria-label="Sign out">
-                        <LogOutIcon />
-                    </button>
-                )}
+                <button type="button" className="sidebar-logout" onClick={onLogout} aria-label="Sign out" title="Sign out">
+                    <LogOutIcon />
+                </button>
             </div>
 
             <button
@@ -80,6 +78,7 @@ export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, on
                 className="sidebar-collapse-toggle"
                 onClick={onToggleCollapse}
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
                 {isCollapsed ? "»" : "«"}
             </button>

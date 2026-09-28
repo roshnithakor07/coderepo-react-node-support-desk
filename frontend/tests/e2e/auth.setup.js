@@ -1,5 +1,5 @@
 import { expect, test as setup } from "@playwright/test";
-import { ACCOUNTS, readSavedToken, SEEDED_PASSWORD, sessionFile } from "./support/sessions.js";
+import { ACCOUNTS, API_URL, readSavedToken, SEEDED_PASSWORD, sessionFile } from "./support/sessions.js";
 
 // Sign in once per role and save the session. A saved session that is still valid is reused,
 // which keeps repeated runs under the login rate limit (10 per minute).
@@ -7,7 +7,7 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
     setup(`save ${role} session`, async ({ page, request }) => {
         const savedToken = readSavedToken(role);
         if (savedToken) {
-            const response = await request.get("/api/v1/auth/me", { headers: { Authorization: `Bearer ${savedToken}` } });
+            const response = await request.get(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${savedToken}` } });
             if (response.ok() && (await response.json()).data.email === account.email) return;
         }
 

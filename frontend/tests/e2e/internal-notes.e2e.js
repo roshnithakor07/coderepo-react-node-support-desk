@@ -1,4 +1,4 @@
-import { ACCOUNTS, readSavedToken, sessionFile } from "./support/sessions.js";
+import { ACCOUNTS, API_URL, readSavedToken, sessionFile } from "./support/sessions.js";
 import { expect, test } from "./support/fixtures.js";
 
 const stamp = Date.now();
@@ -9,10 +9,10 @@ let ticketTitle;
 
 test.beforeAll(async ({ playwright }) => {
     const agentApi = await playwright.request.newContext({
-        baseURL: "http://localhost:3000",
+        baseURL: `${API_URL}/`,
         extraHTTPHeaders: { Authorization: `Bearer ${readSavedToken("agent")}` },
     });
-    const list = await (await agentApi.get("/api/v1/tickets?pageSize=100")).json();
+    const list = await (await agentApi.get("tickets?pageSize=100")).json();
     const ticket = list.data.tickets.find((entry) => entry.createdBy.email === ACCOUNTS.customer.email);
     ticketTitle = ticket.title;
 
@@ -20,7 +20,7 @@ test.beforeAll(async ({ playwright }) => {
         { body: INTERNAL_NOTE, isInternal: true },
         { body: PUBLIC_REPLY, isInternal: false },
     ]) {
-        const response = await agentApi.post(`/api/v1/tickets/${ticket._id}/replies`, { data: reply });
+        const response = await agentApi.post(`tickets/${ticket._id}/replies`, { data: reply });
         expect(response.status()).toBe(201);
     }
     await agentApi.dispose();
@@ -30,7 +30,7 @@ async function openTicket(page) {
     await page.goto("/");
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" }).click();
     await page.locator("table tbody tr", { hasText: ticketTitle }).first().click();
-    await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
+    await expect(page.getByRole("heading", { name: ticketTitle, level: 2 })).toBeVisible();
 }
 
 test.describe("customer view", () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PriorityBadge } from "../../shared/components/Badge.jsx";
 import { ClockIcon, CloseIcon, PlusIcon, TagIcon } from "../../shared/components/Icon.jsx";
+import { titleCase } from "../../shared/utils/format.js";
 
 const PRIORITIES = ["critical", "high", "medium", "low"];
 
@@ -17,7 +18,10 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
         }
     }, [settings]);
 
-    const isDirty = settings && (JSON.stringify(slaHours) !== JSON.stringify(settings.slaHours) || JSON.stringify(categories) !== JSON.stringify(settings.categories));
+    const isDirty =
+        settings &&
+        (JSON.stringify(slaHours) !== JSON.stringify(settings.slaHours) ||
+            JSON.stringify(categories) !== JSON.stringify(settings.categories));
 
     function updateHours(priority, value) {
         setSlaHours({ ...slaHours, [priority]: value === "" ? "" : Number(value) });
@@ -91,7 +95,9 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
                         <ClockIcon className="settings-section-icon" />
                         <div>
                             <h3>SLA response targets</h3>
-                            <p className="settings-section-description">How quickly agents must respond after a ticket comes in, per priority.</p>
+                            <p className="settings-section-description">
+                                How quickly agents must respond after a ticket comes in, per priority.
+                            </p>
                         </div>
                     </div>
                     <div className="sla-rows">
@@ -139,7 +145,7 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
                             {categories.map((category) => (
                                 <li key={category}>
                                     <span className="tag category-tag">
-                                        {category}
+                                        {titleCase(category)}
                                         <button
                                             type="button"
                                             className="category-tag-remove"

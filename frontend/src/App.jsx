@@ -21,7 +21,8 @@ import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
 import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
-import { initials } from "./shared/utils/format.js";
+import { getStoredSidebarCollapsed, storeSidebarCollapsed } from "./shared/utils/sidebar.js";
+import { initials, ticketNumber } from "./shared/utils/format.js";
 import { friendlyErrorMessage } from "./shared/utils/validate.js";
 
 const NOTIFICATION_POLL_MS = 15000;
@@ -45,7 +46,7 @@ export default function App() {
     const [authBusy, setAuthBusy] = useState(false);
 
     const [activeView, setActiveView] = useState("dashboard");
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getStoredSidebarCollapsed);
     const [selectedTicketId, setSelectedTicketId] = useState(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
     const [isCreatingTicket, setIsCreatingTicket] = useState(false);
@@ -97,6 +98,10 @@ export default function App() {
     useEffect(() => {
         applyTheme(theme);
     }, [theme]);
+
+    useEffect(() => {
+        storeSidebarCollapsed(isSidebarCollapsed);
+    }, [isSidebarCollapsed]);
 
     const canManage = currentUser && (currentUser.role === "admin" || currentUser.role === "agent");
 
@@ -405,6 +410,8 @@ export default function App() {
         [analyticsDashboard],
     );
 
+    const isTicketView = activeView === "ticket-detail" && selectedTicket;
+
     if (isBootstrapping) {
         return (
             <div className="boot-screen">
@@ -436,7 +443,19 @@ export default function App() {
             />
             <div className="app-main">
                 <header className="topbar">
-                    <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                    {isTicketView ? (
+                        <h1 className="topbar-title topbar-breadcrumb">
+                            <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
+                                Tickets
+                            </button>
+                            <span className="breadcrumb-separator" aria-hidden="true">
+                                /
+                            </span>
+                            <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
+                        </h1>
+                    ) : (
+                        <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                    )}
                     <div className="topbar-actions">
                         <NotificationBell
                             notifications={notifications}

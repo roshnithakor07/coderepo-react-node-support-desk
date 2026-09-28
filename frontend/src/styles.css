@@ -53,7 +53,7 @@
     --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 
     --sidebar-width: 240px;
-    --sidebar-width-collapsed: 68px;
+    --sidebar-width-collapsed: 72px;
 }
 
 :root[data-theme="light"] {
@@ -87,8 +87,9 @@ body,
     height: 100%;
 }
 
+/* clip (not hidden): hidden would turn html and body into extra vertical scroll areas. */
 html {
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 html {
@@ -98,7 +99,7 @@ html {
 
 body {
     margin: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
     font-family: var(--font-ui);
     font-size: 14px;
     line-height: 1.5;
@@ -645,9 +646,12 @@ textarea:disabled {
 }
 
 /* App shell */
+/* The shell is exactly one viewport tall; only .app-content scrolls. */
 .app-shell {
     display: flex;
     height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -656,13 +660,29 @@ textarea:disabled {
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: 16px 12px;
+    padding: 12px 10px;
     transition: width var(--transition);
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .sidebar.sidebar-collapsed {
     width: var(--sidebar-width-collapsed);
+}
+
+/* Icon-only rail: labels are hidden and every control keeps a title tooltip. */
+.sidebar.sidebar-collapsed .sidebar-brand,
+.sidebar.sidebar-collapsed nav button,
+.sidebar.sidebar-collapsed .sidebar-profile {
+    justify-content: center;
+}
+
+.sidebar.sidebar-collapsed nav button {
+    padding: 0;
+}
+
+.sidebar.sidebar-collapsed .sidebar-footer {
+    flex-direction: column;
 }
 
 .sidebar-brand {
@@ -672,7 +692,7 @@ textarea:disabled {
     font-weight: 600;
     font-size: 15px;
     padding: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     white-space: nowrap;
     overflow: hidden;
 }
@@ -686,8 +706,16 @@ textarea:disabled {
 .sidebar nav {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.sidebar nav > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .sidebar-section-label {
@@ -697,8 +725,8 @@ textarea:disabled {
     letter-spacing: 0.08em;
     color: var(--text-muted);
     padding: 0 12px;
-    margin-top: 16px;
-    margin-bottom: 4px;
+    margin-top: 12px;
+    margin-bottom: 2px;
 }
 
 .sidebar-section-label:first-child {
@@ -708,8 +736,9 @@ textarea:disabled {
 .sidebar nav button {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 40px;
+    gap: 10px;
+    height: 36px;
+    flex-shrink: 0;
     text-align: left;
     background: transparent;
     border: none;
@@ -864,12 +893,14 @@ textarea:disabled {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
 }
 
 .topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
     height: 56px;
     padding: 0 24px;
     border-bottom: 1px solid var(--border);
@@ -879,9 +910,38 @@ textarea:disabled {
 
 .topbar-title {
     margin: 0;
+    min-width: 0;
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.breadcrumb-link {
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.breadcrumb-link:hover {
+    color: var(--accent);
+}
+
+.breadcrumb-separator {
+    font-weight: 400;
+    color: var(--text-muted);
 }
 
 .topbar-profile-chip {
@@ -938,9 +998,13 @@ textarea:disabled {
     gap: 16px;
 }
 
+/* position: relative keeps absolutely positioned descendants (such as visually-hidden labels)
+   inside this scroll area instead of stretching the page. */
 .app-content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    position: relative;
     padding: 24px;
 }
 
@@ -1375,21 +1439,6 @@ textarea:disabled {
     background: var(--danger);
 }
 
-.sla-timer-pill {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 120px;
-    padding: 6px 12px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-button);
-}
-
-.sla-timer-pill-track {
-    height: 3px;
-}
-
 /* Modal */
 .modal {
     border: 1px solid var(--border);
@@ -1490,39 +1539,138 @@ textarea:disabled {
 }
 
 /* Ticket detail */
-.back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 20px;
+/* Ticket detail: a helpdesk layout inside the single .app-content scroll area.
+   The header, the properties panel and the composer stay pinned while the conversation scrolls. */
+.ticket-detail {
+    --ticket-header-height: 64px;
+    max-width: 1360px;
+    min-height: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .ticket-detail-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 16px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: var(--ticket-header-height);
+    margin: 0 0 8px;
+    padding: 7px 0;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
 }
 
-.ticket-detail-badges {
+.ticket-detail-heading {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ticket-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-button);
+    color: var(--text-secondary);
+    transition:
+        background var(--transition-fast),
+        color var(--transition-fast);
+}
+
+.ticket-back-button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.ticket-back-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ticket-number {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.ticket-detail-heading h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ticket-detail-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ticket-detail-chips .badge {
+    padding: 3px 8px;
+    font-size: 10px;
+}
+
+.sla-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-badge);
+}
+
+.sla-chip .sla-ok,
+.sla-chip .sla-breached {
+    font-size: 11px;
+}
+
+.sla-chip .sla-progress-track {
+    width: 36px;
+    height: 3px;
 }
 
 .ticket-meta {
-    color: var(--text-muted);
-    font-size: 13px;
     margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.ticket-detail-header .ticket-meta {
+    margin: 0;
+    padding-left: 38px;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .ticket-detail-layout {
+    flex: 1;
     display: grid;
-    grid-template-columns: 65fr 35fr;
-    gap: 24px;
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 16px;
 }
 
 .ticket-detail-main {
@@ -1533,186 +1681,164 @@ textarea:disabled {
 
 .ticket-detail-sidebar {
     min-width: 0;
+    align-self: start;
+}
+
+/* Conversation */
+/* The composer follows the messages directly; it only pins to the bottom once the conversation
+   is taller than the view. */
+.ticket-thread {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
+    padding-bottom: 12px;
 }
 
-.ticket-sidebar-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 20px;
+.ticket-thread-header {
     display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.ticket-sidebar-card h4 {
-    margin: 0;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-}
-
-.ticket-info-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    font-size: 13px;
-}
-
-.ticket-info-row {
-    display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
 }
 
-.ticket-info-label {
+.ticket-thread-header h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--text-muted);
 }
 
-.ticket-info-value {
-    color: var(--text-primary);
-    font-weight: 500;
-    text-align: right;
-}
-
-@media (max-width: 900px) {
-    .ticket-detail-layout {
-        grid-template-columns: 1fr;
-    }
-}
-
-.ticket-controls-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-muted);
-    font-size: 13px;
-    padding-bottom: 8px;
-}
-
-.ticket-thread {
+.message-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.ticket-thread h3 {
-    margin-bottom: 4px;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .message-card {
-    position: relative;
-    padding: 20px;
-    border-radius: var(--radius-card);
-    background: var(--bg-primary);
+    padding: 10px 12px;
+    background: var(--bg-card);
     border: 1px solid var(--border);
+    border-radius: var(--radius-card);
 }
 
 .message-card-internal {
-    background: var(--bg-elevated);
-    border-color: var(--border);
+    background: var(--warning-soft);
+    border-color: var(--warning-soft);
     border-left: 3px solid var(--warning);
 }
 
 .message-card-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
 }
 
 .message-card-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--accent-ink);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 12px;
     flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
 }
 
 .message-card-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
 }
 
 .message-card-name {
+    font-size: 13px;
     font-weight: 600;
-    font-size: 14px;
-    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.message-card-meta .tag {
+    padding: 1px 5px;
+    font-size: 9px;
 }
 
 .message-card-trailer {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
     margin-left: auto;
 }
 
 .message-card-time {
-    font-family: var(--font-mono);
     font-size: 12px;
     color: var(--text-muted);
-    white-space: nowrap;
 }
 
 .internal-note-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 8px;
-    border-radius: var(--radius-tag);
-    font-size: 11px;
-    font-weight: 600;
-    background: var(--warning-soft);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--warning);
-    white-space: nowrap;
+}
+
+.internal-note-chip svg {
+    width: 12px;
+    height: 12px;
 }
 
 .message-card-body {
     margin: 0;
+    padding-left: 34px;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.55;
     color: var(--text-primary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
+/* Composer */
 .reply-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
+    padding: 8px 12px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
 }
 
 .reply-tabs {
     display: flex;
-    gap: 24px;
+    gap: 16px;
     border-bottom: 1px solid var(--border);
 }
 
 .reply-tabs button {
+    margin-bottom: -1px;
+    padding: 4px 0 6px;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: 0 0 10px;
-    margin-bottom: -1px;
     color: var(--text-muted);
-    font-weight: 600;
     font-size: 13px;
-    transition:
-        color var(--transition-fast),
-        border-color var(--transition-fast);
+    font-weight: 600;
+    transition: color var(--transition-fast);
 }
 
 .reply-tabs button:hover {
@@ -1724,12 +1850,30 @@ textarea:disabled {
     border-bottom-color: var(--accent);
 }
 
+.reply-form textarea {
+    resize: none;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.reply-form textarea.reply-body-internal {
+    border-color: var(--warning);
+}
+
 .reply-form-footer {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.button-compact {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 13px;
 }
 
 .canned-picker {
@@ -1738,73 +1882,228 @@ textarea:disabled {
 
 .canned-picker-list {
     position: absolute;
-    top: 110%;
     left: 0;
+    bottom: calc(100% + 6px);
+    z-index: 5;
+    min-width: 260px;
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
-    list-style: none;
-    padding: 4px;
-    margin: 0;
-    width: 280px;
-    max-height: 260px;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg);
-    z-index: 5;
+    box-shadow: var(--shadow-md);
 }
 
 .canned-picker-list button {
     width: 100%;
-    text-align: left;
+    padding: 8px 10px;
     background: none;
     border: none;
-    padding: 8px;
-    border-radius: var(--radius-tag);
+    border-radius: var(--radius-button);
     color: var(--text-primary);
-    transition: background var(--transition-fast);
+    font-size: 13px;
+    text-align: left;
 }
 
 .canned-picker-list button:hover {
     background: var(--bg-hover);
 }
 
-.audit-trail {
-    margin-top: 24px;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
+/* Properties */
+.properties-card {
+    padding: 10px 14px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
 }
 
-.audit-trail summary {
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
+.properties-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
 }
 
-.audit-trail summary::-webkit-details-marker {
+.properties-card-header h4 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--text-muted);
 }
 
-.audit-trail ul {
-    list-style: none;
-    padding: 0;
-    margin: 12px 0 0;
+.ticket-controls-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.ticket-info-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+}
+
+.ticket-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 36px;
+    border-bottom: 1px solid var(--border);
     font-size: 13px;
+}
+
+.ticket-info-row:last-child {
+    border-bottom: none;
+}
+
+.ticket-info-label,
+.ticket-info-row label.ticket-info-label {
+    display: inline;
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.ticket-info-value {
+    min-width: 0;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ticket-info-value.sla-breached-text {
+    color: var(--danger);
+}
+
+.ticket-info-row select {
+    width: 170px;
+    max-width: 60%;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 13px;
+}
+
+.audit-trail {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.audit-trail summary {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.audit-trail ul {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
     color: var(--text-muted);
 }
 
 .audit-trail .table-empty {
-    margin-top: 12px;
-    padding: 16px 0;
+    margin: 8px 0 0;
+    padding: 0;
+    font-size: 12px;
 }
 
 .audit-action {
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-primary);
-    text-transform: capitalize;
+}
+
+/* Wide screens: the header, properties and composer stay pinned. Sticky elements are placed
+   inside the scroll area's padding, so the ticket view drops the vertical padding to pin them flush. */
+@media (min-width: 901px) {
+    .app-content:has(> .ticket-detail) {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    .ticket-detail {
+        padding-bottom: 12px;
+    }
+
+    .ticket-detail-sidebar {
+        position: sticky;
+        top: calc(var(--ticket-header-height) + 8px);
+    }
+
+    .reply-form {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        box-shadow: var(--shadow-md);
+    }
+
+    .jump-to-reply {
+        display: none;
+    }
+}
+
+/* Small screens: one column with properties first; the page scrolls normally. */
+@media (max-width: 900px) {
+    .ticket-detail-header {
+        position: static;
+        padding-top: 0;
+    }
+
+    .ticket-detail-heading {
+        flex-wrap: wrap;
+    }
+
+    .ticket-detail-chips {
+        width: 100%;
+        order: 1;
+    }
+
+    .ticket-detail-header .ticket-meta {
+        padding-left: 0;
+        white-space: normal;
+    }
+
+    .ticket-detail-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ticket-detail-sidebar {
+        order: -1;
+    }
+
+    /* Keep the author visible: the internal-note chip and time move to a second line. */
+    .message-card-header {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+
+    .message-card-trailer {
+        order: 1;
+        width: 100%;
+        margin-left: 0;
+        padding-left: 34px;
+    }
+
+    .message-card-body {
+        padding-left: 0;
+    }
 }
 
 /* Notifications */
@@ -2657,16 +2956,17 @@ textarea:disabled {
 @media (max-width: 768px) {
     .app-shell {
         flex-direction: column;
-        height: auto;
-        min-height: 100vh;
     }
 
-    .sidebar {
+    /* A single compact row of nav icons and labels above the page. */
+    .sidebar,
+    .sidebar.sidebar-collapsed {
         width: 100%;
         flex-direction: row;
         align-items: center;
-        overflow-x: auto;
-        padding: 8px;
+        padding: 6px 8px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
     }
 
     .sidebar-brand {
@@ -2674,8 +2974,22 @@ textarea:disabled {
         padding-right: 12px;
     }
 
+    .sidebar-brand span {
+        display: none;
+    }
+
     .sidebar nav {
         flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .sidebar nav > div {
+        display: contents;
+    }
+
+    .sidebar-section-label {
+        display: none;
     }
 
     .sidebar nav button.active::before {
@@ -2740,4 +3054,10 @@ textarea:disabled {
     .stat-row {
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+.date-range-hint {
+    align-self: center;
+    font-size: 12px;
+    color: var(--text-muted);
 }

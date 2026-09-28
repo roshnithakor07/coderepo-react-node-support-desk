@@ -99,6 +99,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                             onChange={(event) => onFilterChange({ ...filters, dateTo: event.target.value })}
                         />
                     </label>
+                    <span className="date-range-hint">Dates in UTC</span>
                 </div>
             </div>
 

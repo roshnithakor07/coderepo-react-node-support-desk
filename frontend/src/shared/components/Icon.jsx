@@ -154,3 +154,21 @@ export function LogOutIcon(props) {
         </svg>
     );
 }
+
+export function ArrowLeftIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+        </svg>
+    );
+}
+
+export function LockIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+    );
+}
