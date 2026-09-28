@@ -64,15 +64,33 @@ export function TicketDetail({
     const [showCanned, setShowCanned] = useState(false);
     const replyFieldRef = useRef(null);
     const threadEndRef = useRef(null);
+    const messageListRef = useRef(null);
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
     const sla = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
 
-    // Open on the latest message, and follow the conversation as replies arrive.
+    // Open on the latest message and keep it in view while the reader stays at the bottom, including
+    // when fonts or late layout change the height. The composer follows the list in the layout, so
+    // scrolling to the end always leaves the last message fully visible above it.
     useEffect(() => {
         const scroller = threadEndRef.current?.closest(".app-content");
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+        if (!scroller) return undefined;
+        let followLatest = true;
+        const scrollToLatest = () => {
+            if (followLatest) scroller.scrollTop = scroller.scrollHeight;
+        };
+        const trackReader = () => {
+            followLatest = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
+        };
+        scrollToLatest();
+        const observer = new ResizeObserver(scrollToLatest);
+        observer.observe(messageListRef.current);
+        scroller.addEventListener("scroll", trackReader, { passive: true });
+        return () => {
+            observer.disconnect();
+            scroller.removeEventListener("scroll", trackReader);
+        };
     }, [ticket._id, visibleReplies.length]);
 
     // The composer starts at two lines and grows with its content up to a maximum height.
@@ -150,7 +168,7 @@ export function TicketDetail({
                                 Jump to reply
                             </button>
                         </div>
-                        <ol className="message-list">
+                        <ol className="message-list" ref={messageListRef}>
                             <MessageCard
                                 author={ticket.createdBy}
                                 body={ticket.description}

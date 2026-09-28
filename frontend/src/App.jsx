@@ -410,10 +410,7 @@ export default function App() {
         [analyticsDashboard],
     );
 
-    const topbarTitle =
-        activeView === "ticket-detail" && selectedTicket
-            ? `${ticketNumber(selectedTicket._id)} · ${selectedTicket.title}`
-            : PAGE_TITLES[activeView] || "Support Desk";
+    const isTicketView = activeView === "ticket-detail" && selectedTicket;
 
     if (isBootstrapping) {
         return (
@@ -446,9 +443,19 @@ export default function App() {
             />
             <div className="app-main">
                 <header className="topbar">
-                    <h1 className="topbar-title" title={topbarTitle}>
-                        {topbarTitle}
-                    </h1>
+                    {isTicketView ? (
+                        <h1 className="topbar-title topbar-breadcrumb">
+                            <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
+                                Tickets
+                            </button>
+                            <span className="breadcrumb-separator" aria-hidden="true">
+                                /
+                            </span>
+                            <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
+                        </h1>
+                    ) : (
+                        <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                    )}
                     <div className="topbar-actions">
                         <NotificationBell
                             notifications={notifications}

@@ -919,6 +919,31 @@ textarea:disabled {
     text-overflow: ellipsis;
 }
 
+.topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.breadcrumb-link {
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.breadcrumb-link:hover {
+    color: var(--accent);
+}
+
+.breadcrumb-separator {
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
 .topbar-profile-chip {
     display: flex;
     align-items: center;
@@ -1517,7 +1542,7 @@ textarea:disabled {
 /* Ticket detail: a helpdesk layout inside the single .app-content scroll area.
    The header, the properties panel and the composer stay pinned while the conversation scrolls. */
 .ticket-detail {
-    --ticket-header-height: 76px;
+    --ticket-header-height: 64px;
     max-width: 1360px;
     min-height: 100%;
     margin: 0 auto;
@@ -1532,10 +1557,10 @@ textarea:disabled {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
+    gap: 2px;
     min-height: var(--ticket-header-height);
-    margin: 0 0 12px;
-    padding: 10px 0;
+    margin: 0 0 8px;
+    padding: 7px 0;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
 }
@@ -1635,6 +1660,7 @@ textarea:disabled {
 .ticket-detail-header .ticket-meta {
     margin: 0;
     padding-left: 38px;
+    line-height: 18px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1659,8 +1685,9 @@ textarea:disabled {
 }
 
 /* Conversation */
+/* The composer follows the messages directly; it only pins to the bottom once the conversation
+   is taller than the view. */
 .ticket-thread {
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1755,8 +1782,7 @@ textarea:disabled {
 }
 
 .message-card-time {
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-muted);
 }
 
@@ -2018,7 +2044,7 @@ textarea:disabled {
 
     .ticket-detail-sidebar {
         position: sticky;
-        top: calc(var(--ticket-header-height) + 12px);
+        top: calc(var(--ticket-header-height) + 8px);
     }
 
     .reply-form {
