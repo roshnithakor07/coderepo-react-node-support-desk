@@ -524,3 +524,23 @@ The user approved the branch and kept all three choices:
 - Before the fix: API **7 failed**; e2e **failed** (13 vs 20).
 - After the fix: API 36/36, e2e 10/10, build OK, Prettier OK.
 - Live: 400/400/400 for bad input, 200 for a valid range.
+
+## [2026-09-27T11:47:23+00:00] Task 14: `fix/audit-404` (user follow-up)
+
+**Request:** the audit trail for a well-formed but non-existent ticket should return 404 (it returned 200 `[]`), with a test.
+
+**Placement (the user allowed either):**
+- the audit fix gets its own tiny backend branch
+- the "Dates in UTC" analytics hint goes into `fix/app-shell-layout` with the other frontend work
+
+**Fix:**
+- `ticketRepository.exists(id)` (`Ticket.exists`, no populate)
+- `ticketService.getAuditTrail` throws 404 `TICKET_NOT_FOUND` when the ticket doesn't exist
+
+**Tests (`backend/tests/audit.test.js`, 2):**
+- an existing ticket's trail contains `created`
+- the all-zero id returns 404 `TICKET_NOT_FOUND`
+
+**Proof:**
+- Before the fix: the 404 test **failed**.
+- After the fix: API 54/54, e2e 12/12, build OK, Prettier OK.

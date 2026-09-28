@@ -221,7 +221,8 @@ export const ticketService = {
         return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
-    getAuditTrail(id) {
+    async getAuditTrail(id) {
+        if (!(await ticketRepository.exists(id))) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         return auditLogService.listForTicket(id);
     },
 
