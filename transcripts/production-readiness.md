@@ -673,3 +673,40 @@ The user approved the branch and kept all three choices:
 - Screenshots in `../screenshots/ticket-detail-redesign-v2/`.
 
 **`fix/audit-404`** was approved and merged to main (5cefc8e) first. This branch was then rebased onto it (local only, never pushed; transcript conflict resolved as a pure append).
+
+## [2026-09-28T11:40:55+00:00] Task 17 (Phase 1.8): `feat/webhook-secret`
+
+**Defect:** `POST /api/v1/webhooks/email` was public: anyone could create tickets and customer accounts (only a 30/min rate limit).
+
+**Fix:**
+- `features/webhooks/webhook.secret.js` requires the `X-Webhook-Secret` header to match `WEBHOOK_SECRET`.
+- The comparison is **timing-safe on SHA-256 digests**, so neither the content nor the length of the secret leaks through timing.
+- Missing or wrong secret → 401 `INVALID_WEBHOOK_SECRET`. If no secret is configured, the webhook **fails closed** with 503 `WEBHOOK_DISABLED`.
+- The rate limit runs before the check, which slows secret guessing.
+- The secret is read per request with the existing `getOptionalEnv` (no change to the read-only `config/index.js`).
+- `WEBHOOK_SECRET` was added to `backend/.env.example` (setup copies it into new `.env` files), plus to the API test setup and the isolated e2e server.
+- README: one line documenting the header.
+
+**Decisions (mine, open to the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Unset secret | A) fail closed (503). B) accept everything (current behavior). | A | A missing config must not reopen the hole. |
+| Where to read it | A) `getOptionalEnv` at request time. B) add it to `config/index.js`. | A | `config/index.js` is a `hackerrank.yml` read-only path. |
+| Signature style | A) shared-secret header. B) HMAC of the body. | A | Simple for the planned in-app simulator; HMAC can come later. |
+
+**Note for Phase 2:** the inbound-email simulator must call the webhook **from the backend** (an admin endpoint), never from the browser, so the secret is never sent to the frontend.
+
+**Local dev note:** the user's existing `backend/.env` predates this variable, so the local webhook returns 503 until `WEBHOOK_SECRET=…` is added. Fresh clones get it from `.env.example`.
+
+**Tests (`backend/tests/webhook.test.js`, 5):**
+- no secret → 401
+- wrong secrets, including a different length → 401
+- the right secret → 201 and the ticket exists
+- unset secret → 503
+- a rejected request creates no ticket
+
+**Proof:**
+- Before the fix: **4 failed** (the matching-secret test passed because the endpoint was open).
+- After the fix: API 59/59, e2e 28 (+6 skipped).
+- Prettier OK (the gate now requires the check to pass before committing).
