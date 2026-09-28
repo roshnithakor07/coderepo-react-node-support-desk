@@ -18,6 +18,7 @@ process.env.MONGODB_URI = mongodbUri;
 process.env.REDIS_URL = redisUrl;
 process.env.PORT = process.env.E2E_API_PORT || "8100";
 process.env.JWT_SECRET ||= "support-desk-e2e-secret";
+process.env.WEBHOOK_SECRET ||= "support-desk-e2e-webhook-secret";
 
 const seed = Bun.spawnSync(["bun", "src/scripts/seed.js"], { cwd: backendDirectory, env: process.env, stdout: "pipe", stderr: "pipe" });
 if (seed.exitCode !== 0) {

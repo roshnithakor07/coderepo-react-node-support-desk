@@ -15,6 +15,8 @@ A full-stack customer support ticketing platform inspired by Zendesk/Freshdesk. 
 
 Real-time UI updates (notifications) are delivered via short-interval polling rather than WebSockets, and the "email confirmation" on the inbound webhook is delivered as an in-app notification rather than an outbound email, in both cases to stay within the platform's dependency constraints.
 
+The inbound email webhook (`POST /api/v1/webhooks/email`, JSON `{ from, senderName?, subject, body }`) only accepts requests that send the shared secret from `WEBHOOK_SECRET` in the `X-Webhook-Secret` header; without a configured secret it refuses every request.
+
 ### Dependency additions beyond the reference stack
 
 The reference calendar app has no cache layer, no scheduler, and no browser test runner. Three dependencies were added: the first two were explicitly requested in the product's own technical spec, and the third is a test-only dev dependency:
