@@ -4,6 +4,8 @@ import { ClockIcon, CloseIcon, PlusIcon, TagIcon } from "../../shared/components
 import { titleCase } from "../../shared/utils/format.js";
 
 const PRIORITIES = ["critical", "high", "medium", "low"];
+const MAX_SLA_HOURS = 720;
+const MAX_CATEGORIES = 20;
 
 export function SettingsPage({ settings, onSave, isBusy, error }) {
     const [slaHours, setSlaHours] = useState(settings?.slaHours || { critical: 1, high: 4, medium: 8, low: 24 });
@@ -39,6 +41,10 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
             setFieldErrors((current) => ({ ...current, newCategory: "That category already exists." }));
             return;
         }
+        if (categories.length >= MAX_CATEGORIES) {
+            setFieldErrors((current) => ({ ...current, newCategory: `You can have up to ${MAX_CATEGORIES} categories.` }));
+            return;
+        }
         setCategories([...categories, value]);
         setNewCategory("");
         setFieldErrors((current) => ({ ...current, newCategory: undefined, categories: undefined }));
@@ -53,6 +59,8 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
         PRIORITIES.forEach((priority) => {
             const value = slaHours[priority];
             if (!Number.isFinite(value) || value < 1) errors[priority] = "Must be at least 1 hour.";
+            else if (!Number.isInteger(value)) errors[priority] = "Use whole hours.";
+            else if (value > MAX_SLA_HOURS) errors[priority] = `Must be ${MAX_SLA_HOURS} hours (30 days) or less.`;
         });
         if (categories.length === 0) errors.categories = "Add at least one category.";
         return errors;
@@ -112,6 +120,8 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
                                         id={`sla-${priority}`}
                                         type="number"
                                         min={1}
+                                        max={MAX_SLA_HOURS}
+                                        step={1}
                                         value={slaHours[priority]}
                                         onChange={(event) => updateHours(priority, event.target.value)}
                                         aria-invalid={Boolean(fieldErrors[priority])}

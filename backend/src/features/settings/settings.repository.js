@@ -8,5 +8,10 @@ export const settingsRepository = {
         return created.toObject();
     },
 
-    update: (input) => Settings.findOneAndUpdate({ key: "global" }, input, { new: true, upsert: true, runValidators: true }).lean(),
+    update: (changes) =>
+        Settings.findOneAndUpdate(
+            { key: "global" },
+            { $set: changes },
+            { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+        ).lean(),
 };

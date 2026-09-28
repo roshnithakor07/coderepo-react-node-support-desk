@@ -15,7 +15,11 @@ export const settingsService = {
     },
 
     async updateSettings(input) {
-        const updated = await settingsRepository.update(input);
+        // Set only the fields that were sent, so a partial SLA update keeps the other priorities.
+        const changes = {};
+        for (const [priority, hours] of Object.entries(input.slaHours || {})) changes[`slaHours.${priority}`] = hours;
+        if (input.categories) changes.categories = input.categories;
+        const updated = await settingsRepository.update(changes);
         await getRedis().del(CACHE_KEY);
         return updated;
     },
