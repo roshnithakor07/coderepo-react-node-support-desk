@@ -3,6 +3,20 @@ export function formatDateTime(value) {
     return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+// Compact date for tables: the year is left out when it is the current year.
+export function formatShortDateTime(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: sameYear ? undefined : "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+    });
+}
+
 export function formatRelativeTime(value) {
     if (!value) return "-";
     const diffMs = new Date(value).getTime() - Date.now();
@@ -27,17 +41,30 @@ export function formatSlaCountdown(slaDeadline, slaBreached) {
     return `${minutes}m left`;
 }
 
-export function getSlaProgress(createdAt, slaDeadline, slaBreached) {
+const URGENT_MS = 3600000;
+
+const FINISHED_STATUSES = ["resolved", "closed"];
+
+export function isFinished(status) {
+    return FINISHED_STATUSES.includes(status);
+}
+
+// SLA time only draws attention when it needs action: under an hour left, or breached. A resolved or
+// closed ticket's SLA has stopped, so it never needs attention.
+export function slaUrgency(slaDeadline, slaBreached, status) {
+    if (isFinished(status)) return "normal";
+    const remaining = new Date(slaDeadline).getTime() - Date.now();
+    if (slaBreached || remaining <= 0) return "danger";
+    if (remaining < URGENT_MS) return "warning";
+    return "normal";
+}
+
+export function getSlaProgress(createdAt, slaDeadline, slaBreached, status) {
     const start = new Date(createdAt).getTime();
     const deadline = new Date(slaDeadline).getTime();
     const totalWindow = Math.max(deadline - start, 1);
-    const now = Date.now();
-    const elapsedFraction = slaBreached ? 1 : Math.min(Math.max((now - start) / totalWindow, 0), 1);
-    const percent = Math.round(elapsedFraction * 100);
-    let tone = "success";
-    if (slaBreached || elapsedFraction >= 1) tone = "danger";
-    else if (elapsedFraction >= 0.7) tone = "warning";
-    return { percent, tone };
+    const elapsedFraction = slaBreached ? 1 : Math.min(Math.max((Date.now() - start) / totalWindow, 0), 1);
+    return { percent: Math.round(elapsedFraction * 100), tone: slaUrgency(slaDeadline, slaBreached, status) };
 }
 
 export function initials(name) {

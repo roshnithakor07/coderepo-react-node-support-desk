@@ -59,7 +59,10 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
 
     function handleToggleActive(agent) {
         const verb = agent.isActive ? "deactivate" : "activate";
-        if (agent.isActive && !window.confirm(`Deactivate ${agent.name}? They will no longer be able to sign in or receive new ticket assignments.`)) {
+        if (
+            agent.isActive &&
+            !window.confirm(`Deactivate ${agent.name}? They will no longer be able to sign in or receive new ticket assignments.`)
+        ) {
             return;
         }
         onSetActive(agent._id, !agent.isActive, verb);
@@ -91,7 +94,13 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                 columns={[
                     { key: "name", header: "Name", sortable: true },
                     { key: "email", header: "Email" },
-                    { key: "openTicketCount", header: "Open tickets", sortable: true, render: (row) => <span className="mono">{row.openTicketCount ?? 0}</span> },
+                    {
+                        key: "openTicketCount",
+                        header: "Open tickets",
+                        sortable: true,
+                        align: "end",
+                        render: (row) => row.openTicketCount ?? 0,
+                    },
                     {
                         key: "isActive",
                         header: "Status",

@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { StatusBadge } from "../../shared/components/Badge.jsx";
 import { SearchIcon } from "../../shared/components/Icon.jsx";
 import { Table } from "../../shared/components/Table.jsx";
-import { formatDateTime, formatSlaCountdown, getSlaProgress, initials } from "../../shared/utils/format.js";
+import { SlaProgress, SlaText } from "../../shared/components/Sla.jsx";
+import { formatShortDateTime, initials, titleCase } from "../../shared/utils/format.js";
 
 function PriorityCell({ priority }) {
     return (
         <span className="priority-cell">
             <span className={`priority-dot priority-dot-${priority}`} aria-hidden="true" />
-            {priority}
+            {titleCase(priority)}
         </span>
     );
 }
@@ -24,15 +25,10 @@ function AgentCell({ agent }) {
 }
 
 function SlaCell({ ticket }) {
-    const { percent, tone } = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
     return (
         <span className="sla-cell">
-            <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
-                {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
-            </span>
-            <span className="sla-progress-track">
-                <span className={`sla-progress-fill sla-progress-fill-${tone}`} style={{ width: `${percent}%` }} />
-            </span>
+            <SlaText ticket={ticket} />
+            <SlaProgress ticket={ticket} />
         </span>
     );
 }
@@ -92,7 +88,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                     <option value="">All statuses</option>
                     {STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
-                            {status.replace("_", " ")}
+                            {titleCase(status)}
                         </option>
                     ))}
                 </select>
@@ -104,7 +100,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                     <option value="">All priorities</option>
                     {PRIORITY_OPTIONS.map((priority) => (
                         <option key={priority} value={priority}>
-                            {priority}
+                            {titleCase(priority)}
                         </option>
                     ))}
                 </select>
@@ -152,7 +148,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                         key: "createdAt",
                         header: "Created",
                         sortable: true,
-                        render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span>,
+                        render: (row) => <span className="table-muted-cell numeric">{formatShortDateTime(row.createdAt)}</span>,
                     },
                 ]}
             />

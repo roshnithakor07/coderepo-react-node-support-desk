@@ -172,3 +172,28 @@ export function LockIcon(props) {
         </svg>
     );
 }
+
+export function TargetIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="12" r="5" />
+            <circle cx="12" cy="12" r="1" />
+        </svg>
+    );
+}
+
+// The Support Desk mark: a reply bubble with a check, on a tile in the accent color. Drawn inline
+// so it follows the theme tokens; public/favicon.svg is the same drawing in the light theme colors.
+export function LogoMark(props) {
+    return (
+        <svg className="logo-mark" viewBox="0 0 32 32" width={24} height={24} {...props} aria-hidden="true">
+            <rect className="logo-mark-tile" width="32" height="32" rx="8" />
+            <path
+                className="logo-mark-bubble"
+                d="M11 8h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-6l-4.4 3.5a.6.6 0 0 1-1-.5v-3.2A4 4 0 0 1 7 18v-6a4 4 0 0 1 4-4Z"
+            />
+            <path className="logo-mark-check" d="m11.8 15.2 2.8 2.8 5.6-5.6" />
+        </svg>
+    );
+}

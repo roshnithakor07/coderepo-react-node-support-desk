@@ -1,5 +1,6 @@
 import { BarChart, DonutChart, LineChart } from "../../shared/components/Charts.jsx";
-import { AlertCircleIcon, CheckCircleIcon, ClockIcon, TicketIcon } from "../../shared/components/Icon.jsx";
+import { AlertCircleIcon, InboxIcon, TargetIcon, TicketIcon } from "../../shared/components/Icon.jsx";
+import { StatCard } from "../../shared/components/StatCard.jsx";
 
 const PRESETS = [
     { label: "7D", days: 7 },
@@ -104,34 +105,15 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
             </div>
 
             <div className="stat-row">
-                <div className="stat-tile">
-                    <span className="stat-tile-icon stat-tile-icon-accent">
-                        <TicketIcon />
-                    </span>
-                    <span className="stat-value">{dashboard.totalTickets}</span>
-                    <span className="stat-label">Total tickets</span>
-                </div>
-                <div className="stat-tile">
-                    <span className="stat-tile-icon stat-tile-icon-success">
-                        <CheckCircleIcon />
-                    </span>
-                    <span className="stat-value">{dashboard.slaComplianceRate}%</span>
-                    <span className="stat-label">SLA compliance</span>
-                </div>
-                <div className="stat-tile">
-                    <span className="stat-tile-icon stat-tile-icon-info">
-                        <ClockIcon />
-                    </span>
-                    <span className="stat-value">{dashboard.openCount}</span>
-                    <span className="stat-label">Open</span>
-                </div>
-                <div className={`stat-tile ${dashboard.breachedTickets > 0 ? "stat-tile-danger" : ""}`}>
-                    <span className="stat-tile-icon stat-tile-icon-danger">
-                        <AlertCircleIcon />
-                    </span>
-                    <span className="stat-value">{dashboard.breachedTickets}</span>
-                    <span className="stat-label">SLA breached</span>
-                </div>
+                <StatCard icon={<TicketIcon />} value={dashboard.totalTickets} label="Total tickets" />
+                <StatCard icon={<TargetIcon />} value={`${dashboard.slaComplianceRate}%`} label="SLA compliance" />
+                <StatCard icon={<InboxIcon />} value={dashboard.openCount} label="Open" />
+                <StatCard
+                    icon={<AlertCircleIcon />}
+                    value={dashboard.breachedTickets}
+                    label="SLA breached"
+                    tone={dashboard.breachedTickets > 0 ? "danger" : undefined}
+                />
             </div>
 
             <div className="chart-card chart-card-hero">
@@ -160,18 +142,18 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                             <thead>
                                 <tr>
                                     <th>Agent</th>
-                                    <th>Assigned</th>
-                                    <th>Resolved</th>
-                                    <th>Avg resolution (h)</th>
+                                    <th className="align-end">Assigned</th>
+                                    <th className="align-end">Resolved</th>
+                                    <th className="align-end">Avg resolution (h)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {dashboard.agentPerformance.map((row) => (
                                     <tr key={row.agentId}>
                                         <td>{row.agentName}</td>
-                                        <td>{row.totalAssigned}</td>
-                                        <td>{row.resolved}</td>
-                                        <td>{row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}</td>
+                                        <td className="align-end">{row.totalAssigned}</td>
+                                        <td className="align-end">{row.resolved}</td>
+                                        <td className="align-end">{row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}</td>
                                     </tr>
                                 ))}
                             </tbody>

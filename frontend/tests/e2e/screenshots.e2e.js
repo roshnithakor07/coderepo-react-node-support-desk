@@ -1,7 +1,8 @@
 import { ACCOUNTS, API_URL, ARTIFACTS_DIRECTORY, readSavedToken, sessionFile } from "./support/sessions.js";
 import { expect, test } from "./support/fixtures.js";
 
-// Review screenshots of the ticket detail page. Skipped unless E2E_SCREENSHOTS=1.
+// Review screenshots: the main pages in both themes on desktop and phone, plus the ticket detail
+// page for each role. Skipped unless E2E_SCREENSHOTS=1.
 test.skip(!process.env.E2E_SCREENSHOTS, "Set E2E_SCREENSHOTS=1 to capture review screenshots.");
 
 const VIEWPORTS = [
@@ -9,6 +10,41 @@ const VIEWPORTS = [
     { width: 1440, height: 900 },
     { width: 375, height: 812 },
 ];
+
+const PAGE_VIEWPORTS = [
+    { width: 1280, height: 800 },
+    { width: 375, height: 812 },
+];
+
+const PAGES = [
+    { name: "dashboard", open: async () => {} },
+    { name: "tickets", open: (page) => openView(page, "Tickets") },
+    {
+        name: "ticket-detail",
+        open: async (page) => {
+            await openView(page, "Tickets");
+            await page.locator("table tbody tr", { hasText: ticketTitle }).first().click();
+            await expect(page.getByText("That worked, thank you!")).toBeVisible();
+        },
+    },
+    { name: "analytics", open: (page) => openView(page, "Analytics") },
+    { name: "settings", open: (page) => openView(page, "Settings") },
+];
+
+async function openView(page, name) {
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name }).click();
+}
+
+// Grows the viewport to the page's content so one image shows the whole page.
+async function captureWholePage(page, viewport, file) {
+    await page.waitForLoadState("networkidle");
+    const contentHeight = await page.evaluate(() => {
+        const content = document.querySelector(".app-content");
+        return content ? content.getBoundingClientRect().top + content.scrollHeight : document.documentElement.scrollHeight;
+    });
+    await page.setViewportSize({ width: viewport.width, height: Math.min(Math.max(viewport.height, Math.ceil(contentHeight)), 4000) });
+    await page.screenshot({ path: `${ARTIFACTS_DIRECTORY}/screenshots/${file}.png` });
+}
 
 let ticketTitle;
 
@@ -53,6 +89,35 @@ for (const role of ["admin", "customer"]) {
                 await page.locator("table tbody tr", { hasText: ticketTitle }).first().click();
                 await expect(page.getByText("That worked, thank you!")).toBeVisible();
                 await page.screenshot({ path: `${ARTIFACTS_DIRECTORY}/screenshots/ticket-detail-${role}-${viewport.width}.png` });
+            });
+        }
+    });
+}
+
+for (const theme of ["dark", "light"]) {
+    test.describe(`${theme} theme`, () => {
+        test.use({ colorScheme: theme });
+
+        for (const viewport of PAGE_VIEWPORTS) {
+            test(`login at ${viewport.width}px`, async ({ page }) => {
+                await page.setViewportSize(viewport);
+                await page.goto("/");
+                await expect(page.getByRole("tab", { name: "Sign in" })).toBeVisible();
+                await captureWholePage(page, viewport, `login-${theme}-${viewport.width}`);
+            });
+
+            test.describe("signed in", () => {
+                test.use({ storageState: sessionFile("admin") });
+
+                for (const view of PAGES) {
+                    test(`${view.name} at ${viewport.width}px`, async ({ page }) => {
+                        await page.setViewportSize(viewport);
+                        await page.goto("/");
+                        await expect(page.locator(".topbar")).toBeVisible();
+                        await view.open(page);
+                        await captureWholePage(page, viewport, `${view.name}-${theme}-${viewport.width}`);
+                    });
+                }
             });
         }
     });

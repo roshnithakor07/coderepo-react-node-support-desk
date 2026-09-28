@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
 import { ArrowLeftIcon, LockIcon } from "../../shared/components/Icon.jsx";
-import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber, titleCase } from "../../shared/utils/format.js";
+import { SlaProgress, SlaText } from "../../shared/components/Sla.jsx";
+import { formatDateTime, initials, ticketNumber, titleCase } from "../../shared/utils/format.js";
 
 const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
@@ -68,7 +69,6 @@ export function TicketDetail({
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
-    const sla = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
 
     // Open on the latest message and keep it in view while the reader stays at the bottom, including
     // when fonts or late layout change the height. The composer follows the list in the layout, so
@@ -145,12 +145,8 @@ export function TicketDetail({
                         <StatusBadge status={ticket.status} />
                         <PriorityBadge priority={ticket.priority} />
                         <span className="sla-chip" title={`SLA due ${formatDateTime(ticket.slaDeadline)}`}>
-                            <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
-                                {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
-                            </span>
-                            <span className="sla-progress-track">
-                                <span className={`sla-progress-fill sla-progress-fill-${sla.tone}`} style={{ width: `${sla.percent}%` }} />
-                            </span>
+                            <SlaText ticket={ticket} />
+                            <SlaProgress ticket={ticket} />
                         </span>
                     </div>
                 </div>

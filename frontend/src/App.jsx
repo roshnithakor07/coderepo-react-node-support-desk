@@ -19,8 +19,9 @@ import { settingsApi } from "./features/workspace/settings.api.js";
 import { SettingsPage } from "./features/workspace/SettingsPage.jsx";
 import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
+import { LogoMark } from "./shared/components/Icon.jsx";
 import { ToastStack } from "./shared/components/Toast.jsx";
-import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
+import { applyTheme, getInitialTheme, onSystemThemeChange, saveTheme } from "./shared/utils/theme.js";
 import { getStoredSidebarCollapsed, storeSidebarCollapsed } from "./shared/utils/sidebar.js";
 import { initials, ticketNumber } from "./shared/utils/format.js";
 import { friendlyErrorMessage } from "./shared/utils/validate.js";
@@ -39,7 +40,7 @@ const PAGE_TITLES = {
 };
 
 export default function App() {
-    const [theme, setTheme] = useState(getStoredTheme());
+    const [theme, setTheme] = useState(getInitialTheme);
     const [isBootstrapping, setIsBootstrapping] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
     const [authError, setAuthError] = useState("");
@@ -98,6 +99,14 @@ export default function App() {
     useEffect(() => {
         applyTheme(theme);
     }, [theme]);
+
+    useEffect(() => onSystemThemeChange(setTheme), []);
+
+    function toggleTheme() {
+        const next = theme === "light" ? "dark" : "light";
+        saveTheme(next);
+        setTheme(next);
+    }
 
     useEffect(() => {
         storeSidebarCollapsed(isSidebarCollapsed);
@@ -415,7 +424,7 @@ export default function App() {
     if (isBootstrapping) {
         return (
             <div className="boot-screen">
-                <img src="/favicon.svg" alt="" />
+                <LogoMark width={40} height={40} />
                 <p>Loading Support Desk...</p>
             </div>
         );
@@ -555,12 +564,7 @@ export default function App() {
                     )}
 
                     {activeView === "profile" && (
-                        <ProfilePage
-                            currentUser={currentUser}
-                            onLogout={handleLogout}
-                            theme={theme}
-                            onToggleTheme={() => setTheme((value) => (value === "light" ? "dark" : "light"))}
-                        />
+                        <ProfilePage currentUser={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />
                     )}
                 </main>
             </div>

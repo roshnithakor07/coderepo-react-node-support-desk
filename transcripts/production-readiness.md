@@ -852,3 +852,56 @@ Afterwards: the clone was stopped and deleted, the dev app was restarted on the 
 - **Final:** 47/47 pass.
 
 **Nothing is applied until the user OKs the table.**
+
+## Task 21 (Phase 2.1): `feat/theme-refresh`, design system applied
+
+**User decisions:**
+- Palette approved as proposed: tokens only, spinner visible in both themes, `color-scheme` per theme, OS theme by default with a remembered override, teal favicon.
+- Mid-task additions:
+  - an original logo mark in the accent tokens
+  - restrained stat cards (neutral card, danger only in the number and icon)
+  - title-case badges that hug their text
+  - a dashboard with no cards inside cards and one divided recent-tickets list
+  - SLA time colored only when urgent
+  - an icon on every stat card
+
+**Design decisions (mine, for review):**
+- **Type roles** as `font` tokens:
+  - page title 20/600, section title 16/600, body 14/400, label 13/500, caption 12/400
+  - overline 12/600 uppercase for table headers and small section labels
+  - display 24/600 for stat numbers
+- **Monospace** is reserved for identifiers (the ticket number). Numbers use tabular figures in Roboto.
+- **Two control heights:** 36px by default and 32px compact (property selects, pagination, compact buttons). The 28px back button stays, so the ticket header keeps within its 66px limit.
+- **Buttons:** four variants (primary, secondary, ghost, danger) sharing one base rule.
+- **Focus:**
+  - one global `:focus-visible` ring, 2px in `--focus-ring`, drawn inset inside scroll areas and tables so it is never clipped
+  - fields show an accent border plus a 1px ring for mouse and keyboard alike
+- **Reduced motion:** animations and transitions are off, except the spinner, which keeps turning slowly because it is progress feedback. Skeleton shimmer stops.
+- **Cards:**
+  - page cards use `--card-padding` (24); cards nested inside them use `--card-padding-sm` (16)
+  - tables reach the card edges, and their first and last columns line up with the card padding (`--card-inset`)
+- **Tables:** 48px rows, one line per cell (titles clamp to two lines), numeric columns right-aligned via `align: "end"` in `Table.jsx`, compact dates without the current year.
+- **Color meaning:**
+  - low priority is neutral, not success
+  - a resolved or closed ticket's SLA reads "SLA met" / "SLA missed" in muted text, since it has stopped
+  - urgent SLA text (under 1h left, or breached) also gets a clock or alert icon, because in light theme the warning and danger inks are close in hue
+- **Theme:** `index.html` sets `data-theme` before first paint (saved choice, else the OS setting). The app follows OS changes live until the user picks a theme, and only the toggle saves it.
+- **Logo:** a reply bubble with a check on an accent tile, drawn inline (`LogoMark`) so it uses the theme tokens. `public/favicon.svg` is the same drawing in the light-theme colors, and the API status page picks up the stone palette.
+- **New shared components:** `StatCard`, `SlaText` / `SlaProgress`.
+
+**Tests first:** `tests/e2e/design-system.e2e.js` (18 tests).
+- **Run on the old code:** 13 of the 18 failed:
+  - 7 in the first batch: OS theme ×2, title-case/neutral badges, control heights, numeric alignment, UI-font numbers, focus ring
+  - 6 in the second batch: no nested cards, divided list, neutral stat cards with icons, hugging badges, SLA urgency colors, teal logo
+- The other 5 already passed on the old code and stay as regression guards (dialog motion and reduced motion, the remembered theme choice, and others).
+- The screenshot spec now covers dashboard, tickets, ticket detail, login, analytics and settings, in both themes at 1280 and 375 (30 images).
+
+**Found, not fixed here (were already there before this branch):**
+- Dashboard stat counts come from the first page of tickets.
+- The "SLA compliance" card only appears after the Analytics page has been visited.
+- The analytics donut adds overlapping groups (Open 15 + Resolved 6 + Breached 8 = 29 against 21 tickets).
+- Resolution bars are ordered Critical/High/Low/Medium.
+
+These belong to "real dashboard stats".
+
+**Results:** build OK, API 88/88, e2e 45 passed (+30 opt-in screenshots), Prettier check OK on every changed file.

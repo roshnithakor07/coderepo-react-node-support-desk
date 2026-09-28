@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LogoMark } from "../../shared/components/Icon.jsx";
 import { validateEmail, validatePassword, validateRequired } from "../../shared/utils/validate.js";
 
 const DEMO_PASSWORD = "SupportDesk@2026";
@@ -80,11 +81,17 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
         <div className="auth-screen">
             <div className="auth-card">
                 <div className="auth-brand">
-                    <img src="/favicon.svg" alt="" className="auth-brand-icon" />
+                    <LogoMark width={32} height={32} />
                     <span>Support Desk</span>
                 </div>
                 <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
-                    <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={mode === "login"}
+                        className={mode === "login" ? "active" : ""}
+                        onClick={() => switchMode("login")}
+                    >
                         Sign in
                     </button>
                     <button
@@ -178,14 +185,21 @@ export function AuthScreen({ onLogin, onRegister, error, isBusy }) {
                         {isBusy ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
                     </button>
                 </form>
-                {mode === "register" && <p className="auth-hint">New accounts are created as customers. Agent and admin access is provisioned by an admin.</p>}
+                {mode === "register" && (
+                    <p className="auth-hint">New accounts are created as customers. Agent and admin access is provisioned by an admin.</p>
+                )}
 
                 {mode === "login" && (
                     <div className="demo-accounts">
                         <p className="auth-hint">Demo accounts for testing (password: {DEMO_PASSWORD}):</p>
                         <div className="demo-account-list">
                             {DEMO_ACCOUNTS.map((account) => (
-                                <button type="button" key={account.role} className="demo-account-chip" onClick={() => handleQuickFill(account)}>
+                                <button
+                                    type="button"
+                                    key={account.role}
+                                    className="demo-account-chip"
+                                    onClick={() => handleQuickFill(account)}
+                                >
                                     <span className="demo-account-role">{account.role}</span>
                                     <span className="demo-account-email">{account.email}</span>
                                 </button>

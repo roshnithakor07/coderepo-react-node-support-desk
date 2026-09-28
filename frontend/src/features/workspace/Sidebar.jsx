@@ -1,4 +1,13 @@
-import { ChartIcon, HomeIcon, LogOutIcon, MessageIcon, SettingsIcon, TicketIcon, UsersIcon } from "../../shared/components/Icon.jsx";
+import {
+    ChartIcon,
+    HomeIcon,
+    LogoMark,
+    LogOutIcon,
+    MessageIcon,
+    SettingsIcon,
+    TicketIcon,
+    UsersIcon,
+} from "../../shared/components/Icon.jsx";
 import { initials } from "../../shared/utils/format.js";
 
 const NAV_SECTIONS = [
@@ -24,7 +33,7 @@ export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, on
     return (
         <aside className={`sidebar ${isCollapsed ? "sidebar-collapsed" : ""}`}>
             <div className="sidebar-brand">
-                <img src="/favicon.svg" alt="" />
+                <LogoMark />
                 {!isCollapsed && <span>Support Desk</span>}
             </div>
             <nav aria-label="Main">

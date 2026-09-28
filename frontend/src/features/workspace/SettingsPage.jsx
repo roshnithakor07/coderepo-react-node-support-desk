@@ -95,8 +95,12 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
 
     return (
         <section className="panel">
-            <h2>SLA &amp; category settings</h2>
-            <p className="panel-subtitle">Response-time targets apply to every new ticket, based on its priority.</p>
+            <div className="panel-header">
+                <div>
+                    <h2>SLA &amp; category settings</h2>
+                    <p className="panel-subtitle">Response-time targets apply to every new ticket, based on its priority.</p>
+                </div>
+            </div>
             <form onSubmit={handleSubmit} className="settings-form" noValidate>
                 <div className="settings-section">
                     <div className="settings-section-header">

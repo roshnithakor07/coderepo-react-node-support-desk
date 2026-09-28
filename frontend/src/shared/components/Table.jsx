@@ -1,5 +1,10 @@
 import { InboxIcon } from "./Icon.jsx";
 
+// Columns with align: "end" (counts, amounts) are right-aligned in tabular figures.
+function alignClass(column) {
+    return column.align === "end" ? "align-end" : undefined;
+}
+
 export function Table({
     columns,
     rows,
@@ -21,7 +26,9 @@ export function Table({
                     <thead>
                         <tr>
                             {columns.map((column) => (
-                                <th key={column.key}>{column.header}</th>
+                                <th key={column.key} className={alignClass(column)}>
+                                    {column.header}
+                                </th>
                             ))}
                         </tr>
                     </thead>
@@ -29,7 +36,7 @@ export function Table({
                         {Array.from({ length: skeletonRows }).map((_, rowIndex) => (
                             <tr key={`skeleton-row-${rowIndex}`}>
                                 {columns.map((column) => (
-                                    <td key={column.key}>
+                                    <td key={column.key} className={alignClass(column)}>
                                         <span className="skeleton skeleton-text" />
                                     </td>
                                 ))}
@@ -77,7 +84,7 @@ export function Table({
                 <thead>
                     <tr>
                         {columns.map((column) => (
-                            <th key={column.key}>
+                            <th key={column.key} className={alignClass(column)}>
                                 {column.sortable ? (
                                     <button type="button" className="sortable-header" onClick={() => handleSort(column)}>
                                         {column.header}
@@ -103,7 +110,9 @@ export function Table({
                             role={onRowClick ? "button" : undefined}
                         >
                             {columns.map((column) => (
-                                <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
+                                <td key={column.key} className={alignClass(column)}>
+                                    {column.render ? column.render(row) : row[column.key]}
+                                </td>
                             ))}
                         </tr>
                     ))}
