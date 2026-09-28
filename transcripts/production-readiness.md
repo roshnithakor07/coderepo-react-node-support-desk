@@ -673,3 +673,47 @@ The user approved the branch and kept all three choices:
 - Screenshots in `../screenshots/ticket-detail-redesign-v2/`.
 
 **`fix/audit-404`** was approved and merged to main (5cefc8e) first. This branch was then rebased onto it (local only, never pushed; transcript conflict resolved as a pure append).
+
+## [2026-09-28T11:50:06+00:00] Task 19 (Phase 1.10): `fix/redis-resilience`
+
+**Defects (verified):**
+- With Redis down, **signing in returned 500** (the login rate limiter) and every signed-in request failed (the blacklist check).
+- Logout silently skipped revocation, so a "signed-out" token stayed valid.
+- `setup.sh` exited 1, so neither declared HackerRank command could run without Redis.
+- Health didn't report Redis.
+
+**Fix (user decision 5d: keep Redis, degrade gracefully):**
+- **Redis client:** `enableOfflineQueue: false` + `maxRetriesPerRequest: 1`, so commands fail fast instead of hanging. Backoff reconnects up to 5s. One log line per state change (not per retry). New helpers: `isRedisReady()` and `withRedis(operation, fallback)`.
+- **Caches** (analytics dashboard, settings): skipped while Redis is down; computed from MongoDB.
+- **Rate limits:** fall back to per-process fixed-window counters in memory (pruned), so limits keep working.
+- **Sign-out:** new `features/auth/token-blacklist.js`. A revoked token is kept in memory (until its expiry) **and** in Redis, so revocation holds while Redis is down and after it comes back.
+- **Health:** `{ status, database, redis }`.
+  - MongoDB down → 503.
+  - Redis down → 200 `degraded`.
+  - Both up → 200 `ok`.
+- **`setup.sh`:** warns and continues when Redis is unreachable. `REDIS_HOST` / `REDIS_PORT` are now overridable (used to verify this path).
+- **README:** the Redis prerequisite now says "recommended rather than required" and describes the degraded behavior.
+- **Test harness:** setup waits for Redis `ready` before `FLUSHDB` (commands no longer queue). The smoke test expects `redis: "connected"`.
+
+**Decisions (mine, open to the user's review):**
+
+| Decision | Options | Chosen | Why |
+|---|---|---|---|
+| Rate limit without Redis | A) fall back to memory counters. B) fail open (no limit). C) fail closed (reject all). | A | Keeps brute-force protection and availability; per-process is enough for a single-instance app. |
+| Blacklist without Redis | A) memory copy, always written. B) accept tokens (fail open). | A | Sign-out must always sign out. |
+| Health status code when only Redis is down | A) 200 `degraded`. B) 503. | A | The app still serves every feature; 503 would signal "down" to probes. |
+
+**Known limit:** memory fallbacks are per process, so they would not be shared across several API instances; this app runs one. Writes during an outage don't bump the analytics cache version, so after Redis returns a dashboard cached before the outage can be up to 60s stale.
+
+**Tests (`backend/tests/redis-resilience.test.js`, 6):** Redis is taken down *inside the test process* (the app's own client), never the user's container.
+- health 200 degraded / disconnected
+- signed-in requests < 1s
+- analytics and settings read + write
+- logout still revokes (401)
+- the in-memory rate limit gives 429 on the 31st webhook call
+- after reconnecting, health is `ok`
+
+**Proof:**
+- Before the fix: failed at setup (sign-in 500 without Redis), and health lacked `redis`.
+- After the fix: API 60/60, e2e 28 (+6 skipped).
+- **Live:** `setup.sh` with `REDIS_PORT=6390` warned and completed (exit 0, seeding `support_desk_test`, not the dev DB). A real backend on port 8200 with Redis at a dead port gave: health 200 degraded; login 200 (0.21s); tickets, analytics, settings and `/me` 200 (≤0.05s); logout then `/me` → 401. It was stopped afterwards.
