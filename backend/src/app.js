@@ -3,6 +3,7 @@ import express from "express";
 import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
+import { isRedisReady } from "./shared/config/redis.js";
 import { requireAuth } from "./shared/middleware/auth.js";
 import { errorHandler, notFoundHandler } from "./shared/middleware/error-handler.js";
 import { authRouter } from "./features/auth/auth.routes.js";
@@ -25,10 +26,11 @@ export function createApp() {
     app.use(express.static(publicDirectory));
 
     app.get("/api/v1/health", (request, response) => {
+        // Without MongoDB the API cannot serve (503); without Redis it still serves, degraded.
         const database = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-        response
-            .status(database === "connected" ? 200 : 503)
-            .json({ data: { status: database === "connected" ? "ok" : "degraded", database } });
+        const redis = isRedisReady() ? "connected" : "disconnected";
+        const status = database === "connected" && redis === "connected" ? "ok" : "degraded";
+        response.status(database === "connected" ? 200 : 503).json({ data: { status, database, redis } });
     });
 
     app.use("/api/v1/auth", authRouter);

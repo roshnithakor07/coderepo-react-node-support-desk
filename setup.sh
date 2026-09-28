@@ -19,8 +19,8 @@ setup_env() {
 
 MONGO_HOST="127.0.0.1"
 MONGO_PORT="27017"
-REDIS_HOST="127.0.0.1"
-REDIS_PORT="6379"
+REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+REDIS_PORT="${REDIS_PORT:-6379}"
 
 mongo_is_reachable() {
     (exec 3<>"/dev/tcp/${MONGO_HOST}/${MONGO_PORT}") >/dev/null 2>&1
@@ -57,10 +57,7 @@ check_redis() {
     mkdir -p .redis
     redis-server --daemonize yes --bind "$REDIS_HOST" --port "$REDIS_PORT" --dir .redis --logfile .redis/redis.log >/dev/null 2>&1 || true
     sleep 1
-    redis_is_reachable || {
-        log_error "Redis is required on ${REDIS_HOST}:${REDIS_PORT}. Start it, then run this again."
-        exit 1
-    }
+    redis_is_reachable || log_warn "Redis is not reachable on ${REDIS_HOST}:${REDIS_PORT}; the app will run without caching, and rate limits and sign-outs will be kept in memory."
 }
 
 seed_database() {

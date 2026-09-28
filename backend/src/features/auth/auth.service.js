@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getConfig } from "../../shared/config/index.js";
-import { getRedis } from "../../shared/config/redis.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { authRepository } from "./auth.repository.js";
+import { tokenBlacklist } from "./token-blacklist.js";
 
 function toPublicUser(user) {
     return {
@@ -47,17 +47,10 @@ export const authService = {
     },
 
     async logout(token) {
-        try {
-            const config = getConfig();
-            const decoded = jwt.decode(token);
-            if (!decoded?.exp) return;
-            const ttlSeconds = decoded.exp - Math.floor(Date.now() / 1000);
-            if (ttlSeconds > 0) {
-                await getRedis().set(`token-blacklist:${token}`, "1", "EX", ttlSeconds);
-            }
-        } catch {
-            // best-effort blacklist; token will simply expire naturally otherwise
-        }
+        const decoded = jwt.decode(token);
+        if (!decoded?.exp) return;
+        const ttlSeconds = decoded.exp - Math.floor(Date.now() / 1000);
+        if (ttlSeconds > 0) await tokenBlacklist.revoke(token, ttlSeconds);
     },
 
     async authenticate(token) {
@@ -68,8 +61,7 @@ export const authService = {
         } catch {
             throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         }
-        const blacklisted = await getRedis().get(`token-blacklist:${token}`);
-        if (blacklisted) throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
+        if (await tokenBlacklist.isRevoked(token)) throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         const user = await authRepository.findById(payload.sub);
         if (!user || !user.isActive) throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         return toPublicUser(user);

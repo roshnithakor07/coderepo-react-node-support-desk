@@ -69,7 +69,7 @@ coderepo-react-node-support-desk/
 
 - [Bun](https://bun.sh/) >= 1.4
 - [MongoDB](https://www.mongodb.com/try/download/community) reachable at `127.0.0.1:27017` (or set `MONGODB_URI`)
-- [Redis](https://redis.io/download) reachable at `127.0.0.1:6379` (or set `REDIS_URL`)
+- [Redis](https://redis.io/download) reachable at `127.0.0.1:6379` (or set `REDIS_URL`). Recommended rather than required: without it the app still runs, with caching off and rate limits and sign-outs kept in memory; `/api/v1/health` then reports `"redis": "disconnected"`.
 
 ### Development setup
 
