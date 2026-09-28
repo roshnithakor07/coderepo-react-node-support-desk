@@ -673,3 +673,38 @@ The user approved the branch and kept all three choices:
 - Screenshots in `../screenshots/ticket-detail-redesign-v2/`.
 
 **`fix/audit-404`** was approved and merged to main (5cefc8e) first. This branch was then rebased onto it (local only, never pushed; transcript conflict resolved as a pure append).
+
+## [2026-09-28T11:45:37+00:00] Task 18 (Phase 1.9): `fix/hardening`
+
+**Defects (audit, verified live):**
+- registration was not rate-limited
+- `Access-Control-Allow-Origin: *` for every origin
+- no security headers
+
+**Fix:**
+- **Register rate limit:** 10 attempts per 10 minutes per IP (same Redis limiter as login). It runs before validation, so invalid attempts count too.
+- **CORS allowlist:** `CORS_ORIGIN` (comma-separated, default `http://localhost:3000`), read with `getOptionalEnv` (no read-only file change). Unlisted origins get no CORS headers, preflight included.
+  - The dev app and HackerRank reach the API through the Vite proxy (same origin), so they are unaffected; verified with a browser smoke of the dev app for 3 roles, 0 errors.
+  - The isolated e2e app (a real cross-origin browser setup) gets `CORS_ORIGIN=http://localhost:3100` through the Playwright config.
+  - Added to `.env.example`.
+- **Security headers (by hand, no dependency)** in `shared/middleware/security-headers.js`:
+  - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`
+  - COOP same-origin, CORP same-site
+  - `Permissions-Policy` (camera, microphone, geolocation off)
+  - CSP `default-src 'none'` with `img-src 'self'`, `style-src 'unsafe-inline'` (only for the API's static status page), and `frame-ancestors 'none'`
+  - `X-Powered-By` stays disabled.
+
+**Decisions (mine, open to the user's review):**
+- **No HSTS:** the app is served over plain HTTP locally and on HackerRank; HSTS belongs at a TLS-terminating proxy.
+- **Register limit 10/10min:** blocks scripted sign-ups without hurting a real user who mistypes.
+
+**Tests (`backend/tests/hardening.test.js`, 7):**
+- the 11th register attempt → 429 (the test clears its Redis keys before and after)
+- the allowed origin is echoed; a foreign origin and a foreign preflight get no header
+- headers are present on `/health`, on a 401 route, and on a 404 route
+
+**Proof:**
+- Before the fix: **7 failed**.
+- After the fix: API 61/61, e2e 28 (+6 skipped); dev-app browser smoke 0 errors.
+
+**Mistake (harmless):** my old scratch smoke script still targeted `.sla-timer-pill`, which the redesign removed. I updated the script (scratchpad only).
