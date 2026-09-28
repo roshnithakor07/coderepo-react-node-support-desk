@@ -817,3 +817,38 @@ The user approved the branch and kept all three choices:
 - Before the fix: failed at setup (sign-in 500 without Redis), and health lacked `redis`.
 - After the fix: API 60/60, e2e 28 (+6 skipped).
 - **Live:** `setup.sh` with `REDIS_PORT=6390` warned and completed (exit 0, seeding `support_desk_test`, not the dev DB). A real backend on port 8200 with Redis at a dead port gave: health 200 degraded; login 200 (0.21s); tickets, analytics, settings and `/me` 200 (≤0.05s); logout then `/me` → 401. It was stopped afterwards.
+
+## [2026-09-28T12:04:57+00:00] Phase 1 complete: merge of items 7-10 and fresh-clone check
+
+**User decisions:**
+- All Phase 1 limits and judgment calls kept as proposed: 720h SLA, 20 x 30-char categories, no HSTS, per-process memory fallbacks.
+- `WEBHOOK_SECRET` added to the user's local `backend/.env`: a random 48-hex value that is git-ignored and never committed or logged.
+
+**Merge:** 7 → 8 → 9 → 10 into main (`4789321`), exactly as rehearsed.
+- Transcript and `.env.example` resolved as pure appends.
+- `app.js` (both imports) and `settings.service.js` (partial update + `withRedis`) resolved by hand.
+- **Mistake:** my merge loop didn't commit merge 8 after resolving its transcript conflict, so merges 9 and 10 silently didn't start. I caught it from `git status` before pushing, finished the merges one by one, and ran all tests before the push.
+- Main after the merges: API 88/88, e2e 30 (+6 skipped), Prettier OK, build OK.
+
+**End-of-Phase-1 fresh-clone check** (`origin/main` @ `4789321`, scratchpad folder, dev app stopped for the ports):
+
+| Step | Result |
+|---|---|
+| `bun install && bash setup.sh --seed` | exit 0, no errors or warnings; `.env` files created, including `WEBHOOK_SECRET` + `CORS_ORIGIN` |
+| `bun start` | ready in about 4s; health 200 `{ok, database connected, redis connected}`; frontend / proxy 200; 3 role logins 200 |
+| Webhook | 201 with the secret, 401 without it |
+| Security headers | present |
+| Build | OK |
+| `bun run test` | 88/88 |
+| `bun run test:e2e` | 30 passed (+6 opt-in skipped), running isolated on 3100/8100 alongside the clone's 3000/8000 app |
+| Hygiene | clean tree; archive 686,080 bytes (< 5 MB); `GUIDELINES.md` / `skills/` excluded |
+
+Afterwards: the clone was stopped and deleted, the dev app was restarted on the new main, and the dev webhook with the new local secret returned 201.
+
+## Task 20 (Phase 2.1): `feat/theme-refresh`, token proposal (waiting for OK)
+
+**Method:** the palette is built in the reference's token structure (decision 8): surface / ink / muted / accent + container/ink pairs, plus per-status solid/container/ink. A script (`../theme-palette-check.py`) checks **47 pairs** in both themes: text ≥ 4.5:1, non-text UI ≥ 3:1.
+- **First draft:** 46/47 pass. The light `attention` solid `#ca8a04` was 2.94:1 on white for dots and bars, so it became `#a16207` (4.92:1).
+- **Final:** 47/47 pass.
+
+**Nothing is applied until the user OKs the table.**
