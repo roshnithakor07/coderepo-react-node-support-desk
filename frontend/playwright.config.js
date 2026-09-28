@@ -24,7 +24,7 @@ export default defineConfig({
         {
             command: "bun tests/e2e-server.js",
             cwd: "../backend",
-            env: { E2E_API_PORT: String(API_PORT) },
+            env: { E2E_API_PORT: String(API_PORT), CORS_ORIGIN: APP_URL },
             url: `${API_URL}/health`,
             reuseExistingServer: false,
             timeout: 120_000,
