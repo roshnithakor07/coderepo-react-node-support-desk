@@ -642,3 +642,34 @@ The user approved the branch and kept all three choices:
 **Open points for the user:**
 - The top bar and the page header both show the number and title. The top bar could become a breadcrumb later, but the layout test currently asserts it.
 - The docked composer leaves empty space above it on short tickets (by design, per "fills the column height").
+
+## [2026-09-28T11:21:01+00:00] Task 15 (cont.): review fixes for `fix/app-shell-layout`
+
+**User feedback (6 items) and what was done:**
+
+1. **Composer covering the last message.** The composer is in the layout flow (sticky), so at the true bottom it can't overlap. The real failure mode is *late layout*: a font or image loads after the auto-scroll, grows the last message, and there's no re-scroll. Fix: a ResizeObserver on the message list re-scrolls while the reader is still at the bottom (within 48px); it stops following once they scroll up.
+   - **Decision (mine):** no extra spacer equal to the composer height. The in-flow composer already reserves exactly that space, and a spacer would add an empty gap at the end, which contradicts item 6.
+   - Test: grow the last message after opening, then last message bottom ≤ composer top. **It fails on the old code and passes now.**
+   - Also tested: a new reply lands above the composer.
+2. **Breadcrumb:** the top bar now shows `Tickets / #id`, with "Tickets" going back to the list. The layout test was updated as the user asked: it checks the breadcrumb and the click-through.
+3. **Header gap:** the header is now exactly 64px (was 76) and flush under the top bar, with an 8px gap to the conversation (was 12). Test: header height ≤ 66 and gap ≤ 8, which **fails on the old code**.
+4. **Timestamps:** regular font, 12px, muted (was monospace 11px). Test: font family not mono, size 12-13px.
+5. **Sidebar at 1440-1600:** could not reproduce a thin strip.
+   - Measured: expanded 240px and rail 72px at 1440, 1590 and 1600; all 6 nav items visible; the content starts at the sidebar edge; no sideways scroll.
+   - Also checked the user's apparent 150% zoom (1042x593 CSS px at 1.5x): no overflow, even after focusing the composer.
+   - The left edge of the user's image looks like the sidebar border, which suggests a cropped capture.
+   - Added a test at 1440 and 1600, expanded and collapsed: width 240/72, 6 visible nav items, content flush, no sideways scroll.
+6. **Short tickets:** the conversation no longer stretches to fill the column, so the composer sits right under the last message and pins to the bottom only once the conversation outgrows the view. Test: gap ≤ 24px, which **fails on the old code**.
+
+**Mistakes on the way (all caught):**
+- My first collapsed-sidebar measurement set localStorage after the app had loaded, so it never took effect (fixed with a reload / `addInitScript`).
+- A script matched nav text that the rail hides (switched to accessible names).
+- The header came out at 67px against the 66px limit (the meta line height); fixed to exactly 64px.
+
+**Results:**
+- API 54/54.
+- e2e 28 passed + 6 opt-in screenshot tests skipped.
+- Build OK; Prettier OK.
+- Screenshots in `../screenshots/ticket-detail-redesign-v2/`.
+
+**`fix/audit-404`** was approved and merged to main (5cefc8e) first. This branch was then rebased onto it (local only, never pushed; transcript conflict resolved as a pure append).
