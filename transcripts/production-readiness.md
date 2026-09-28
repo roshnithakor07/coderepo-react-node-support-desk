@@ -673,3 +673,31 @@ The user approved the branch and kept all three choices:
 - Screenshots in `../screenshots/ticket-detail-redesign-v2/`.
 
 **`fix/audit-404`** was approved and merged to main (5cefc8e) first. This branch was then rebased onto it (local only, never pushed; transcript conflict resolved as a pure append).
+
+## [2026-09-28T11:37:32+00:00] Task 16 (Phase 1.7): `fix/settings-validation`
+
+**Defects:**
+- **Partial SLA update wiped the other priorities (found and verified live).** `PUT /settings {"slaHours":{"critical":2}}` stored `{critical:2}` only, because the update replaced the whole nested object.
+- SLA hours accepted any positive number (1.5, 10000).
+- Categories accepted duplicates, any length, any count, and could be emptied.
+- An empty body was accepted.
+- Every validation error said only "Request validation failed."
+
+**Fix:**
+- **Schema:** SLA hours are whole numbers 1-720 (30 days), with unknown priorities rejected. Categories: 1-20 names, trimmed, 1-30 characters each, stored in lower case (shown in title case), unique ignoring case. At least one of `slaHours` / `categories` is required.
+- **Service:** builds a `$set` with dot paths (`slaHours.critical`), so a partial update keeps the other priorities (repository `setDefaultsOnInsert`).
+- **Error handler (shared):** `VALIDATION_ERROR` now carries the first issue's message (for example "Keep at least one category."); the full field details stay in `details`. This improves every form's feedback.
+- **Settings page:** mirrors the rules ("Use whole hours.", "Must be 720 hours (30 days) or less.", "You can have up to 20 categories.") plus `max` / `step` on the inputs.
+
+**Decisions (mine, open to the user's review):**
+- **Limits:** 720h and 20 x 30-char categories are generous product limits; easy to change.
+- **Lower-case storage:** avoids "Billing" vs "billing" duplicates; the UI already title-cases.
+
+**Tests:**
+- **API** (`backend/tests/settings.test.js`, 16): partial update, trimming / lower case, admin-only, 12 invalid shapes with exact messages, and a rejected update leaves the settings unchanged.
+- **E2E** (`frontend/tests/e2e/settings.e2e.js`, 2): inline errors for 1.5 and 721 with nothing saved; a valid change persists after reload and the other priorities are kept.
+
+**Proof:**
+- Before the fix: API **14 failed**; the e2e invalid-hours test **failed** on the old page.
+- After the fix: all pass.
+- My first e2e version failed on the new code too, because after `page.reload()` the app returns to the dashboard (no routing yet). Fixed the test by navigating to Settings again.
