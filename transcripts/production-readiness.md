@@ -892,3 +892,41 @@ Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-ref
 - The dependency and devDependency sections now match the reference exactly, and `bun.lock` has the reference's package set.
 - Tests: the 6 Redis-resilience tests were removed. Added: 4 scheduler tests (interval, no overlap, recovery after a failure, stop/restart), sign-out revocation, and the webhook rate limit.
 - **Results:** API 88/88 in the repo and in a fresh clone. Fresh clone: `bun install && bash setup.sh --seed` OK (149 packages, none of the removed ones), `vite build` OK, `bun start` serving on 3000/8000, health `{"status":"ok","database":"connected"}`, sign-out then `/me` returns 401, and the live sweep logged "0 breached, 1 warned" within a minute.
+
+## [2026-10-02T14:35:27+00:00] Task 24: branch 1 merged; my answers; branch 2 `fix/responsive-layout`
+
+**Approved and merged:** `chore/remove-added-deps` and `docs/audit-handoff`, both with `--no-ff` (main is now `034a029`). Both branches were deleted locally and on origin. On main: API 88/88 and the build passes.
+
+**My answers to the open questions:**
+
+| Question | Options | My choice | My reason |
+|---|---|---|---|
+| The two `test` scripts (the only package.json difference besides name/description) | keep / remove | Keep | Scripts aren't dependencies, and testing is a basic HackerRank requirement |
+| Where signed-out tokens are stored | in memory (review section 6) / MongoDB with a TTL index | MongoDB with a TTL index, no new package, built in the branding/hygiene branch | A restart must not undo a sign-out |
+| The three disagreements with the review | — | Agree with all three | (1) A customer reply on a resolved ticket goes through the same reopen rules: the 14-day window, the SLA restart, and the "reopened" log. (2) Internal notes must not change a ticket's status. (3) Fix the 3 seeded deadlines and the late-resolved ticket in the seed |
+
+**Branch 2, `fix/responsive-layout` (my requirements):**
+- Content fills the screen at 1280, 1024, 900, 768, 600 and 375px, for every page and role.
+- Below about 1000px the sidebar folds into a menu: a hamburger opens a full-height drawer with a backdrop, and there is never a thin strip or sideways-scrolling tabs.
+- At 375px the dashboard, the ticket list (as stacked cards, not a squeezed table) and the ticket detail are fully usable.
+- No visual polish beyond that.
+- `scrollWidth === viewport width` is measured with a temporary script outside the repo, adding no dependency.
+
+**What changed:**
+- Below 1000px, a menu button opens the drawer. Escape, the backdrop, a close button or picking a page closes it. Focus moves into the drawer and returns to the menu button, and the page behind is inert.
+- The old 768px row of sideways-scrolling nav tabs is gone.
+- At 720px and below, the ticket, agent and analytics tables become labeled cards, with a "Sort by" select replacing the hidden headers.
+- Tables no longer force a 640px minimum width.
+- Long titles wrap on phones.
+
+**How it was measured:** a script in the session scratch folder (not in the repo, no npm package). Node's built-in `WebSocket` drove a local Chromium through the DevTools protocol, covering every role × page × width plus the login page (120 measurements) and the open drawer at 900/768/600/375 for each role (12).
+
+**Bugs found while measuring (fixed on this branch):**
+- Focus did not move into the opened drawer, because its visibility transition kept it hidden for the first frame.
+- The ticket table still scrolled sideways by 17–25px inside its container at 1024 and 768px.
+- On phones, the ticket title was cut off and the dashboard rows squeezed their titles.
+
+**Result:**
+- 120/120 measurements with `scrollWidth` equal to the viewport, nothing clipped, no inner sideways scrolling, no off-screen controls, 0 console errors.
+- 12/12 drawer checks: full height, backdrop covering the page, no sideways nav, focus in and back, Escape closes.
+- API 88/88, build OK, Prettier OK on the changed files.

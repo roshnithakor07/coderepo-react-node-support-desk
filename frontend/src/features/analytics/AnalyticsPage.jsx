@@ -168,10 +168,12 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
                             <tbody>
                                 {dashboard.agentPerformance.map((row) => (
                                     <tr key={row.agentId}>
-                                        <td>{row.agentName}</td>
-                                        <td>{row.totalAssigned}</td>
-                                        <td>{row.resolved}</td>
-                                        <td>{row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}</td>
+                                        <td data-label="Agent">{row.agentName}</td>
+                                        <td data-label="Assigned">{row.totalAssigned}</td>
+                                        <td data-label="Resolved">{row.resolved}</td>
+                                        <td data-label="Avg resolution (h)">
+                                            {row.avgResolutionHours ? row.avgResolutionHours.toFixed(1) : "-"}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

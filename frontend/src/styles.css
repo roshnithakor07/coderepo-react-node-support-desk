@@ -908,6 +908,13 @@ textarea:disabled {
     flex-shrink: 0;
 }
 
+.topbar-start {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
 .topbar-title {
     margin: 0;
     min-width: 0;
@@ -1092,7 +1099,6 @@ textarea:disabled {
 
 .data-table {
     width: 100%;
-    min-width: 640px;
     border-collapse: collapse;
 }
 
@@ -1119,6 +1125,15 @@ textarea:disabled {
 
 .data-table tbody tr:last-child td {
     border-bottom: none;
+}
+
+/* Tighter cells on narrower screens so all six ticket columns fit without sideways scrolling. */
+@media (max-width: 1100px) {
+    .data-table th,
+    .data-table td {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
 }
 
 .data-table tbody tr:nth-child(even) {
@@ -2953,60 +2968,93 @@ textarea:disabled {
     height: 40px;
 }
 
-@media (max-width: 768px) {
-    .app-shell {
-        flex-direction: column;
+/* Below 1000px the sidebar becomes a drawer opened from the top bar's menu button. */
+.topbar-menu-button,
+.sidebar-close,
+.nav-backdrop {
+    display: none;
+}
+
+@media (max-width: 999px) {
+    .topbar {
+        padding: 0 16px 0 8px;
+        gap: 8px;
     }
 
-    /* A single compact row of nav icons and labels above the page. */
+    .topbar-menu-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-button);
+        color: var(--text-primary);
+    }
+
+    .topbar-menu-button:hover {
+        background: var(--bg-hover);
+        border-color: var(--border);
+    }
+
     .sidebar,
     .sidebar.sidebar-collapsed {
-        width: 100%;
-        flex-direction: row;
-        align-items: center;
-        padding: 6px 8px;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 50;
+        width: min(280px, 85vw);
+        height: 100dvh;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition:
+            transform var(--transition),
+            visibility var(--transition);
+    }
+
+    /* Visible at once when opening (so focus can move in); hidden only after sliding out. */
+    .sidebar.sidebar-open {
+        transform: none;
+        visibility: visible;
+        transition: transform var(--transition);
     }
 
     .sidebar-brand {
-        margin-bottom: 0;
-        padding-right: 12px;
+        justify-content: space-between;
     }
 
-    .sidebar-brand span {
-        display: none;
+    .sidebar-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-button);
+        color: var(--text-muted);
     }
 
-    .sidebar nav {
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-    }
-
-    .sidebar nav > div {
-        display: contents;
-    }
-
-    .sidebar-section-label {
-        display: none;
-    }
-
-    .sidebar nav button.active::before {
-        left: 4px;
-        right: 4px;
-        top: auto;
-        bottom: -2px;
-        height: 3px;
-        width: auto;
-    }
-
-    .sidebar-footer {
-        display: none;
+    .sidebar-close:hover {
+        border-color: var(--border);
+        color: var(--text-primary);
     }
 
     .sidebar-collapse-toggle {
         display: none;
+    }
+
+    .nav-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: rgb(0 0 0 / 0.5);
     }
 
     .app-content {
@@ -3016,9 +3064,120 @@ textarea:disabled {
     .panel {
         padding: 20px;
     }
+}
 
+@media (max-width: 768px) {
     .sla-rows {
         grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Phones: long ticket titles wrap instead of being cut off or squeezed. */
+@media (max-width: 600px) {
+    .ticket-detail-heading h2 {
+        flex-basis: 100%;
+        order: 1;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-ticket-list button {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+
+    .dashboard-ticket-list .ticket-title-cell {
+        flex-basis: 100%;
+        text-align: left;
+    }
+}
+
+/* Narrow screens: every data table becomes a list of cards. The first column is the card's
+   title and every other cell shows its column name next to the value. */
+.table-sort {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .table-sort {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        text-align: left;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .table-sort select {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .table-scroll {
+        overflow-x: visible;
+    }
+
+    .data-table thead {
+        display: none;
+    }
+
+    .data-table,
+    .data-table tbody,
+    .data-table tr,
+    .data-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .data-table tbody tr,
+    .data-table tbody tr:nth-child(even) {
+        margin-bottom: 12px;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-card);
+        background: var(--bg-card);
+    }
+
+    .data-table td,
+    .data-table tbody tr:last-child td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        height: auto;
+        padding: 6px 0;
+        border: none;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .data-table td::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        text-align: left;
+    }
+
+    .data-table td:first-child {
+        display: block;
+        padding: 0 0 8px;
+        font-size: 15px;
+        text-align: left;
+    }
+
+    .data-table td:first-child::before {
+        content: none;
+    }
+
+    .row-actions {
+        flex-wrap: wrap;
     }
 }
 

@@ -110,6 +110,14 @@ export function CloseIcon(props) {
     );
 }
 
+export function MenuIcon(props) {
+    return (
+        <svg {...base} width={20} height={20} {...props} aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    );
+}
+
 export function SearchIcon(props) {
     return (
         <svg {...base} width={16} height={16} {...props} aria-hidden="true">

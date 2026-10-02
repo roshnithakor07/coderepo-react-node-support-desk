@@ -1,4 +1,13 @@
-import { ChartIcon, HomeIcon, LogOutIcon, MessageIcon, SettingsIcon, TicketIcon, UsersIcon } from "../../shared/components/Icon.jsx";
+import {
+    ChartIcon,
+    CloseIcon,
+    HomeIcon,
+    LogOutIcon,
+    MessageIcon,
+    SettingsIcon,
+    TicketIcon,
+    UsersIcon,
+} from "../../shared/components/Icon.jsx";
 import { initials } from "../../shared/utils/format.js";
 
 const NAV_SECTIONS = [
@@ -20,12 +29,16 @@ const NAV_SECTIONS = [
     },
 ];
 
-export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, onLogout, isCollapsed, onToggleCollapse }) {
+// Below 1000px the sidebar is a drawer: isOpen shows it, and onClose hides it again.
+export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, onLogout, isCollapsed, onToggleCollapse, isOpen, onClose }) {
     return (
-        <aside className={`sidebar ${isCollapsed ? "sidebar-collapsed" : ""}`}>
+        <aside id="app-sidebar" className={`sidebar ${isCollapsed ? "sidebar-collapsed" : ""} ${isOpen ? "sidebar-open" : ""}`}>
             <div className="sidebar-brand">
                 <img src="/favicon.svg" alt="" />
                 {!isCollapsed && <span>Support Desk</span>}
+                <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close navigation">
+                    <CloseIcon />
+                </button>
             </div>
             <nav aria-label="Main">
                 {NAV_SECTIONS.map((section) => {
