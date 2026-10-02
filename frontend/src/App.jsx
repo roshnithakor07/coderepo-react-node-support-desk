@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentApi } from "./features/agents/agent.api.js";
 import { analyticsApi } from "./features/analytics/analytics.api.js";
+import { ActivityPage } from "./features/audit-logs/ActivityPage.jsx";
 import { authApi } from "./features/auth/auth.api.js";
 import { AuthScreen } from "./features/auth/AuthScreen.jsx";
 import { cannedResponseApi } from "./features/canned-responses/canned-response.api.js";
@@ -36,6 +37,7 @@ const PAGE_TITLES = {
     agents: "Agents",
     "canned-responses": "Canned Responses",
     analytics: "Analytics",
+    activity: "Activity",
     settings: "Settings",
     profile: "Profile",
 };
@@ -589,6 +591,8 @@ export default function App() {
                             isBusy={cannedBusy}
                         />
                     )}
+
+                    {activeView === "activity" && currentUser.role === "admin" && <ActivityPage onOpenTicket={loadTicketDetail} />}
 
                     {activeView === "analytics" && currentUser.role === "admin" && (
                         <AnalyticsPage

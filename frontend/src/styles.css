@@ -645,6 +645,30 @@ textarea:disabled {
     content: "⚠";
 }
 
+/* Confirmation dialog */
+.confirmation-dialog-modal {
+    width: min(420px, calc(100vw - 32px));
+}
+
+.confirmation-dialog h2 {
+    margin: 0 32px 0 0;
+    font-size: 18px;
+}
+
+.confirmation-dialog > p {
+    margin: 12px 0 0;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.confirmation-dialog footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+}
+
 /* App shell */
 /* The shell is exactly one viewport tall; only .app-content scrolls. */
 .app-shell {

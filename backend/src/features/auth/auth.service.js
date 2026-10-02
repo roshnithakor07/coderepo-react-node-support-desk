@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { getConfig } from "../../shared/config/index.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { authRepository } from "./auth.repository.js";
-import { tokenBlacklist } from "./token-blacklist.js";
+import { revokedTokenRepository } from "./revoked-token.repository.js";
 
 function toPublicUser(user) {
     return {
@@ -15,6 +16,11 @@ function toPublicUser(user) {
         isActive: user.isActive,
         createdAt: user.createdAt,
     };
+}
+
+// Revoked tokens are stored as hashes, so the database never holds a usable session token.
+function hashToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 function signToken(user) {
@@ -49,8 +55,8 @@ export const authService = {
     async logout(token) {
         const decoded = jwt.decode(token);
         if (!decoded?.exp) return;
-        const ttlSeconds = decoded.exp - Math.floor(Date.now() / 1000);
-        if (ttlSeconds > 0) await tokenBlacklist.revoke(token, ttlSeconds);
+        const expiresAt = new Date(decoded.exp * 1000);
+        if (expiresAt > new Date()) await revokedTokenRepository.revoke(hashToken(token), expiresAt);
     },
 
     async authenticate(token) {
@@ -61,7 +67,8 @@ export const authService = {
         } catch {
             throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         }
-        if (await tokenBlacklist.isRevoked(token)) throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
+        if (await revokedTokenRepository.isRevoked(hashToken(token)))
+            throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         const user = await authRepository.findById(payload.sub);
         if (!user || !user.isActive) throw new AppError(401, "INVALID_TOKEN", "Your session is invalid or has expired.");
         return toPublicUser(user);

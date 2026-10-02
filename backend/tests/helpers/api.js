@@ -1,10 +1,10 @@
 export const SEEDED_PASSWORD = "SupportDesk@2026";
 
 export const SEEDED_ACCOUNTS = {
-    admin: "admin1@supportdesk.io",
-    agent: "agent1@supportdesk.io",
-    customer: "customer1@supportdesk.io",
-    inactiveAgent: "agent5@supportdesk.io",
+    admin: "admin1@example.com",
+    agent: "agent1@example.com",
+    customer: "customer1@example.com",
+    inactiveAgent: "agent5@example.com",
 };
 
 export async function api(path, { method = "GET", token, body } = {}) {

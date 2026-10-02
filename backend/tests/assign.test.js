@@ -30,7 +30,7 @@ beforeAll(async () => {
     ownTicket = tickets.find(
         (ticket) => ticket.assignedTo?.email === SEEDED_ACCOUNTS.agent && ticket.createdBy.email !== SEEDED_ACCOUNTS.customer,
     );
-    otherAgentsTicket = tickets.find((ticket) => ticket.assignedTo?.email === "agent2@supportdesk.io");
+    otherAgentsTicket = tickets.find((ticket) => ticket.assignedTo?.email === "agent2@example.com");
 });
 
 afterAll(async () => {
@@ -43,19 +43,19 @@ describe("who can assign a ticket", () => {
         const { status, body } = await assign(otherAgentsTicket._id, agentIds.agent1, agent.token);
         expect(status).toBe(403);
         expect(body.error.code).toBe("FORBIDDEN");
-        expect(await assignedEmail(otherAgentsTicket._id)).toBe("agent2@supportdesk.io");
+        expect(await assignedEmail(otherAgentsTicket._id)).toBe("agent2@example.com");
     });
 
     test("an agent can hand their own ticket to another agent", async () => {
         const { status, body } = await assign(ownTicket._id, agentIds.agent2, agent.token);
         expect(status).toBe(200);
-        expect(body.data.assignedTo.email).toBe("agent2@supportdesk.io");
+        expect(body.data.assignedTo.email).toBe("agent2@example.com");
     });
 
     test("an admin can assign any ticket", async () => {
         const { status, body } = await assign(otherAgentsTicket._id, agentIds.agent3, admin.token);
         expect(status).toBe(200);
-        expect(body.data.assignedTo.email).toBe("agent3@supportdesk.io");
+        expect(body.data.assignedTo.email).toBe("agent3@example.com");
     });
 
     test("a customer cannot assign tickets", async () => {

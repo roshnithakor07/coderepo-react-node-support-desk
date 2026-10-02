@@ -24,15 +24,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await setActive("agent4@supportdesk.io", true);
-    await setActive("agent5@supportdesk.io", false);
+    await setActive("agent4@example.com", true);
+    await setActive("agent5@example.com", false);
 });
 
 describe("agents list", () => {
     test("includes inactive agents, with their status and workload", async () => {
         const agents = await listAgents();
         expect(agents).toHaveLength(5);
-        const inactive = agents.find((entry) => entry.email === "agent5@supportdesk.io");
+        const inactive = agents.find((entry) => entry.email === "agent5@example.com");
         expect(inactive).toMatchObject({ isActive: false, openTicketCount: 0 });
         expect(agents.every((entry) => typeof entry.openTicketCount === "number")).toBe(true);
         expect(agents.some((entry) => "password" in entry)).toBe(false);
@@ -43,17 +43,17 @@ describe("agents list", () => {
     });
 
     test("a deactivated agent stays in the list and can be reactivated", async () => {
-        expect((await setActive("agent4@supportdesk.io", false)).status).toBe(200);
-        expect((await listAgents()).find((entry) => entry.email === "agent4@supportdesk.io").isActive).toBe(false);
+        expect((await setActive("agent4@example.com", false)).status).toBe(200);
+        expect((await listAgents()).find((entry) => entry.email === "agent4@example.com").isActive).toBe(false);
 
-        const reactivated = await setActive("agent4@supportdesk.io", true);
+        const reactivated = await setActive("agent4@example.com", true);
         expect(reactivated.status).toBe(200);
         expect(reactivated.body.data.isActive).toBe(true);
-        expect((await listAgents()).find((entry) => entry.email === "agent4@supportdesk.io").isActive).toBe(true);
+        expect((await listAgents()).find((entry) => entry.email === "agent4@example.com").isActive).toBe(true);
     });
 
     test("the seeded inactive agent can be activated from the list", async () => {
-        const { status, body } = await setActive("agent5@supportdesk.io", true);
+        const { status, body } = await setActive("agent5@example.com", true);
         expect(status).toBe(200);
         expect(body.data.isActive).toBe(true);
     });
@@ -61,7 +61,7 @@ describe("agents list", () => {
 
 describe("auto-assignment", () => {
     test("never assigns a new ticket to an inactive agent", async () => {
-        await setActive("agent5@supportdesk.io", false);
+        await setActive("agent5@example.com", false);
         const { status, body } = await api("/tickets", {
             method: "POST",
             token: customer.token,

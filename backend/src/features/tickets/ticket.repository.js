@@ -44,8 +44,4 @@ export const ticketRepository = {
             slaWarningNotifiedAt: null,
             status: { $nin: ["resolved", "closed"] },
         }),
-
-    aggregateByStatus: () => Ticket.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-
-    aggregateByPriority: () => Ticket.aggregate([{ $group: { _id: "$priority", count: { $sum: 1 } } }]),
 };

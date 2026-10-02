@@ -19,13 +19,13 @@ describe("registration rate limit", () => {
     });
 });
 
-describe("inbound email rate limit", () => {
+describe("sign-in rate limit", () => {
     beforeAll(clearRateLimits);
     afterAll(clearRateLimits);
 
-    test("the 31st webhook call within a minute is refused before the secret is checked", async () => {
-        const attempt = () => api("/webhooks/email", { method: "POST", body: {} });
-        for (let index = 0; index < 30; index += 1) expect((await attempt()).status).not.toBe(429);
+    test("the 11th sign-in attempt within a minute is refused", async () => {
+        const attempt = () => api("/auth/login", { method: "POST", body: { email: "nobody@example.com", password: "wrong-password" } });
+        for (let index = 0; index < 10; index += 1) expect((await attempt()).status).toBe(401);
         const limited = await attempt();
         expect(limited.status).toBe(429);
         expect(limited.body.error.code).toBe("RATE_LIMITED");

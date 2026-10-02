@@ -19,7 +19,6 @@ process.env.NODE_ENV = "test";
 process.env.MONGODB_URI = mongodbUri;
 process.env.JWT_SECRET ||= "support-desk-test-secret";
 process.env.JWT_EXPIRES_IN ||= "1h";
-process.env.WEBHOOK_SECRET ||= "support-desk-test-webhook-secret";
 
 const seed = Bun.spawnSync(["bun", "src/scripts/seed.js"], { cwd: backendDirectory, env: process.env, stdout: "pipe", stderr: "pipe" });
 if (seed.exitCode !== 0) {

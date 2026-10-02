@@ -4,6 +4,7 @@ dotenv.config({ quiet: true });
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { AuditLog } from "../features/audit-logs/audit-log.model.js";
+import { RevokedToken } from "../features/auth/revoked-token.model.js";
 import { User } from "../features/auth/user.model.js";
 import { CannedResponse } from "../features/canned-responses/canned-response.model.js";
 import { Notification } from "../features/notifications/notification.model.js";
@@ -13,13 +14,10 @@ import { connectDatabase, disconnectDatabase } from "../shared/config/database.j
 import { loadConfig } from "../shared/config/index.js";
 
 const PASSWORD = "SupportDesk@2026";
+const SLA_HOURS = { critical: 1, high: 4, medium: 8, low: 24 };
 
 function hoursAgo(hours) {
     return new Date(Date.now() - hours * 60 * 60 * 1000);
-}
-
-function hoursFromNow(hours) {
-    return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
 async function hashPassword() {
@@ -34,6 +32,7 @@ async function clearDatabase() {
         CannedResponse.deleteMany({}),
         Notification.deleteMany({}),
         Settings.deleteMany({}),
+        RevokedToken.deleteMany({}),
     ]);
     await Promise.all([
         User.syncIndexes(),
@@ -42,6 +41,7 @@ async function clearDatabase() {
         CannedResponse.syncIndexes(),
         Notification.syncIndexes(),
         Settings.syncIndexes(),
+        RevokedToken.syncIndexes(),
     ]);
 }
 
@@ -50,22 +50,22 @@ async function seedUsers() {
     const password = await hashPassword();
 
     const admins = await User.insertMany([
-        { name: "Ava Patel", email: "admin1@supportdesk.io", password, role: "admin" },
-        { name: "Marcus Chen", email: "admin2@supportdesk.io", password, role: "admin" },
+        { name: "Ava Patel", email: "admin1@example.com", password, role: "admin" },
+        { name: "Marcus Chen", email: "admin2@example.com", password, role: "admin" },
     ]);
 
     const agents = await User.insertMany([
-        { name: "Priya Sharma", email: "agent1@supportdesk.io", password, role: "agent" },
-        { name: "Diego Fernandez", email: "agent2@supportdesk.io", password, role: "agent" },
-        { name: "Lena Kowalski", email: "agent3@supportdesk.io", password, role: "agent" },
-        { name: "Noah Williams", email: "agent4@supportdesk.io", password, role: "agent" },
-        { name: "Sofia Rossi", email: "agent5@supportdesk.io", password, role: "agent", isActive: false },
+        { name: "Priya Sharma", email: "agent1@example.com", password, role: "agent" },
+        { name: "Diego Fernandez", email: "agent2@example.com", password, role: "agent" },
+        { name: "Lena Kowalski", email: "agent3@example.com", password, role: "agent" },
+        { name: "Noah Williams", email: "agent4@example.com", password, role: "agent" },
+        { name: "Sofia Rossi", email: "agent5@example.com", password, role: "agent", isActive: false },
     ]);
 
     const customers = await User.insertMany([
-        { name: "Grace Kim", email: "customer1@supportdesk.io", password, role: "customer" },
-        { name: "Omar Haddad", email: "customer2@supportdesk.io", password, role: "customer" },
-        { name: "Isabella Rocha", email: "customer3@supportdesk.io", password, role: "customer" },
+        { name: "Grace Kim", email: "customer1@example.com", password, role: "customer" },
+        { name: "Omar Haddad", email: "customer2@example.com", password, role: "customer" },
+        { name: "Isabella Rocha", email: "customer3@example.com", password, role: "customer" },
     ]);
 
     console.log(`  ${admins.length} admins, ${agents.length} agents, ${customers.length} customers`);
@@ -76,7 +76,7 @@ async function seedSettings() {
     console.log("\nSeeding settings...");
     await Settings.create({
         key: "global",
-        slaHours: { critical: 1, high: 4, medium: 8, low: 24 },
+        slaHours: SLA_HOURS,
         categories: ["general", "billing", "technical", "account"],
     });
     console.log("  1 settings document");
@@ -130,26 +130,26 @@ const CATEGORIES = ["general", "billing", "technical", "account"];
 // One blueprint per line keeps the seeded tickets readable as a table.
 // prettier-ignore
 const TICKET_BLUEPRINTS = [
-    { title: "Cannot log into my account", priority: "critical", category: "account", status: "open", ageHours: 2, slaOffsetHours: -0.5 },
-    { title: "Payment failed but I was charged", priority: "critical", category: "billing", status: "in_progress", ageHours: 5, slaOffsetHours: -4 },
-    { title: "App crashes on startup", priority: "high", category: "technical", status: "open", ageHours: 6, slaOffsetHours: -2 },
-    { title: "Invoice shows incorrect tax amount", priority: "high", category: "billing", status: "pending", ageHours: 10, slaOffsetHours: -6 },
-    { title: "Feature request: dark mode", priority: "low", category: "general", status: "open", ageHours: 20, slaOffsetHours: 4 },
-    { title: "Unable to reset password", priority: "high", category: "account", status: "resolved", ageHours: 30, slaOffsetHours: -26, resolvedAfterHours: 3 },
-    { title: "Slow dashboard loading times", priority: "medium", category: "technical", status: "in_progress", ageHours: 12, slaOffsetHours: 4 },
-    { title: "Duplicate charge on my card", priority: "critical", category: "billing", status: "resolved", ageHours: 48, slaOffsetHours: -47, resolvedAfterHours: 2 },
-    { title: "How do I export my data?", priority: "low", category: "general", status: "closed", ageHours: 72, slaOffsetHours: -48, resolvedAfterHours: 5 },
-    { title: "Two-factor authentication not working", priority: "high", category: "account", status: "open", ageHours: 3, slaOffsetHours: 1 },
-    { title: "Mobile app freezes on upload", priority: "medium", category: "technical", status: "pending", ageHours: 15, slaOffsetHours: -7 },
-    { title: "Need to update billing address", priority: "low", category: "billing", status: "resolved", ageHours: 40, slaOffsetHours: -16, resolvedAfterHours: 4 },
-    { title: "API returning 500 errors intermittently", priority: "critical", category: "technical", status: "in_progress", ageHours: 1, slaOffsetHours: 0.5 },
-    { title: "Trouble understanding my subscription tier", priority: "low", category: "billing", status: "open", ageHours: 8, slaOffsetHours: 16 },
-    { title: "Account suspended without explanation", priority: "critical", category: "account", status: "in_progress", ageHours: 4, slaOffsetHours: -3 },
-    { title: "Search results are inaccurate", priority: "medium", category: "technical", status: "open", ageHours: 9, slaOffsetHours: -1 },
-    { title: "Requesting a demo for enterprise plan", priority: "low", category: "general", status: "closed", ageHours: 96, slaOffsetHours: -72, resolvedAfterHours: 6 },
-    { title: "Refund not received after 10 days", priority: "high", category: "billing", status: "pending", ageHours: 25, slaOffsetHours: -21 },
-    { title: "Notification emails not arriving", priority: "medium", category: "technical", status: "resolved", ageHours: 18, slaOffsetHours: -10, resolvedAfterHours: 4 },
-    { title: "Question about GDPR data deletion", priority: "medium", category: "account", status: "open", ageHours: 7, slaOffsetHours: 1 },
+    { title: "Cannot log into my account", priority: "critical", category: "account", status: "open", ageHours: 2 },
+    { title: "Payment failed but I was charged", priority: "critical", category: "billing", status: "in_progress", ageHours: 5 },
+    { title: "App crashes on startup", priority: "high", category: "technical", status: "open", ageHours: 6 },
+    { title: "Invoice shows incorrect tax amount", priority: "high", category: "billing", status: "pending", ageHours: 10 },
+    { title: "Feature request: dark mode", priority: "low", category: "general", status: "open", ageHours: 20 },
+    { title: "Unable to reset password", priority: "high", category: "account", status: "resolved", ageHours: 30, resolvedAfterHours: 3 },
+    { title: "Slow dashboard loading times", priority: "medium", category: "technical", status: "in_progress", ageHours: 4 },
+    { title: "Duplicate charge on my card", priority: "critical", category: "billing", status: "resolved", ageHours: 48, resolvedAfterHours: 2 },
+    { title: "How do I export my data?", priority: "low", category: "general", status: "closed", ageHours: 72, resolvedAfterHours: 5 },
+    { title: "Two-factor authentication not working", priority: "high", category: "account", status: "open", ageHours: 3 },
+    { title: "Mobile app freezes on upload", priority: "medium", category: "technical", status: "pending", ageHours: 15 },
+    { title: "Need to update billing address", priority: "low", category: "billing", status: "resolved", ageHours: 40, resolvedAfterHours: 4 },
+    { title: "API returning 500 errors intermittently", priority: "critical", category: "technical", status: "in_progress", ageHours: 0.5 },
+    { title: "Trouble understanding my subscription tier", priority: "low", category: "billing", status: "open", ageHours: 8 },
+    { title: "Account suspended without explanation", priority: "critical", category: "account", status: "in_progress", ageHours: 4 },
+    { title: "Search results are inaccurate", priority: "medium", category: "technical", status: "open", ageHours: 9 },
+    { title: "Requesting a demo for enterprise plan", priority: "low", category: "general", status: "closed", ageHours: 96, resolvedAfterHours: 6 },
+    { title: "Refund not received after 10 days", priority: "high", category: "billing", status: "pending", ageHours: 25 },
+    { title: "Notification emails not arriving", priority: "medium", category: "technical", status: "resolved", ageHours: 18, resolvedAfterHours: 4 },
+    { title: "Question about GDPR data deletion", priority: "medium", category: "account", status: "open", ageHours: 7 },
 ];
 
 const REPLY_SNIPPETS = [
@@ -169,11 +169,13 @@ async function seedTickets(admins, agents, customers) {
         const blueprint = TICKET_BLUEPRINTS[index];
         const customer = customers[index % customers.length];
         const agent = activeAgents[index % activeAgents.length];
+        // The deadline follows the seeded SLA hours for the ticket's priority, like a ticket created in the app.
+        // A ticket is breached if it is still open past its deadline, or was resolved after it.
         const createdAt = hoursAgo(blueprint.ageHours);
-        const slaDeadline = blueprint.slaOffsetHours >= 0 ? hoursFromNow(blueprint.slaOffsetHours) : hoursAgo(-blueprint.slaOffsetHours);
+        const slaDeadline = new Date(createdAt.getTime() + SLA_HOURS[blueprint.priority] * 60 * 60 * 1000);
         const isResolvedLike = blueprint.status === "resolved" || blueprint.status === "closed";
         const resolvedAt = isResolvedLike ? hoursAgo(blueprint.ageHours - blueprint.resolvedAfterHours) : null;
-        const slaBreached = slaDeadline.getTime() < Date.now() && !isResolvedLike;
+        const slaBreached = (resolvedAt || new Date()).getTime() > slaDeadline.getTime();
 
         const replyCount = index % 3;
         const replies = [];
@@ -212,7 +214,8 @@ async function seedTickets(admins, agents, customers) {
     return created;
 }
 
-async function seedAuditLogs(tickets, admins) {
+async function seedAuditLogs(tickets, admins, agents) {
+    const agentNames = new Map(agents.map((agent) => [String(agent._id), agent.name]));
     console.log("\nSeeding audit logs...");
     const entries = tickets.map((ticket) => ({
         ticketId: ticket._id,
@@ -226,7 +229,7 @@ async function seedAuditLogs(tickets, admins) {
         ticketId: ticket._id,
         action: "assigned",
         performedBy: admins[0]._id,
-        changes: { assignedTo: String(ticket.assignedTo) },
+        changes: { assignedTo: agentNames.get(String(ticket.assignedTo)) },
         createdAt: ticket.createdAt,
     }));
 
@@ -246,7 +249,8 @@ async function seedNotifications(tickets, agents, customers) {
             ticketId: ticket._id,
             isRead: index % 2 === 1,
         });
-        if (ticket.slaBreached) {
+        // Breach alerts go out only while a ticket is open, as the SLA sweep does.
+        if (ticket.slaBreached && !ticket.resolvedAt) {
             notifications.push({
                 userId: ticket.assignedTo,
                 type: "sla_breached",
@@ -276,7 +280,7 @@ async function seed() {
         await seedSettings();
         await seedCannedResponses(admins, agents);
         const tickets = await seedTickets(admins, agents, customers);
-        await seedAuditLogs(tickets, admins);
+        await seedAuditLogs(tickets, admins, agents);
         await seedNotifications(tickets, agents, customers);
 
         const [userCount, ticketCount, auditCount, cannedCount, notificationCount] = await Promise.all([
@@ -294,9 +298,9 @@ async function seed() {
         console.log(`  Canned responses: ${cannedCount}  Notifications: ${notificationCount}`);
         console.log("\n Seeded login credentials (all use the same password):");
         console.log(`   Password: ${PASSWORD}`);
-        console.log("   Admin:    admin1@supportdesk.io / admin2@supportdesk.io");
-        console.log("   Agent:    agent1@supportdesk.io ... agent5@supportdesk.io (agent5 is inactive)");
-        console.log("   Customer: customer1@supportdesk.io ... customer3@supportdesk.io");
+        console.log("   Admin:    admin1@example.com / admin2@example.com");
+        console.log("   Agent:    agent1@example.com ... agent5@example.com (agent5 is inactive)");
+        console.log("   Customer: customer1@example.com ... customer3@example.com");
         console.log("=================================================\n");
     } catch (error) {
         console.error("Seed failed:", error);

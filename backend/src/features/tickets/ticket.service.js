@@ -21,11 +21,6 @@ function assertTransitionAllowed(current, next) {
     }
 }
 
-function serializeTicket(ticket) {
-    const plain = typeof ticket.toObject === "function" ? ticket.toObject() : ticket;
-    return plain;
-}
-
 async function computeSlaDeadline(priority, fromDate = new Date()) {
     const hours = await settingsService.getSlaHours(priority);
     return new Date(fromDate.getTime() + hours * 60 * 60 * 1000);
@@ -119,8 +114,8 @@ export const ticketService = {
             assertTransitionAllowed(ticket.status, patch.status);
             changes.status = { from: ticket.status, to: patch.status };
             ticket.status = patch.status;
-            ticket.resolvedAt = patch.status === "resolved" ? new Date() : ticket.status === "closed" ? ticket.resolvedAt : null;
-            if (patch.status === "resolved") ticket.resolvedAt = new Date();
+            // Resolving stamps the time; closing keeps it; any other status clears it.
+            ticket.resolvedAt = patch.status === "resolved" ? new Date() : patch.status === "closed" ? ticket.resolvedAt : null;
         }
 
         if (patch.priority && patch.priority !== ticket.priority) {
@@ -228,7 +223,7 @@ export const ticketService = {
         for (const ticket of overdue) {
             ticket.slaBreached = true;
             await ticketRepository.save(ticket);
-            await auditLogService.record(ticket._id, "sla_breached", ticket.createdBy, { slaDeadline: ticket.slaDeadline });
+            await auditLogService.record(ticket._id, "sla_breached", null, { slaDeadline: ticket.slaDeadline });
             const recipients = [ticket.assignedTo].filter(Boolean);
             await notificationService.notifyMany(recipients, "sla_breached", `SLA breached for ticket "${ticket.title}".`, ticket._id);
         }
@@ -249,6 +244,4 @@ export const ticketService = {
 
         return { breached: overdue.length, warned: approaching.length };
     },
-
-    serializeTicket,
 };
