@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
+import { RevokedToken } from "../src/features/auth/revoked-token.model.js";
 import { User } from "../src/features/auth/user.model.js";
 import { api } from "./helpers/api.js";
 
@@ -45,5 +49,43 @@ describe("sign out", () => {
         const after = await api("/auth/me", { token });
         expect(after.status).toBe(401);
         expect(after.body.error.code).toBe("INVALID_TOKEN");
+    });
+});
+
+const backendDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function authenticateInNewProcess(token) {
+    const result = Bun.spawnSync(["bun", "tests/helpers/authenticate-in-new-process.js"], {
+        cwd: backendDirectory,
+        env: { ...process.env, TOKEN_TO_CHECK: token },
+        stdout: "pipe",
+        stderr: "pipe",
+    });
+    return result.stdout.toString().trim();
+}
+
+describe("signed-out tokens are kept in MongoDB", () => {
+    test("a signed-out token is still refused by a freshly started process (nothing held in memory)", async () => {
+        const { body } = await api("/auth/register", { method: "POST", body: newAccount("sign-out-restart") });
+        const token = body.data.token;
+        expect(authenticateInNewProcess(token)).toBe("accepted");
+
+        expect((await api("/auth/logout", { method: "POST", token })).status).toBe(200);
+        expect(authenticateInNewProcess(token)).toBe("401 INVALID_TOKEN");
+    });
+
+    test("only a hash of the token is stored, and it expires when the token would have", async () => {
+        const { body } = await api("/auth/register", { method: "POST", body: newAccount("sign-out-stored") });
+        const token = body.data.token;
+        await api("/auth/logout", { method: "POST", token });
+
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+        const stored = await RevokedToken.findOne({ tokenHash }).lean();
+        const { exp } = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+        expect(stored.expiresAt.getTime()).toBe(exp * 1000);
+        expect(await RevokedToken.countDocuments({ tokenHash: token })).toBe(0);
+
+        const indexes = await RevokedToken.collection.indexes();
+        expect(indexes.find((index) => index.key.expiresAt === 1)?.expireAfterSeconds).toBe(0);
     });
 });
