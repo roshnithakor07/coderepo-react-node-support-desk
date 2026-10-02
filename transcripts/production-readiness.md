@@ -968,3 +968,14 @@ Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-ref
 - Rect and layout check: 256 states with 0 offenders, 0 console errors, all 18 dialog checks passing, and an Activity row opens its ticket.
 - Fresh clone: install, seed, build and tests OK.
 - One check run crashed once with "no app shell" on a page. It did not reproduce in 2 full reruns; the probable cause is a Vite cold-start reload (not verified).
+
+**Read-only config files (on `fix/branding-and-hygiene`, before merge):**
+- `hackerrank.yml` lists `backend/src/shared/config/database.js` and `frontend/vite.config.js` as read-only. Both differed from the reference (formatting only).
+- Both were copied byte-for-byte from `../coderepo-react-node-calendar-reference` and added to `.prettierignore` (Prettier would reformat both). `cmp` confirms all three read-only config files (`database.js`, `index.js`, `vite.config.js`) match the reference.
+- Re-run: API 92/92, `vite build` OK.
+- Found while checking: `backend/src/scripts/seed.js` also differs from the reference. It is the Support Desk seed, so it must differ. Not changed; flagged for the user.
+
+**My decisions (with my reasons):**
+- Activity page for `/audit-logs`: approved. It adds the "History and auditability" capability from REQUIREMENTS.md.
+- Removing the email webhook: approved. It needs an outside mail sender (GUIDELINES.md:186), and the secret cannot go to the browser.
+- Merge: waits for my "approved" (my own footer rule), even though the task text also lists the merge steps.
