@@ -64,6 +64,8 @@ export function Table({
         }
     }
 
+    const sortableColumns = onSortChange ? columns.filter((column) => column.sortable) : [];
+
     function handleSort(column) {
         if (!column.sortable || !onSortChange) return;
         const isSameColumn = sort?.key === column.key;
@@ -71,8 +73,32 @@ export function Table({
         onSortChange({ key: column.key, direction: nextDirection });
     }
 
+    // On narrow screens the header row is hidden (rows become cards), so sorting moves to this select.
+    const sortControl = sortableColumns.length > 0 && (
+        <label className="table-sort">
+            Sort by
+            <select
+                value={sort ? `${sort.key}:${sort.direction}` : ""}
+                onChange={(event) => {
+                    const [key, direction] = event.target.value.split(":");
+                    onSortChange({ key, direction });
+                }}
+            >
+                {sortableColumns.flatMap((column) => [
+                    <option key={`${column.key}:asc`} value={`${column.key}:asc`}>
+                        {column.header} (ascending)
+                    </option>,
+                    <option key={`${column.key}:desc`} value={`${column.key}:desc`}>
+                        {column.header} (descending)
+                    </option>,
+                ])}
+            </select>
+        </label>
+    );
+
     return (
         <div className="table-scroll">
+            {sortControl}
             <table className="data-table">
                 <thead>
                     <tr>
@@ -103,7 +129,9 @@ export function Table({
                             role={onRowClick ? "button" : undefined}
                         >
                             {columns.map((column) => (
-                                <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
+                                <td key={column.key} data-label={column.header}>
+                                    {column.render ? column.render(row) : row[column.key]}
+                                </td>
                             ))}
                         </tr>
                     ))}

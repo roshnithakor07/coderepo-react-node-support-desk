@@ -19,10 +19,12 @@ import { settingsApi } from "./features/workspace/settings.api.js";
 import { SettingsPage } from "./features/workspace/SettingsPage.jsx";
 import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
+import { MenuIcon } from "./shared/components/Icon.jsx";
 import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
 import { getStoredSidebarCollapsed, storeSidebarCollapsed } from "./shared/utils/sidebar.js";
 import { initials, ticketNumber } from "./shared/utils/format.js";
+import { DRAWER_NAV_QUERY, useMediaQuery } from "./shared/utils/media.js";
 import { friendlyErrorMessage } from "./shared/utils/validate.js";
 
 const NOTIFICATION_POLL_MS = 15000;
@@ -47,6 +49,9 @@ export default function App() {
 
     const [activeView, setActiveView] = useState("dashboard");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getStoredSidebarCollapsed);
+    const isDrawerNav = useMediaQuery(DRAWER_NAV_QUERY);
+    const [isNavOpen, setIsNavOpen] = useState(false);
+    const menuButtonRef = useRef(null);
     const [selectedTicketId, setSelectedTicketId] = useState(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
     const [isCreatingTicket, setIsCreatingTicket] = useState(false);
@@ -102,6 +107,30 @@ export default function App() {
     useEffect(() => {
         storeSidebarCollapsed(isSidebarCollapsed);
     }, [isSidebarCollapsed]);
+
+    const isDrawerOpen = isDrawerNav && isNavOpen;
+
+    const closeNav = useCallback(() => setIsNavOpen(false), []);
+
+    // Widening the window past the drawer breakpoint closes the drawer.
+    useEffect(() => {
+        if (!isDrawerNav) setIsNavOpen(false);
+    }, [isDrawerNav]);
+
+    // While the drawer is open: focus its first link, close it on Escape, and hand focus back to the menu button afterwards.
+    useEffect(() => {
+        if (!isDrawerOpen) return undefined;
+        const menuButton = menuButtonRef.current;
+        document.querySelector("#app-sidebar nav button")?.focus();
+        function handleKeyDown(event) {
+            if (event.key === "Escape") setIsNavOpen(false);
+        }
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+            menuButton?.focus();
+        };
+    }, [isDrawerOpen]);
 
     const canManage = currentUser && (currentUser.role === "admin" || currentUser.role === "agent");
 
@@ -403,6 +432,7 @@ export default function App() {
     function handleNavigate(view) {
         setActiveView(view);
         setSelectedTicketId(null);
+        setIsNavOpen(false);
     }
 
     const analyticsSummary = useMemo(
@@ -436,26 +466,45 @@ export default function App() {
                 currentUser={currentUser}
                 activeView={activeView}
                 onNavigate={handleNavigate}
-                onOpenProfile={() => setActiveView("profile")}
+                onOpenProfile={() => {
+                    setActiveView("profile");
+                    setIsNavOpen(false);
+                }}
                 onLogout={handleLogout}
-                isCollapsed={isSidebarCollapsed}
+                isCollapsed={isSidebarCollapsed && !isDrawerNav}
                 onToggleCollapse={() => setIsSidebarCollapsed((value) => !value)}
+                isOpen={isDrawerOpen}
+                onClose={closeNav}
             />
-            <div className="app-main">
+            {isDrawerOpen && <div className="nav-backdrop" onClick={closeNav} aria-hidden="true" />}
+            <div className="app-main" inert={isDrawerOpen}>
                 <header className="topbar">
-                    {isTicketView ? (
-                        <h1 className="topbar-title topbar-breadcrumb">
-                            <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
-                                Tickets
-                            </button>
-                            <span className="breadcrumb-separator" aria-hidden="true">
-                                /
-                            </span>
-                            <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
-                        </h1>
-                    ) : (
-                        <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
-                    )}
+                    <div className="topbar-start">
+                        <button
+                            type="button"
+                            ref={menuButtonRef}
+                            className="topbar-menu-button"
+                            onClick={() => setIsNavOpen(true)}
+                            aria-label="Open navigation"
+                            aria-controls="app-sidebar"
+                            aria-expanded={isDrawerOpen}
+                        >
+                            <MenuIcon />
+                        </button>
+                        {isTicketView ? (
+                            <h1 className="topbar-title topbar-breadcrumb">
+                                <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
+                                    Tickets
+                                </button>
+                                <span className="breadcrumb-separator" aria-hidden="true">
+                                    /
+                                </span>
+                                <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
+                            </h1>
+                        ) : (
+                            <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                        )}
+                    </div>
                     <div className="topbar-actions">
                         <NotificationBell
                             notifications={notifications}
