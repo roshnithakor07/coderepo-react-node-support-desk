@@ -55,7 +55,9 @@ export function Dashboard({ currentUser, tickets, onSelectTicket, onNewTicket, o
                     <InboxIcon className="empty-state-icon" />
                     <p className="empty-state-title">No tickets yet</p>
                     <p className="empty-state-description">
-                        {currentUser.role === "customer" ? "Create your first ticket to get help from our team." : "Tickets will show up here once customers create them."}
+                        {currentUser.role === "customer"
+                            ? "Create your first ticket to get help from our team."
+                            : "Tickets will show up here once customers create them."}
                     </p>
                     {currentUser.role === "customer" && (
                         <button type="button" className="button-primary" onClick={onNewTicket}>
@@ -70,7 +72,9 @@ export function Dashboard({ currentUser, tickets, onSelectTicket, onNewTicket, o
                             <button type="button" onClick={() => onSelectTicket(ticket._id)}>
                                 <span className="ticket-title-cell">{ticket.title}</span>
                                 <StatusBadge status={ticket.status} />
-                                <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>{formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}</span>
+                                <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
+                                    {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
+                                </span>
                             </button>
                         </li>
                     ))}

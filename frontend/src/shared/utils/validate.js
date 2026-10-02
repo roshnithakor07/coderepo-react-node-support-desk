@@ -1,6 +1,6 @@
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 
-export function isValidEmail(value) {
+function isValidEmail(value) {
     return EMAIL_PATTERN.test(String(value || "").trim());
 }
 
@@ -25,11 +25,6 @@ export function validatePassword(value, minLength = 8) {
 export function validateMaxLength(value, max, label) {
     if (String(value || "").length > max) return `${label} must be ${max} characters or fewer.`;
     return "";
-}
-
-// Returns the first truthy validator result from a list, or "" if all pass.
-export function firstError(...results) {
-    return results.find(Boolean) || "";
 }
 
 export function friendlyErrorMessage(error, fallback = "Something went wrong. Please try again.") {

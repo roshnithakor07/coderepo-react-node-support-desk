@@ -1,6 +1,6 @@
 # Support Desk
 
-A full-stack customer support ticketing platform inspired by Zendesk/Freshdesk. Teams create, triage, and resolve support tickets with role-based access control, SLA tracking and breach alerts, canned responses, an inbound email webhook, full audit logging, and an analytics dashboard.
+A full-stack customer support ticketing platform. Teams create, triage, and resolve support tickets with role-based access control, SLA tracking and breach alerts, canned responses, a full activity log, and an analytics dashboard.
 
 ## Built With
 
@@ -11,16 +11,14 @@ A full-stack customer support ticketing platform inspired by Zendesk/Freshdesk. 
 - [Zod](https://zod.dev/) — request validation
 - [Bun](https://bun.sh/) — package manager and workspace runner
 
-Real-time UI updates (notifications) are delivered via short-interval polling rather than WebSockets, and the "email confirmation" on the inbound webhook is delivered as an in-app notification rather than an outbound email, in both cases to stay within the platform's dependency constraints.
-
-The inbound email webhook (`POST /api/v1/webhooks/email`, JSON `{ from, senderName?, subject, body }`) only accepts requests that send the shared secret from `WEBHOOK_SECRET` in the `X-Webhook-Secret` header; without a configured secret it refuses every request.
+Notifications reach the browser through short-interval polling rather than WebSockets, and stay in the app rather than going out by email, to work within the platform's constraints.
 
 ### Dependencies
 
 The dependencies are exactly the reference calendar app's, at the same pinned versions; nothing was added, removed, or replaced. Everything else uses the platform:
 
 - The SLA breach/warning sweep runs every minute on a `setInterval` timer started with the API (`shared/jobs/sla-checker.js`); a sweep still running when the next one is due is skipped, not doubled.
-- Sign-in, registration and webhook rate limits, and signed-out tokens, are kept in the API process's memory.
+- Sign-in and registration rate limits are kept in the API process's memory; signed-out tokens are stored in MongoDB (as hashes, removed automatically when they would have expired), so a restart doesn't undo a sign-out.
 - Tests use Bun's built-in `bun test`.
 
 ## Project Structure
@@ -37,7 +35,6 @@ coderepo-react-node-support-desk/
 │   │   │   ├── audit-logs/           # immutable action trail
 │   │   │   ├── notifications/        # in-app notifications (polled)
 │   │   │   ├── analytics/            # aggregated dashboard
-│   │   │   ├── webhooks/             # inbound email -> ticket
 │   │   │   └── settings/             # SLA hours + categories
 │   │   ├── shared/
 │   │   │   ├── config/               # env, Mongo
@@ -86,9 +83,9 @@ All seeded accounts share one password: **`SupportDesk@2026`**
 
 | Role | Email |
 |---|---|
-| Admin | `admin1@supportdesk.io`, `admin2@supportdesk.io` |
-| Agent | `agent1@supportdesk.io` ... `agent5@supportdesk.io` (`agent5` is seeded inactive) |
-| Customer | `customer1@supportdesk.io` ... `customer3@supportdesk.io` |
+| Admin | `admin1@example.com`, `admin2@example.com` |
+| Agent | `agent1@example.com` ... `agent5@example.com` (`agent5` is seeded inactive) |
+| Customer | `customer1@example.com` ... `customer3@example.com` |
 
 New accounts created through the "Create account" tab on the sign-in screen are always customers; agent and admin access is provisioned by an admin from the **Agents** page.
 

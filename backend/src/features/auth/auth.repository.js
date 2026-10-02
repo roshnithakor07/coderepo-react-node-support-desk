@@ -4,8 +4,6 @@ export const authRepository = {
     findByEmail: (email) => User.findOne({ email }).select("+password"),
     findById: (id) => User.findById(id).lean(),
     create: (input) => User.create(input),
-    findMany: (filter) => User.find(filter).sort({ createdAt: -1 }).lean(),
-    countActiveAgents: () => User.countDocuments({ role: "agent", isActive: true }),
     findAgentsWithWorkload: async ({ activeOnly = true } = {}) => {
         return User.aggregate([
             { $match: activeOnly ? { role: "agent", isActive: true } : { role: "agent" } },
@@ -31,5 +29,4 @@ export const authRepository = {
             { $sort: { openTicketCount: 1 } },
         ]);
     },
-    update: (id, input) => User.findByIdAndUpdate(id, input, { new: true, runValidators: true }).lean(),
 };
