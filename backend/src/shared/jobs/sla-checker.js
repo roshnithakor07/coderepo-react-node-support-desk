@@ -1,26 +1,34 @@
-import cron from "node-cron";
 import { ticketService } from "../../features/tickets/ticket.service.js";
 
-let scheduledTask = null;
+const SWEEP_INTERVAL_MS = 60 * 1000;
 
-export function startSlaChecker() {
-    if (scheduledTask) return scheduledTask;
-    scheduledTask = cron.schedule("* * * * *", async () => {
+let timer = null;
+
+// Runs the SLA sweep every minute. A sweep that is still running when the next one is due is not
+// started twice; the next tick simply skips.
+export function startSlaChecker({ intervalMs = SWEEP_INTERVAL_MS, sweep = () => ticketService.runSlaSweep() } = {}) {
+    if (timer) return timer;
+    let running = false;
+    timer = setInterval(async () => {
+        if (running) return;
+        running = true;
         try {
-            const result = await ticketService.runSlaSweep();
+            const result = await sweep();
             if (result.breached > 0 || result.warned > 0) {
                 console.log(`SLA sweep: ${result.breached} breached, ${result.warned} warned`);
             }
         } catch (error) {
             console.error(`SLA sweep failed: ${error.message}`);
+        } finally {
+            running = false;
         }
-    });
-    return scheduledTask;
+    }, intervalMs);
+    return timer;
 }
 
 export function stopSlaChecker() {
-    if (scheduledTask) {
-        scheduledTask.stop();
-        scheduledTask = null;
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
     }
 }

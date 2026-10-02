@@ -35,3 +35,15 @@ describe("registration", () => {
         expect(analytics.body.error.code).toBe("FORBIDDEN");
     });
 });
+
+describe("sign out", () => {
+    test("revokes the token, so it is refused on the next request", async () => {
+        const { body } = await api("/auth/register", { method: "POST", body: newAccount("sign-out") });
+        const token = body.data.token;
+        expect((await api("/auth/me", { token })).status).toBe(200);
+        expect((await api("/auth/logout", { method: "POST", token })).status).toBe(200);
+        const after = await api("/auth/me", { token });
+        expect(after.status).toBe(401);
+        expect(after.body.error.code).toBe("INVALID_TOKEN");
+    });
+});

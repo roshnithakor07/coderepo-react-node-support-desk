@@ -2,14 +2,12 @@ import dotenv from "dotenv";
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./shared/config/database.js";
 import { initConfig } from "./shared/config/index.js";
-import { connectRedis, disconnectRedis } from "./shared/config/redis.js";
 import { startSlaChecker, stopSlaChecker } from "./shared/jobs/sla-checker.js";
 
 dotenv.config({ quiet: true });
 const config = initConfig();
 const HOST = "0.0.0.0";
 
-connectRedis(config.redisUrl);
 await connectDatabase(config.mongodbUri);
 startSlaChecker();
 
@@ -23,7 +21,6 @@ async function shutdown(signal) {
     stopSlaChecker();
     server.close(async () => {
         await disconnectDatabase();
-        await disconnectRedis();
         process.exit(0);
     });
 }
