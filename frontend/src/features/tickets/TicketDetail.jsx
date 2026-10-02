@@ -366,7 +366,7 @@ export function TicketDetail({
                                         {auditTrail.map((entry) => (
                                             <li key={entry._id}>
                                                 <span className="audit-action">{titleCase(entry.action)}</span> by{" "}
-                                                {entry.performedBy?.name || "system"} &middot; {formatDateTime(entry.createdAt)}
+                                                {entry.performedBy?.name || "System"} &middot; {formatDateTime(entry.createdAt)}
                                             </li>
                                         ))}
                                     </ul>
