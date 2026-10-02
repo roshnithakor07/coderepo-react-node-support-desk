@@ -979,3 +979,7 @@ Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-ref
 - Activity page for `/audit-logs`: approved. It adds the "History and auditability" capability from REQUIREMENTS.md.
 - Removing the email webhook: approved. It needs an outside mail sender (GUIDELINES.md:186), and the secret cannot go to the browser.
 - Merge: waits for my "approved" (my own footer rule), even though the task text also lists the merge steps.
+
+**Approved: merge of `fix/branding-and-hygiene` (my decisions, with my reasons):**
+- `backend/src/scripts/seed.js` stays as is. Reason: it is our product's seed; the read-only path only protects it from candidates during the assessment, so it is not meant to match the reference.
+- Merge with `--no-ff`, push `main`, delete the branch locally and on origin, run all tests on `main`.
