@@ -14,7 +14,6 @@ import { cannedResponseRouter } from "./features/canned-responses/canned-respons
 import { auditLogRouter } from "./features/audit-logs/audit-log.routes.js";
 import { notificationRouter } from "./features/notifications/notification.routes.js";
 import { analyticsRouter } from "./features/analytics/analytics.routes.js";
-import { webhookRouter } from "./features/webhooks/webhook.routes.js";
 import { settingsRouter } from "./features/settings/settings.routes.js";
 
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
@@ -41,7 +40,6 @@ export function createApp() {
     });
 
     app.use("/api/v1/auth", authRouter);
-    app.use("/api/v1/webhooks", webhookRouter);
     app.use("/api/v1/tickets", requireAuth, ticketRouter);
     app.use("/api/v1/agents", requireAuth, agentRouter);
     app.use("/api/v1/canned-responses", requireAuth, cannedResponseRouter);

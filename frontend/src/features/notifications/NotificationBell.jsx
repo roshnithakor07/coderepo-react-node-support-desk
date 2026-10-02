@@ -3,7 +3,6 @@ import { formatRelativeTime } from "../../shared/utils/format.js";
 import { AlertCircleIcon, ClockIcon, InboxIcon, InfoIcon, MessageIcon, TicketIcon } from "../../shared/components/Icon.jsx";
 
 const TYPE_ICONS = {
-    ticket_created: TicketIcon,
     ticket_assigned: TicketIcon,
     ticket_reply: MessageIcon,
     sla_warning: ClockIcon,

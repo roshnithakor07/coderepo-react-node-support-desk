@@ -1,5 +1,6 @@
 import {
     ChartIcon,
+    ClockIcon,
     CloseIcon,
     HomeIcon,
     LogOutIcon,
@@ -24,6 +25,7 @@ const NAV_SECTIONS = [
             { key: "agents", label: "Agents", roles: ["admin", "agent"], Icon: UsersIcon },
             { key: "canned-responses", label: "Canned responses", roles: ["admin", "agent"], Icon: MessageIcon },
             { key: "analytics", label: "Analytics", roles: ["admin"], Icon: ChartIcon },
+            { key: "activity", label: "Activity", roles: ["admin"], Icon: ClockIcon },
             { key: "settings", label: "Settings", roles: ["admin"], Icon: SettingsIcon },
         ],
     },
