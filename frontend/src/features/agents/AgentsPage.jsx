@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { Table } from "../../shared/components/Table.jsx";
 import { Badge } from "../../shared/components/Badge.jsx";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { validateEmail, validatePassword, validateRequired } from "../../shared/utils/validate.js";
 
 export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error, isBusy, isLoading }) {
@@ -11,6 +12,7 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
     const [password, setPassword] = useState("");
     const [fieldErrors, setFieldErrors] = useState({});
     const [sort, setSort] = useState({ key: "openTicketCount", direction: "asc" });
+    const [agentToDeactivate, setAgentToDeactivate] = useState(null);
 
     const sortedAgents = useMemo(() => {
         const copy = [...agents];
@@ -57,12 +59,24 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
         setFieldErrors({});
     }
 
+    // Deactivation asks first; reactivation is not destructive, so it happens at once.
     function handleToggleActive(agent) {
-        const verb = agent.isActive ? "deactivate" : "activate";
-        if (agent.isActive && !window.confirm(`Deactivate ${agent.name}? They will no longer be able to sign in or receive new ticket assignments.`)) {
-            return;
-        }
-        onSetActive(agent._id, !agent.isActive, verb);
+        if (agent.isActive) setAgentToDeactivate(agent);
+        else onSetActive(agent._id, true, "activate");
+    }
+
+    function confirmDeactivation() {
+        onSetActive(agentToDeactivate._id, false, "deactivate");
+        setAgentToDeactivate(null);
+    }
+
+    function deactivationMessage(agent) {
+        const openTickets = agent.openTicketCount ?? 0;
+        const ticketNote =
+            openTickets > 0
+                ? ` Their ${openTickets} open ${openTickets === 1 ? "ticket stays" : "tickets stay"} assigned to them until you reassign ${openTickets === 1 ? "it" : "them"}.`
+                : "";
+        return `${agent.name} will be signed out, won't be able to sign in, and won't get new tickets.${ticketNote} You can activate them again later.`;
     }
 
     return (
@@ -91,7 +105,12 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                 columns={[
                     { key: "name", header: "Name", sortable: true },
                     { key: "email", header: "Email" },
-                    { key: "openTicketCount", header: "Open tickets", sortable: true, render: (row) => <span className="mono">{row.openTicketCount ?? 0}</span> },
+                    {
+                        key: "openTicketCount",
+                        header: "Open tickets",
+                        sortable: true,
+                        render: (row) => <span className="mono">{row.openTicketCount ?? 0}</span>,
+                    },
                     {
                         key: "isActive",
                         header: "Status",
@@ -148,7 +167,7 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                                 value={email}
                                 onChange={(event) => setEmail(event.target.value)}
                                 maxLength={160}
-                                placeholder="jordan.lee@supportdesk.io"
+                                placeholder="jordan.lee@example.com"
                                 aria-invalid={Boolean(fieldErrors.email)}
                                 aria-describedby={fieldErrors.email ? "agent-email-error" : undefined}
                                 className={fieldErrors.email ? "field-invalid" : ""}
@@ -198,6 +217,16 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                         </div>
                     </form>
                 </Modal>
+            )}
+            {agentToDeactivate && (
+                <ConfirmationDialog
+                    title={`Deactivate ${agentToDeactivate.name}?`}
+                    message={deactivationMessage(agentToDeactivate)}
+                    confirmLabel="Deactivate"
+                    danger
+                    onCancel={() => setAgentToDeactivate(null)}
+                    onConfirm={confirmDeactivation}
+                />
             )}
         </section>
     );

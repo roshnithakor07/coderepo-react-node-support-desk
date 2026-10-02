@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "../../shared/components/Modal.jsx";
 import { Badge } from "../../shared/components/Badge.jsx";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { InboxIcon } from "../../shared/components/Icon.jsx";
 import { validateMaxLength, validateRequired } from "../../shared/utils/validate.js";
 
@@ -10,6 +11,7 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
     const [body, setBody] = useState("");
     const [category, setCategory] = useState("general");
     const [fieldErrors, setFieldErrors] = useState({});
+    const [responseToDelete, setResponseToDelete] = useState(null);
 
     function validate() {
         const errors = {};
@@ -45,8 +47,9 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
         setFieldErrors({});
     }
 
-    function handleDelete(response) {
-        if (window.confirm(`Delete "${response.title}"? This can't be undone.`)) onDelete(response._id);
+    function confirmDelete() {
+        onDelete(responseToDelete._id);
+        setResponseToDelete(null);
     }
 
     return (
@@ -83,7 +86,11 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                                 <span className="tag">{response.category}</span>
                                 <p className="canned-response-body">{response.body}</p>
                                 {canDelete && (
-                                    <button type="button" className="link-button link-button-danger" onClick={() => handleDelete(response)}>
+                                    <button
+                                        type="button"
+                                        className="link-button link-button-danger"
+                                        onClick={() => setResponseToDelete(response)}
+                                    >
                                         Delete
                                     </button>
                                 )}
@@ -178,6 +185,16 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
                         </div>
                     </form>
                 </Modal>
+            )}
+            {responseToDelete && (
+                <ConfirmationDialog
+                    title="Delete this template?"
+                    message={`"${responseToDelete.title}" will be permanently deleted${responseToDelete.isGlobal ? " for every agent" : ""}. This can't be undone.`}
+                    confirmLabel="Delete"
+                    danger
+                    onCancel={() => setResponseToDelete(null)}
+                    onConfirm={confirmDelete}
+                />
             )}
         </section>
     );
