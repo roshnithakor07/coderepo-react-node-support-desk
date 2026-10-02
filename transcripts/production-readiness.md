@@ -817,3 +817,39 @@ The user approved the branch and kept all three choices:
 - Before the fix: failed at setup (sign-in 500 without Redis), and health lacked `redis`.
 - After the fix: API 60/60, e2e 28 (+6 skipped).
 - **Live:** `setup.sh` with `REDIS_PORT=6390` warned and completed (exit 0, seeding `support_desk_test`, not the dev DB). A real backend on port 8200 with Redis at a dead port gave: health 200 degraded; login 200 (0.21s); tickets, analytics, settings and `/me` 200 (≤0.05s); logout then `/me` → 401. It was stopped afterwards.
+
+## [2026-10-02T13:08:38+00:00] Task 22: compliance and product-rules audit (read-only), stopped and handed to an independent reviewer
+
+**Why this audit:** my previous two HackerRank submissions were rejected. The Postman clone (application 348) failed for an added dependency (axios) and a removed one (Roboto), overflow at 375px, and too few product rules (about 5 rules and 2 multi-record/status screens, against 15 and 6). The PagerDuty clone (application 339) failed for a layout that broke below about 1000px, a "Reopen" action that kept the old escalation clock, no confirmation on a destructive action, real brands and domains, a Google-hosted font, business logic in handlers, only one kind of access rule, unused routes, and demo dates that could not be fixed. I stopped all UI work (`feat/theme-refresh` stays unmerged) and asked for a read-only audit of sections A–I first, with the Discord FAQ basics (testing, responsive UI, correct stack, authentication) checked first.
+
+**My decision to stop:** I stopped the audit partway, before the plan and decisions were finalized, to hand it to an independent reviewer. The reason is the same two rejections: I want a second, independent check before more work is built on it. The partial findings are in a file outside the repo (never committed).
+
+**What was checked (on `main` @ `4789321`, clean clone, exact `hackerrank.yml` commands):**
+- Basics: testing ✅ (`bun test` 88/88); responsive 🛑; correct stack 🛑; authentication ✅.
+- B: three added packages, `@playwright/test`, `ioredis`, `node-cron` (plus 10 transitive). Versions match the reference; Roboto is bundled locally.
+- C (Chromium, every role × page × 1280/1024/900/768/600/375): no page-level overflow anywhere, but there is no menu fold; the admin nav becomes a sideways-scrolling strip at 768/600/375, and at 375 the ticket table shows only Title and Status.
+- D: about 7 real product rules today and 2 multi-record/status screens. A list of 22 proposed rules was drafted, not yet reviewed.
+- F (bugs I asked to be tested on OLD seeded tickets):
+  - reopening a ticket resolved 46 hours ago kept its old SLA deadline, and within 65 seconds the sweep marked it breached and notified the agent (the same bug class as the PagerDuty "Reopen")
+  - lowering the priority of a breached ticket cleared the breach
+  - skipping open→closed is allowed
+  - deactivating an agent left 4 open tickets on them
+- G/H:
+  - "inspired by Zendesk/Freshdesk" in the README
+  - `@supportdesk.io` demo identities
+  - two `window.confirm` uses
+  - `GET /audit-logs` and `POST /webhooks/email` have no UI
+  - seed dates come from `Date.now()`
+- I: verifier FAIL on S06, S09, S15, S16, S17; every runtime check (R01–R12) passed.
+
+**Decisions made in this task:**
+
+| Question | Options | My choice | Reason |
+|---|---|---|---|
+| MongoDB was not reachable | A) start Docker myself; B) download mongod to a scratch folder; C) static checks only | A | Keep the real setup, no extra downloads |
+| Uncommitted theme WIP | A) park on a new `wip/` branch; B) commit on `feat/theme-refresh`; C) stash locally | A | The reviewer can see it, and the theme branch stays as pushed. `wip/theme-refresh-uncommitted` is a parking spot only: never merged, tests may be red |
+| Where this entry goes | A) `docs/audit-handoff` from main; B) the WIP branch | A | Keeps the transcript separate from parked code |
+
+**No code changed.** Branches: `main` and `feat/theme-refresh` were already pushed and unchanged. `wip/theme-refresh-uncommitted` (948169a) was pushed. `docs/audit-handoff` (this entry) is pushed and waiting for my "approved". The repo is still private.
+
+Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-refresh`, which is not merged.
