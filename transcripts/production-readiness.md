@@ -930,3 +930,41 @@ Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-ref
 - 120/120 measurements with `scrollWidth` equal to the viewport, nothing clipped, no inner sideways scrolling, no off-screen controls, 0 console errors.
 - 12/12 drawer checks: full height, backdrop covering the page, no sideways nav, focus in and back, Escape closes.
 - API 88/88, build OK, Prettier OK on the changed files.
+
+## [2026-10-02T15:51:00+00:00] Task 25: rect check before approval, merge of `fix/responsive-layout`, and branch 3 `fix/branding-and-hygiene`
+
+**My extra check before approving the layout:** `.app-shell` has `overflow: hidden`, which can hide clipped content from the `scrollWidth` check; my Postman clone was rejected for exactly this. I asked for a second check, at all 6 widths for every page and role, including inside the open drawer and dialogs: no visible element's `getBoundingClientRect().right` may exceed `window.innerWidth`, and no `left` may be below 0.
+
+**Result:**
+- 228 states checked (114 pages, 72 open drawers, 24 dialogs, 18 notification panels), covering 27,365 visible elements: 0 offenders, 0 console errors.
+- A negative control proved the check works. A 600px element inside an `overflow: hidden` container at 375px passes `scrollWidth === innerWidth` (375 = 375), but the rect check reports it (`div.too-wide[0,600]`).
+- So `fix/responsive-layout` was merged with `--no-ff` (main `364915e`), and the branch was deleted. On main: API 88/88, build OK.
+
+**My decisions:**
+- The drawer below 1000px and cards at 720px and below are fine.
+- The old icon-rail rule in `../support-desk-rules.md` is replaced by the drawer rule plus the rect check.
+
+**Branch 3, `fix/branding-and-hygiene` (my list):**
+- **Brand and domain:** "inspired by Zendesk/Freshdesk" is removed. `@supportdesk.io` becomes `@example.com` everywhere (seed, login chips, placeholders, tests, README). Earlier transcript entries are left as written, because they are append-only.
+- **Confirmation dialog:** both `window.confirm` calls are replaced by `ConfirmationDialog`, with a title, a consequence line, a danger style, Cancel focused first, Escape, and focus returned to the trigger.
+  - Bug found while testing: focus did not return. React StrictMode ran the dialog's effect twice while the native modal kept the page inert, so the dialog's own Cancel button was recorded as "previously focused". Fixed in `Modal` by closing the dialog before restoring focus.
+  - Checked in the browser 18 times (Deactivate agent, Delete template; 3 roles; 6 widths): all pass.
+- **Signed-out tokens in MongoDB** (my decision; reason: a restart must not undo a sign-out):
+  - Only SHA-256 hashes are stored, with a TTL index on `expiresAt`.
+  - Test: a separately started process (a real restart, no shared memory) refuses a signed-out token. The old in-memory version would fail this.
+- **SLA-breach audit entries** are recorded as the system (`performedBy: null`, shown as "System"), not the customer. Covered by a test.
+- **Seed:**
+  - Deadlines now follow the seeded SLA hours; 3 tickets were wrong.
+  - "Duplicate charge on my card" was resolved late and is now marked breached.
+  - Breach alerts are seeded only for open tickets, and seeded assignment entries name the agent.
+  - 3 seed tests guard this.
+- **Unused routes** (Claude Code chose; I asked to be told which and why):
+  - `GET /audit-logs`: kept, with a new admin **Activity** page (every ticket change, newest first, paged, each row opening its ticket). It's the "History and auditability" pattern, and the backend already existed.
+  - `POST /webhooks/email`: removed. It needs an outside mail sender (GUIDELINES.md:186), and a browser screen for it would expose `WEBHOOK_SECRET` or need a second endpoint that becomes the real consumer. Tickets are already created in the app.
+- **Dead code and formatting:** dead code is removed, and the 5 failing files pass Prettier. All backend and frontend source now passes `prettier --check --no-use-tabs`, apart from the reference-identical, tab-indented `config/index.js`.
+
+**Result:**
+- API 92/92 (+3 activity-log, +2 revocation, +1 SLA attribution, +3 seed; −5 webhook).
+- Rect and layout check: 256 states with 0 offenders, 0 console errors, all 18 dialog checks passing, and an Activity row opens its ticket.
+- Fresh clone: install, seed, build and tests OK.
+- One check run crashed once with "no app shell" on a page. It did not reproduce in 2 full reruns; the probable cause is a Vite cold-start reload (not verified).
