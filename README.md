@@ -4,7 +4,7 @@ A full-stack customer support ticketing platform. Teams create, triage, and reso
 
 ## Built With
 
-- [React 19](https://react.dev/) + [Vite](https://vite.dev/) — frontend UI, built with plain CSS (no component library)
+- [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) — frontend UI, built with plain CSS (no component library)
 - [Express 5](https://expressjs.com/) — REST API (`/api/v1`)
 - [MongoDB](https://www.mongodb.com/) + [Mongoose](https://mongoosejs.com/) — persistence
 - [JWT](https://github.com/auth0/node-jsonwebtoken) + [bcryptjs](https://github.com/dcodeIO/bcrypt.js) — authentication
