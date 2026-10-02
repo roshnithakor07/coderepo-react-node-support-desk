@@ -817,3 +817,78 @@ The user approved the branch and kept all three choices:
 - Before the fix: failed at setup (sign-in 500 without Redis), and health lacked `redis`.
 - After the fix: API 60/60, e2e 28 (+6 skipped).
 - **Live:** `setup.sh` with `REDIS_PORT=6390` warned and completed (exit 0, seeding `support_desk_test`, not the dev DB). A real backend on port 8200 with Redis at a dead port gave: health 200 degraded; login 200 (0.21s); tickets, analytics, settings and `/me` 200 (≤0.05s); logout then `/me` → 401. It was stopped afterwards.
+
+## [2026-10-02T13:08:38+00:00] Task 22: compliance and product-rules audit (read-only), stopped and handed to an independent reviewer
+
+**Why this audit:** my previous two HackerRank submissions were rejected. The Postman clone (application 348) failed for an added dependency (axios) and a removed one (Roboto), overflow at 375px, and too few product rules (about 5 rules and 2 multi-record/status screens, against 15 and 6). The PagerDuty clone (application 339) failed for a layout that broke below about 1000px, a "Reopen" action that kept the old escalation clock, no confirmation on a destructive action, real brands and domains, a Google-hosted font, business logic in handlers, only one kind of access rule, unused routes, and demo dates that could not be fixed. I stopped all UI work (`feat/theme-refresh` stays unmerged) and asked for a read-only audit of sections A–I first, with the Discord FAQ basics (testing, responsive UI, correct stack, authentication) checked first.
+
+**My decision to stop:** I stopped the audit partway, before the plan and decisions were finalized, to hand it to an independent reviewer. The reason is the same two rejections: I want a second, independent check before more work is built on it. The partial findings are in a file outside the repo (never committed).
+
+**What was checked (on `main` @ `4789321`, clean clone, exact `hackerrank.yml` commands):**
+- Basics: testing ✅ (`bun test` 88/88); responsive 🛑; correct stack 🛑; authentication ✅.
+- B: three added packages, `@playwright/test`, `ioredis`, `node-cron` (plus 10 transitive). Versions match the reference; Roboto is bundled locally.
+- C (Chromium, every role × page × 1280/1024/900/768/600/375): no page-level overflow anywhere, but there is no menu fold; the admin nav becomes a sideways-scrolling strip at 768/600/375, and at 375 the ticket table shows only Title and Status.
+- D: about 7 real product rules today and 2 multi-record/status screens. A list of 22 proposed rules was drafted, not yet reviewed.
+- F (bugs I asked to be tested on OLD seeded tickets):
+  - reopening a ticket resolved 46 hours ago kept its old SLA deadline, and within 65 seconds the sweep marked it breached and notified the agent (the same bug class as the PagerDuty "Reopen")
+  - lowering the priority of a breached ticket cleared the breach
+  - skipping open→closed is allowed
+  - deactivating an agent left 4 open tickets on them
+- G/H:
+  - "inspired by Zendesk/Freshdesk" in the README
+  - `@supportdesk.io` demo identities
+  - two `window.confirm` uses
+  - `GET /audit-logs` and `POST /webhooks/email` have no UI
+  - seed dates come from `Date.now()`
+- I: verifier FAIL on S06, S09, S15, S16, S17; every runtime check (R01–R12) passed.
+
+**Decisions made in this task:**
+
+| Question | Options | My choice | Reason |
+|---|---|---|---|
+| MongoDB was not reachable | A) start Docker myself; B) download mongod to a scratch folder; C) static checks only | A | Keep the real setup, no extra downloads |
+| Uncommitted theme WIP | A) park on a new `wip/` branch; B) commit on `feat/theme-refresh`; C) stash locally | A | The reviewer can see it, and the theme branch stays as pushed. `wip/theme-refresh-uncommitted` is a parking spot only: never merged, tests may be red |
+| Where this entry goes | A) `docs/audit-handoff` from main; B) the WIP branch | A | Keeps the transcript separate from parked code |
+
+**No code changed.** Branches: `main` and `feat/theme-refresh` were already pushed and unchanged. `wip/theme-refresh-uncommitted` (948169a) was pushed. `docs/audit-handoff` (this entry) is pushed and waiting for my "approved". The repo is still private.
+
+Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-refresh`, which is not merged.
+
+## [2026-10-02T13:28:40+00:00] Task 23: independent review, my decisions, and branch 1 `chore/remove-added-deps`
+
+**Why I ran an independent review:** my previous two submissions were rejected, for added dependencies, for the layout, and for too few product rules (about 5, against the 15 rules and 6 workflow screens reviewers count). I didn't want to rely on one audit by the same tool that wrote the code. A separate reviewer checked `main` @ `4789321` (read-only, code and diffs only; it could not run MongoDB).
+
+**What the review found:**
+- It confirmed the earlier audit: the 3 added packages; reopen keeping the old SLA deadline; lowering priority clearing a breach; deactivation stranding tickets; brands and `@supportdesk.io`; 2 `window.confirm`; about 7 real rules.
+- New findings N1–N9:
+  - N1: the status "state machine" allows almost everything
+  - N2: illegal moves return 400 instead of 409
+  - N3: customers can't close or reopen their own tickets, although I decided they can
+  - N4: replies are accepted on closed tickets, and a customer reply on a resolved ticket doesn't reopen it
+  - N5: no unassigned queue, so a ticket with no agent is invisible to every agent
+  - N6: SLA-breach audit entries are attributed to the customer
+  - N7: assignment works on closed tickets and to the same agent, with no "from" in the audit
+  - N8: only one kind of access rule
+  - N9: seed dates can't be pinned
+- Its plan: 17 new rules in 5 groups, a dependency removal plan with no replacement packages, and an 8-branch order.
+
+**Comparison with my partial audit:** N2, N3, N6 and N9 were already in it. N1, N4, N7 and N8 were partly in it. **N5 was missed**, along with parts of N4 (a reply on a resolved ticket doesn't reopen it) and N7 (same-agent reassignment, no "from" in the audit). Where Claude Code disagreed:
+- Rule 6 (a customer reply reopens a resolved ticket) must go through the same reopen path as rules 2–3 (window, SLA restart, "reopened" entry), or it becomes a way around the reopen window.
+- An in-memory token blacklist means a signed-out token works again after a backend restart. A Mongo TTL collection would avoid that without a package. Recorded as an open question for me.
+
+**My decisions:**
+
+| Decision | Options | My choice | My reason |
+|---|---|---|---|
+| Dependencies | keep with a written reason / remove with replacements / remove with no replacement packages | Remove `@playwright/test`, `ioredis` and `node-cron`, no replacement packages (section 6) | GUIDELINES.md:65 forbids adding any dependency, and my Postman clone was rejected for exactly this |
+| Rules | minimum set (11) / full set (17) | The FULL set of 17 rules from section 5 | Reviewers count about 15 real rules and 6 workflow screens, and my last two submissions had about 5. A helpdesk naturally has these rules (lifecycle, SLA, teams, bulk work), so they make the product more real, not just bigger |
+| Second access rule | customer ownership only / agent teams by category | Agent teams by category | Real support teams are split by area like Billing and Technical. It also fixes the missing unassigned queue (N5), and my PagerDuty clone was rejected for having only one kind of access rule |
+| Order | — | The review's section 8, one branch at a time, stopping for my approval after each | — |
+
+**Branch 1, `chore/remove-added-deps` (pushed, waiting for my "approved"):**
+- Removed `@playwright/test` (config, 11 e2e files, `test:e2e` scripts).
+- Removed `ioredis`: rate limits and signed-out tokens are in memory; there is no analytics/settings cache; the health check reports the API and MongoDB like the reference; Redis is gone from `setup.sh`, `.env.example` and `.gitignore`; `config/index.js` is byte-identical to the reference again.
+- Removed `node-cron`: the SLA sweep runs every minute on `setInterval` and skips a tick while a sweep is still running.
+- The dependency and devDependency sections now match the reference exactly, and `bun.lock` has the reference's package set.
+- Tests: the 6 Redis-resilience tests were removed. Added: 4 scheduler tests (interval, no overlap, recovery after a failure, stop/restart), sign-out revocation, and the webhook rate limit.
+- **Results:** API 88/88 in the repo and in a fresh clone. Fresh clone: `bun install && bash setup.sh --seed` OK (149 packages, none of the removed ones), `vite build` OK, `bun start` serving on 3000/8000, health `{"status":"ok","database":"connected"}`, sign-out then `/me` returns 401, and the live sweep logged "0 breached, 1 warned" within a minute.
