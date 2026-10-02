@@ -22,6 +22,26 @@ test.describe("theme", () => {
         });
     }
 
+    test("the top bar toggle switches the theme, stays in sync with Profile, and persists", async ({ page }) => {
+        await page.emulateMedia({ colorScheme: "dark" });
+        await page.goto("/");
+        const toggle = page.getByRole("button", { name: "Switch to light theme" });
+        await expect(toggle).toHaveAttribute("title", "Switch to light theme");
+        const bell = page.locator(".notification-bell .icon-button");
+        expect((await toggle.boundingBox()).height).toBe((await bell.boundingBox()).height);
+
+        await toggle.click();
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+        await expect(page.getByRole("button", { name: "Switch to dark theme" })).toBeVisible();
+
+        await page.reload();
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+        await page.locator(".topbar-profile-chip").click();
+        await expect(page.getByLabel("Toggle light theme")).toBeChecked();
+        await page.getByRole("button", { name: "Switch to dark theme" }).click();
+        await expect(page.getByLabel("Toggle light theme")).not.toBeChecked();
+    });
+
     test("the user's choice overrides the system setting and is remembered", async ({ page }) => {
         await page.emulateMedia({ colorScheme: "dark" });
         await page.goto("/");

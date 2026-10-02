@@ -1,4 +1,5 @@
 import { ACCOUNTS, API_URL, ARTIFACTS_DIRECTORY, readSavedToken, sessionFile } from "./support/sessions.js";
+import { navigateTo } from "./support/navigation.js";
 import { expect, test } from "./support/fixtures.js";
 
 // Review screenshots: the main pages in both themes on desktop and phone, plus the ticket detail
@@ -31,8 +32,8 @@ const PAGES = [
     { name: "settings", open: (page) => openView(page, "Settings") },
 ];
 
-async function openView(page, name) {
-    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name }).click();
+function openView(page, name) {
+    return navigateTo(page, name);
 }
 
 // Grows the viewport to the page's content so one image shows the whole page.
@@ -85,7 +86,7 @@ for (const role of ["admin", "customer"]) {
             test(`ticket detail at ${viewport.width}px`, async ({ page }) => {
                 await page.setViewportSize(viewport);
                 await page.goto("/");
-                await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" }).click();
+                await navigateTo(page, "Tickets");
                 await page.locator("table tbody tr", { hasText: ticketTitle }).first().click();
                 await expect(page.getByText("That worked, thank you!")).toBeVisible();
                 await page.screenshot({ path: `${ARTIFACTS_DIRECTORY}/screenshots/ticket-detail-${role}-${viewport.width}.png` });

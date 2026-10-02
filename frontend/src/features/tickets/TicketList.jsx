@@ -57,10 +57,14 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
 
     return (
         <section className="panel">
-            <div className="panel-header">
-                <div>
-                    <h2>Tickets</h2>
-                    <p className="panel-subtitle">{total} total &middot; showing your current filters</p>
+            <div className="panel-header panel-header-compact">
+                <div className="panel-count">
+                    <span>{total} total</span>
+                    {hasActiveFilters && (
+                        <button type="button" className="link-button" onClick={clearFilters}>
+                            Clear filters
+                        </button>
+                    )}
                 </div>
                 {canCreate && (
                     <button type="button" className="button-primary" onClick={onNewTicket}>
@@ -69,7 +73,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                 )}
             </div>
 
-            <div className="filter-bar">
+            <div className="filter-bar ticket-filters">
                 <div className="search-input">
                     <SearchIcon />
                     <input
@@ -104,11 +108,6 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                         </option>
                     ))}
                 </select>
-                {hasActiveFilters && (
-                    <button type="button" className="link-button" onClick={clearFilters}>
-                        Clear filters
-                    </button>
-                )}
             </div>
 
             <Table

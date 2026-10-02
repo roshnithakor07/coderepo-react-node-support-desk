@@ -1,12 +1,13 @@
 import { ARTIFACTS_DIRECTORY, sessionFile } from "./support/sessions.js";
+import { navigateTo } from "./support/navigation.js";
 import { expect, test } from "./support/fixtures.js";
 
 test.use({ storageState: sessionFile("admin") });
 
 async function openFirstTicketWithLongConversation(page) {
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" }).click();
-    await page.locator("table tbody tr").first().click();
+    await navigateTo(page, "Tickets");
+    await page.locator("table tbody tr.clickable").first().click();
     await expect(page.locator(".ticket-detail")).toBeVisible();
     // Simulate a long conversation in the page, without writing test data.
     await page.evaluate(() => {
@@ -78,16 +79,19 @@ test.describe("desktop 1920x961", () => {
         const sidebarWidth = async () => Math.round((await page.locator(".sidebar").boundingBox()).width);
         await page.goto("/");
         await expect.poll(sidebarWidth).toBe(240);
+        // The collapse control is a boxed button in the footer row, and the footer is one compact row.
+        await expect(page.locator(".sidebar-footer").getByRole("button", { name: "Collapse sidebar" })).toBeVisible();
+        expect((await page.locator(".sidebar-footer").boundingBox()).height).toBeLessThanOrEqual(56);
 
         await page.getByRole("button", { name: "Collapse sidebar" }).click();
         await expect.poll(sidebarWidth).toBe(72);
-        await expect(page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" })).toHaveAttribute(
-            "title",
-            "Tickets",
-        );
+        const tickets = page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tickets" });
+        await expect(tickets).toHaveAttribute("title", "Tickets");
+        expect(await tickets.evaluate((button) => button.querySelector(".sidebar-nav-label"))).toBeNull();
 
         await page.reload();
         await expect.poll(sidebarWidth).toBe(72);
+        await expect(page.locator(".sidebar-footer").getByRole("button", { name: "Expand sidebar" })).toBeVisible();
         await page.getByRole("button", { name: "Expand sidebar" }).click();
         await expect.poll(sidebarWidth).toBe(240);
     });

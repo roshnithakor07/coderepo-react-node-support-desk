@@ -51,11 +51,8 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
 
     return (
         <section className="panel">
-            <div className="panel-header">
-                <div>
-                    <h2>Canned responses</h2>
-                    <p className="panel-subtitle">Reusable reply templates agents can insert into any ticket.</p>
-                </div>
+            <div className="panel-header panel-header-compact">
+                <p className="panel-subtitle">Reusable reply templates agents can insert into any ticket.</p>
                 <button type="button" className="button-primary" onClick={() => setShowCreate(true)}>
                     New template
                 </button>

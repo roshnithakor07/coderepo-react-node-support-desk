@@ -70,11 +70,8 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
 
     return (
         <section className="panel">
-            <div className="panel-header">
-                <div>
-                    <h2>Agents</h2>
-                    <p className="panel-subtitle">Manage who can be assigned tickets and see live workload at a glance.</p>
-                </div>
+            <div className="panel-header panel-header-compact">
+                <p className="panel-subtitle">Manage who can be assigned tickets and see live workload at a glance.</p>
                 {isAdmin && (
                     <button type="button" className="button-primary" onClick={() => setShowCreate(true)}>
                         Add agent

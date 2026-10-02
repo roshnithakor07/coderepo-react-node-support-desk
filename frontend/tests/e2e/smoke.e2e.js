@@ -42,7 +42,7 @@ test.describe("agent journey", () => {
         await expect(mainNav(page)).toHaveText(NAV_BY_ROLE.agent);
 
         await mainNav(page).filter({ hasText: "Agents" }).click();
-        await expect(page.getByRole("heading", { name: "Agents", level: 2 })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Agents", level: 1 })).toBeVisible();
         await expect(page.getByRole("button", { name: "Add agent" })).toHaveCount(0);
 
         await mainNav(page).filter({ hasText: "Canned responses" }).click();

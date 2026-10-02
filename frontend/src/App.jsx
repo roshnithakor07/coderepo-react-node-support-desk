@@ -19,7 +19,8 @@ import { settingsApi } from "./features/workspace/settings.api.js";
 import { SettingsPage } from "./features/workspace/SettingsPage.jsx";
 import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
-import { LogoMark } from "./shared/components/Icon.jsx";
+import { LogoMark, MenuIcon, MoonIcon, SunIcon } from "./shared/components/Icon.jsx";
+import { useNavigationMode } from "./shared/hooks/useMediaQuery.js";
 import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getInitialTheme, onSystemThemeChange, saveTheme } from "./shared/utils/theme.js";
 import { getStoredSidebarCollapsed, storeSidebarCollapsed } from "./shared/utils/sidebar.js";
@@ -48,6 +49,9 @@ export default function App() {
 
     const [activeView, setActiveView] = useState("dashboard");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getStoredSidebarCollapsed);
+    const navigationMode = useNavigationMode();
+    const [isNavOpen, setIsNavOpen] = useState(false);
+    const menuButtonRef = useRef(null);
     const [selectedTicketId, setSelectedTicketId] = useState(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
     const [isCreatingTicket, setIsCreatingTicket] = useState(false);
@@ -111,6 +115,24 @@ export default function App() {
     useEffect(() => {
         storeSidebarCollapsed(isSidebarCollapsed);
     }, [isSidebarCollapsed]);
+
+    // The drawer only exists on phones; leaving that width closes it.
+    useEffect(() => {
+        if (navigationMode !== "drawer") setIsNavOpen(false);
+    }, [navigationMode]);
+
+    // Focus goes back to the menu button once the drawer has closed (the page is inert until then).
+    const restoreMenuFocusRef = useRef(false);
+    const closeNav = useCallback(({ restoreFocus = false } = {}) => {
+        restoreMenuFocusRef.current = restoreFocus;
+        setIsNavOpen(false);
+    }, []);
+
+    useEffect(() => {
+        if (isNavOpen || !restoreMenuFocusRef.current) return;
+        restoreMenuFocusRef.current = false;
+        menuButtonRef.current?.focus();
+    }, [isNavOpen]);
 
     const canManage = currentUser && (currentUser.role === "admin" || currentUser.role === "agent");
 
@@ -412,6 +434,7 @@ export default function App() {
     function handleNavigate(view) {
         setActiveView(view);
         setSelectedTicketId(null);
+        setIsNavOpen(false);
     }
 
     const analyticsSummary = useMemo(
@@ -440,32 +463,59 @@ export default function App() {
     }
 
     return (
-        <div className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <div className="app-shell">
             <Sidebar
                 currentUser={currentUser}
                 activeView={activeView}
-                onNavigate={handleNavigate}
-                onOpenProfile={() => setActiveView("profile")}
-                onLogout={handleLogout}
+                mode={navigationMode}
                 isCollapsed={isSidebarCollapsed}
+                isOpen={isNavOpen}
+                onNavigate={handleNavigate}
+                onOpenProfile={() => handleNavigate("profile")}
+                onLogout={handleLogout}
                 onToggleCollapse={() => setIsSidebarCollapsed((value) => !value)}
+                onClose={closeNav}
             />
-            <div className="app-main">
+            <div className="app-main" inert={isNavOpen}>
                 <header className="topbar">
-                    {isTicketView ? (
-                        <h1 className="topbar-title topbar-breadcrumb">
-                            <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
-                                Tickets
+                    <div className="topbar-start">
+                        {navigationMode === "drawer" && (
+                            <button
+                                type="button"
+                                ref={menuButtonRef}
+                                className="icon-button topbar-menu-button"
+                                onClick={() => setIsNavOpen(true)}
+                                aria-label="Open menu"
+                                aria-expanded={isNavOpen}
+                                aria-controls="app-sidebar"
+                            >
+                                <MenuIcon />
                             </button>
-                            <span className="breadcrumb-separator" aria-hidden="true">
-                                /
-                            </span>
-                            <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
-                        </h1>
-                    ) : (
-                        <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
-                    )}
+                        )}
+                        {isTicketView ? (
+                            <h1 className="topbar-title topbar-breadcrumb">
+                                <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
+                                    Tickets
+                                </button>
+                                <span className="breadcrumb-separator" aria-hidden="true">
+                                    /
+                                </span>
+                                <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
+                            </h1>
+                        ) : (
+                            <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                        )}
+                    </div>
                     <div className="topbar-actions">
+                        <button
+                            type="button"
+                            className="icon-button"
+                            onClick={toggleTheme}
+                            aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+                            title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+                        >
+                            {theme === "light" ? <MoonIcon /> : <SunIcon />}
+                        </button>
                         <NotificationBell
                             notifications={notifications}
                             unreadCount={unreadCount}

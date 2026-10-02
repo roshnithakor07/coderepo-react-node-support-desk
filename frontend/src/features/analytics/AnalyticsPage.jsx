@@ -60,10 +60,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading })
     return (
         <section className="panel">
             <div className="panel-header">
-                <div>
-                    <h2>Analytics</h2>
-                    <p className="panel-subtitle">Ticket trends, SLA health, and agent performance at a glance.</p>
-                </div>
+                <p className="panel-subtitle">Ticket trends, SLA health, and agent performance at a glance.</p>
                 <div className="filter-bar">
                     <div className="preset-group" role="group" aria-label="Date range presets">
                         <button type="button" className={isAllTimeActive ? "active" : ""} onClick={() => onFilterChange({})}>
