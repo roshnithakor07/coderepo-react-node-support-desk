@@ -1,5 +1,4 @@
 import { AppError } from "../../shared/errors/app-error.js";
-import { analyticsService } from "../analytics/analytics.service.js";
 import { auditLogService } from "../audit-logs/audit-log.service.js";
 import { authRepository } from "../auth/auth.repository.js";
 import { notificationService } from "../notifications/notification.service.js";
@@ -77,7 +76,6 @@ export const ticketService = {
             );
         }
 
-        await analyticsService.invalidate();
         return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
@@ -171,7 +169,6 @@ export const ticketService = {
             );
         }
 
-        await analyticsService.invalidate();
         return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
@@ -190,7 +187,6 @@ export const ticketService = {
         await auditLogService.record(ticket._id, "assigned", actor.id, { assignedTo: agent.name });
         await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
 
-        await analyticsService.invalidate();
         return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
@@ -217,7 +213,6 @@ export const ticketService = {
             }
         }
 
-        await analyticsService.invalidate();
         return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
@@ -252,7 +247,6 @@ export const ticketService = {
             );
         }
 
-        if (overdue.length > 0) await analyticsService.invalidate();
         return { breached: overdue.length, warned: approaching.length };
     },
 

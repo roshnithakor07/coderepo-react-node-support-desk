@@ -1,40 +1,33 @@
-import { withRedis } from "../config/redis.js";
 import { AppError } from "../errors/app-error.js";
 
-// Fixed-window counters kept in this process for when Redis is unavailable.
-const memoryWindows = new Map();
+// Fixed-window counters per limiter and client IP, kept in this process.
+const windows = new Map();
 
-function countInMemory(key, windowSeconds) {
+function countRequest(key, windowSeconds) {
     const now = Date.now();
-    if (memoryWindows.size > 10_000) {
-        for (const [storedKey, window] of memoryWindows) if (window.resetAt <= now) memoryWindows.delete(storedKey);
+    if (windows.size > 10_000) {
+        for (const [storedKey, window] of windows) if (window.resetAt <= now) windows.delete(storedKey);
     }
-    const window = memoryWindows.get(key);
+    const window = windows.get(key);
     if (!window || window.resetAt <= now) {
-        memoryWindows.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
+        windows.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
         return 1;
     }
     window.count += 1;
     return window.count;
 }
 
+// Starts every window afresh; the API tests use it so one test file's requests don't count against another's.
+export function clearRateLimits() {
+    windows.clear();
+}
+
 export function rateLimit({ windowSeconds, max, keyPrefix }) {
-    return async (request, response, next) => {
-        try {
-            const identifier = request.ip || request.socket.remoteAddress || "unknown";
-            const key = `ratelimit:${keyPrefix}:${identifier}`;
-            const redisCount = await withRedis(async (redis) => {
-                const count = await redis.incr(key);
-                if (count === 1) await redis.expire(key, windowSeconds);
-                return count;
-            }, null);
-            const count = redisCount ?? countInMemory(key, windowSeconds);
-            if (count > max) {
-                throw new AppError(429, "RATE_LIMITED", "Too many requests. Please wait before trying again.");
-            }
-            next();
-        } catch (error) {
-            next(error);
+    return (request, response, next) => {
+        const identifier = request.ip || request.socket.remoteAddress || "unknown";
+        if (countRequest(`${keyPrefix}:${identifier}`, windowSeconds) > max) {
+            return next(new AppError(429, "RATE_LIMITED", "Too many requests. Please wait before trying again."));
         }
+        next();
     };
 }

@@ -1,23 +1,31 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { getRedis } from "../src/shared/config/redis.js";
+import { clearRateLimits } from "../src/shared/middleware/rate-limit.js";
 import { api } from "./helpers/api.js";
-
-async function clearRegisterLimit() {
-    const keys = await getRedis().keys("ratelimit:register:*");
-    if (keys.length > 0) await getRedis().del(...keys);
-}
 
 function request(path, { method = "GET", origin, headers = {} } = {}) {
     return fetch(`${process.env.TEST_API_URL}${path}`, { method, headers: { ...(origin ? { Origin: origin } : {}), ...headers } });
 }
 
 describe("registration rate limit", () => {
-    beforeAll(clearRegisterLimit);
-    afterAll(clearRegisterLimit);
+    beforeAll(clearRateLimits);
+    afterAll(clearRateLimits);
 
     test("the 11th registration attempt within 10 minutes is refused", async () => {
         const attempt = () => api("/auth/register", { method: "POST", body: { name: "", email: "not-an-email", password: "short" } });
         for (let index = 0; index < 10; index += 1) expect((await attempt()).status).toBe(400);
+        const limited = await attempt();
+        expect(limited.status).toBe(429);
+        expect(limited.body.error.code).toBe("RATE_LIMITED");
+    });
+});
+
+describe("inbound email rate limit", () => {
+    beforeAll(clearRateLimits);
+    afterAll(clearRateLimits);
+
+    test("the 31st webhook call within a minute is refused before the secret is checked", async () => {
+        const attempt = () => api("/webhooks/email", { method: "POST", body: {} });
+        for (let index = 0; index < 30; index += 1) expect((await attempt()).status).not.toBe(429);
         const limited = await attempt();
         expect(limited.status).toBe(429);
         expect(limited.body.error.code).toBe("RATE_LIMITED");

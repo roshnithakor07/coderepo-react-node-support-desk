@@ -19,15 +19,9 @@ setup_env() {
 
 MONGO_HOST="127.0.0.1"
 MONGO_PORT="27017"
-REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
-REDIS_PORT="${REDIS_PORT:-6379}"
 
 mongo_is_reachable() {
     (exec 3<>"/dev/tcp/${MONGO_HOST}/${MONGO_PORT}") >/dev/null 2>&1
-}
-
-redis_is_reachable() {
-    (exec 3<>"/dev/tcp/${REDIS_HOST}/${REDIS_PORT}") >/dev/null 2>&1
 }
 
 check_mongo() {
@@ -48,18 +42,6 @@ check_mongo() {
     }
 }
 
-check_redis() {
-    if redis_is_reachable; then
-        log_info "Redis is already reachable on ${REDIS_PORT}"
-        return
-    fi
-    log_warn "Redis is not reachable; starting it"
-    mkdir -p .redis
-    redis-server --daemonize yes --bind "$REDIS_HOST" --port "$REDIS_PORT" --dir .redis --logfile .redis/redis.log >/dev/null 2>&1 || true
-    sleep 1
-    redis_is_reachable || log_warn "Redis is not reachable on ${REDIS_HOST}:${REDIS_PORT}; the app will run without caching, and rate limits and sign-outs will be kept in memory."
-}
-
 seed_database() {
     log_info "Seeding Support Desk database"
     bun run seed
@@ -67,7 +49,6 @@ seed_database() {
 
 setup_env
 check_mongo
-check_redis
 
 case "$MODE" in
     --start|--seed|"") seed_database ;;

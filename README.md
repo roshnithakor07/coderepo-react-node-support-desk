@@ -7,8 +7,6 @@ A full-stack customer support ticketing platform inspired by Zendesk/Freshdesk. 
 - [React 19](https://react.dev/) + [Vite](https://vite.dev/) — frontend UI, built with plain CSS (no component library)
 - [Express 5](https://expressjs.com/) — REST API (`/api/v1`)
 - [MongoDB](https://www.mongodb.com/) + [Mongoose](https://mongoosejs.com/) — persistence
-- [Redis](https://redis.io/) ([ioredis](https://github.com/redis/ioredis)) — SLA/analytics caching, JWT logout blacklist, login/webhook rate limiting
-- [node-cron](https://github.com/node-cron/node-cron) — SLA breach/warning sweep, runs every minute
 - [JWT](https://github.com/auth0/node-jsonwebtoken) + [bcryptjs](https://github.com/dcodeIO/bcrypt.js) — authentication
 - [Zod](https://zod.dev/) — request validation
 - [Bun](https://bun.sh/) — package manager and workspace runner
@@ -17,15 +15,13 @@ Real-time UI updates (notifications) are delivered via short-interval polling ra
 
 The inbound email webhook (`POST /api/v1/webhooks/email`, JSON `{ from, senderName?, subject, body }`) only accepts requests that send the shared secret from `WEBHOOK_SECRET` in the `X-Webhook-Secret` header; without a configured secret it refuses every request.
 
-### Dependency additions beyond the reference stack
+### Dependencies
 
-The reference calendar app has no cache layer, no scheduler, and no browser test runner. Three dependencies were added: the first two were explicitly requested in the product's own technical spec, and the third is a test-only dev dependency:
+The dependencies are exactly the reference calendar app's, at the same pinned versions; nothing was added, removed, or replaced. Everything else uses the platform:
 
-- **`ioredis`** — JWT logout blacklist, login/webhook rate limiting, and 60s-300s caching for the analytics dashboard and SLA settings. `setup.sh` provisions a local Redis instance the same way it provisions Mongo.
-- **`node-cron`** — the in-process SLA breach/warning sweep (`shared/jobs/sla-checker.js`, runs every minute). No dependency in the reference stack provides in-process scheduling.
-- **`@playwright/test`** (frontend dev dependency) — browser end-to-end tests of each role's journey. The reference stack has no browser test runner; API tests use Bun's built-in `bun test` and need no dependency. Added with the project owner's explicit approval.
-
-No other dependency was added, removed, or replaced: the frontend keeps the reference's `@fontsource/roboto` (5.3.0), and every other package version matches the reference app's pinned versions.
+- The SLA breach/warning sweep runs every minute on a `setInterval` timer started with the API (`shared/jobs/sla-checker.js`); a sweep still running when the next one is due is skipped, not doubled.
+- Sign-in, registration and webhook rate limits, and signed-out tokens, are kept in the API process's memory.
+- Tests use Bun's built-in `bun test`.
 
 ## Project Structure
 
@@ -40,13 +36,13 @@ coderepo-react-node-support-desk/
 │   │   │   ├── canned-responses/     # reusable reply templates
 │   │   │   ├── audit-logs/           # immutable action trail
 │   │   │   ├── notifications/        # in-app notifications (polled)
-│   │   │   ├── analytics/            # aggregated dashboard, Redis-cached
+│   │   │   ├── analytics/            # aggregated dashboard
 │   │   │   ├── webhooks/             # inbound email -> ticket
 │   │   │   └── settings/             # SLA hours + categories
 │   │   ├── shared/
-│   │   │   ├── config/               # env, Mongo, Redis
+│   │   │   ├── config/               # env, Mongo
 │   │   │   ├── middleware/           # auth, RBAC, rate limit, error handler
-│   │   │   └── jobs/                 # SLA cron sweep
+│   │   │   └── jobs/                 # SLA sweep, every minute
 │   │   ├── scripts/seed.js
 │   │   ├── app.js
 │   │   └── index.js
@@ -71,13 +67,12 @@ coderepo-react-node-support-desk/
 
 - [Bun](https://bun.sh/) >= 1.4
 - [MongoDB](https://www.mongodb.com/try/download/community) reachable at `127.0.0.1:27017` (or set `MONGODB_URI`)
-- [Redis](https://redis.io/download) reachable at `127.0.0.1:6379` (or set `REDIS_URL`). Recommended rather than required: without it the app still runs, with caching off and rate limits and sign-outs kept in memory; `/api/v1/health` then reports `"redis": "disconnected"`.
 
 ### Development setup
 
 ```bash
 bun install
-bash setup.sh --seed   # copies .env files, verifies Mongo/Redis are reachable, seeds the database
+bash setup.sh --seed   # copies .env files, verifies Mongo is reachable, seeds the database
 bun start              # runs backend (:8000) and frontend (:3000) together
 ```
 
@@ -102,14 +97,12 @@ New accounts created through the "Create account" tab on the sign-in screen are 
 | Command | Description |
 |---|---|
 | `bun install` | Install all workspace dependencies |
-| `bash setup.sh --seed` | Bootstrap env files, verify Mongo/Redis, seed the database |
+| `bash setup.sh --seed` | Bootstrap env files, verify Mongo, seed the database |
 | `bun start` | Reseed, then run backend + frontend together |
 | `bun run dev:backend` | Run only the backend, with file watching |
 | `bun run dev:frontend` | Run only the frontend dev server |
 | `bun run seed` | Re-seed the database (clears and re-inserts the baseline) |
 | `cd frontend && bun run build` | Production frontend build |
-| `bun run test` | API tests (`bun test`) against an isolated `support_desk_test` database and Redis index 1; requires MongoDB and Redis to be running |
-| `cd frontend && bunx playwright install chromium` | One-time download of the Chromium build used by the browser tests |
-| `bun run test:e2e` | Browser smoke journeys for each role (Playwright). Reuses a running `bun start`, or starts one, which reseeds the database. Requires Node.js 18+ |
+| `bun run test` | API tests (`bun test`) against an isolated `support_desk_test` database; requires MongoDB to be running |
 
 `hackerrank.yml` install/run commands: `bun install && bash setup.sh --seed` / `bun start`.
