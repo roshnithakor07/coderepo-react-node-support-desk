@@ -24,12 +24,28 @@ export async function captureSeedBaseline() {
         ]);
     const assigned = await Notification.find({ type: "ticket_assigned" }).sort({ _id: 1 }).lean();
     const cannedTitles = (await CannedResponse.find().lean()).map((response) => response.title);
+    const slaHours = (await Settings.findOne().lean()).slaHours;
+    const seededTickets = await Ticket.find().lean();
+    const breachNotifications = await Notification.find({ type: "sla_breached" }).lean();
 
     baseline = {
         counts: { admins, agents, customers, tickets, auditLogs, cannedResponses, notifications, settings },
         unreadNotifications,
         assignedReadPattern: assigned.map((notification) => notification.isRead),
         cannedTitles,
+        sla: {
+            hours: slaHours,
+            tickets: seededTickets.map((ticket) => ({
+                title: ticket.title,
+                priority: ticket.priority,
+                createdAt: ticket.createdAt,
+                slaDeadline: ticket.slaDeadline,
+                resolvedAt: ticket.resolvedAt,
+                slaBreached: ticket.slaBreached,
+            })),
+            breachNotificationTicketIds: breachNotifications.map((notification) => String(notification.ticketId)),
+            resolvedTicketIds: seededTickets.filter((ticket) => ticket.resolvedAt).map((ticket) => String(ticket._id)),
+        },
     };
 }
 
