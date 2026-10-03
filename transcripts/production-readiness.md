@@ -983,3 +983,49 @@ Note: Tasks 20–21 (theme refresh) are recorded in this file on `feat/theme-ref
 **Approved: merge of `fix/branding-and-hygiene` (my decisions, with my reasons):**
 - `backend/src/scripts/seed.js` stays as is. Reason: it is our product's seed; the read-only path only protects it from candidates during the assessment, so it is not meant to match the reference.
 - Merge with `--no-ff`, push `main`, delete the branch locally and on origin, run all tests on `main`.
+
+---
+
+## Task: functional QA sweep (branch `fix/functional-qa`, 2026-10-03T05:33:40+00:00)
+
+**What I asked for:** nine bugs I found in my own manual testing, then a full QA sweep of every flow
+for admin, agent and customer at 1280 and 375, with every high and medium finding fixed on this
+branch and the low ones listed for me to decide. No new dependencies, no visual redesign.
+
+**New standing rule I set (saved to the rules file as "Definition of Done"):** a feature is done only
+when it works end to end: reachable UI for every role it applies to, a real validated API call with
+the right status code, data that survives a refresh and a server restart, loading/empty/error/success
+states with no flicker, 1280 and 375 in both themes, tested on old seeded records, and a `bun test`
+for its backend behavior. Nothing half-built ships; if it cannot be finished properly it is removed
+and reported.
+
+### Decisions I made on this branch, with my reasons
+
+| Decision | Options | My choice and why |
+|---|---|---|
+| How search should match | Mongo `$text` (whole words, indexed), or a regex over title and description | **Regex, escaped and case-insensitive.** `$text` cannot match inside a word, which is the bug I reported ("voice" never found "Invoice"). The term is escaped so `(` or `*` is searched for literally. The now-unused text index was removed rather than left behind. |
+| Where sorting happens | Keep sorting the page in the browser, or sort in the database | **In the database.** Sorting the rows on screen silently reorders one page of a longer list, so page 2 made no sense. Priority and status are word enums, so the repository adds a rank for them and lowercases titles, and one sort key drives both the column headers and the "Sort by" select. |
+| Reopening an old ticket | Leave the deadline measured from creation, or restart the clock | **Restart it,** stored in a new `slaStartedAt` field. This is the same bug class that got the PagerDuty submission rejected: an old ticket came back from "closed" already breached. Tested on seeded tickets that are days old, not only on fresh ones. |
+| Illegal status move | Keep 400, or 409 | **409.** The input is well formed; it conflicts with the state the ticket is in. 400 stays for a value outside the status list. |
+| Who may raise a ticket | Leave the API open to every role, or restrict it | **Customers only.** The UI already showed "New ticket" to customers on the dashboard but to everyone on the ticket list. Rather than make the dashboard match the list, I made both match the product: customers raise tickets, staff work them, and the API now says so with a 403. |
+| Dashboard numbers | Keep counting the rows already fetched, or ask the server | **Ask the server,** on a new `GET /tickets/stats` scoped by role. The tiles counted one page of tickets and inherited whatever filter was last used on the ticket list, so the home page reported different numbers depending on where you had been. |
+| Status wording | Title-case everything including badges, or leave the badge styling alone | **Labels are title case everywhere; badge styling untouched.** Badges are uppercased by a CSS rule that is part of the existing design system, and I asked for no visual redesign. Every label that is not a badge now reads "In Progress", including the status filter, the sort options and the notification text. |
+
+### Bugs the sweep found that I had not reported
+
+- The **agents list flashed "No agents yet"** before its first request even started, because the
+  skeleton was tied to "a request is in flight" rather than "no answer yet". Fixed for every list.
+- **Analytics swallowed errors** once numbers were on screen: a failed range change left stale
+  figures with nothing to explain them. The error is now shown above the dimmed figures, with Retry,
+  and a backwards date range is refused in the page instead of being sent to the server.
+- An aggregation does not cast id strings the way a query does, so the first version of the
+  database-side sort returned **empty lists for agents and customers**. The existing tests caught it;
+  the repository now casts the filter before aggregating.
+
+### What I decided not to do on this branch
+
+- **Deep links / Back button.** A refresh keeps you signed in but lands on the dashboard, and the
+  browser Back button leaves the app. Hash routing is already approved as its own Phase 2 item, and
+  rebuilding navigation inside a QA branch is the kind of architecture change I ask about first.
+- **Customers closing and reopening their own tickets** (my decision 5a). The server forbids it today
+  and no screen offers it, so it is consistent rather than half-built. It needs its own branch.
