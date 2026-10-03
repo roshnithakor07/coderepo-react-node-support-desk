@@ -31,7 +31,7 @@ describe("one account per email address", () => {
         const { status, body } = await api("/agents", {
             method: "POST",
             token: admin.token,
-            body: { name: "Duplicate Agent", email: SEEDED_ACCOUNTS.agent, password: "SupportDesk@2026" },
+            body: { name: "Duplicate Agent", email: SEEDED_ACCOUNTS.agent, password: "SupportDesk@2026", categories: ["billing"] },
         });
         expect(status).toBe(409);
         expect(body.error.code).toBe("EMAIL_TAKEN");

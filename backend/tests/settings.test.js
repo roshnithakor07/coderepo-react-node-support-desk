@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { Ticket } from "../src/features/tickets/ticket.model.js";
 import { api, loginAs } from "./helpers/api.js";
 
 let admin;
@@ -26,13 +27,58 @@ describe("saving settings", () => {
     });
 
     test("category names are trimmed and stored in lower case", async () => {
-        const { status, body } = await update({ categories: ["  General ", "Billing", "Shipping delays"] });
+        // Nothing is removed here: a category agents or open tickets still use cannot be, which is
+        // its own rule. Adding one on the end is the part this test is about.
+        const { status, body } = await update({ categories: [...original.categories, "  Shipping Delays "] });
         expect(status).toBe(200);
-        expect(body.data.categories).toEqual(["general", "billing", "shipping delays"]);
+        expect(body.data.categories).toEqual([...original.categories, "shipping delays"]);
     });
 
     test("only admins can change settings", async () => {
         expect((await update({ slaHours: { low: 12 } }, agent.token)).status).toBe(403);
+    });
+});
+
+// Removing a category agents are on, or open work is filed under, would leave both pointing at
+// something that no longer exists.
+describe("a category still in use cannot be removed", () => {
+    test("the refusal names the category and counts what is using it", async () => {
+        const before = (await api("/settings", { token: admin.token })).body.data.categories;
+        const { status, body } = await update({ categories: before.filter((category) => category !== "billing") });
+        expect(status).toBe(409);
+        expect(body.error.code).toBe("CATEGORY_IN_USE");
+        expect(body.error.message).toContain("Billing");
+        expect(body.error.message).toMatch(/\d+ agents?/);
+        expect(body.error.message).toMatch(/\d+ open tickets?/);
+
+        // Nothing was written: the whole update is refused, not the part that was allowed.
+        const stored = (await api("/settings", { token: admin.token })).body.data;
+        expect(stored.categories).toEqual(before);
+    });
+
+    test("the settings page is told what is in use, so the remove button can say why", async () => {
+        const { body } = await api("/settings", { token: admin.token });
+        expect(body.data.categoryUsage.billing.agents).toBeGreaterThan(0);
+        expect(body.data.categoryUsage.billing.openTickets).toBeGreaterThan(0);
+    });
+
+    test("a category nothing uses can be removed", async () => {
+        const before = (await api("/settings", { token: admin.token })).body.data.categories;
+        expect((await update({ categories: [...before, "shipping"] })).status).toBe(200);
+
+        const { status, body } = await update({ categories: before });
+        expect(status).toBe(200);
+        expect(body.data.categories).toEqual(before);
+    });
+
+    test("closed and resolved tickets do not hold a category open", async () => {
+        // "general" is on one agent's team here, so the count that refuses it is the agent count
+        // alone: finished work filed under it is history and does not block the change.
+        const { body } = await api("/settings", { token: admin.token });
+        const usage = body.data.categoryUsage.general;
+        const openGeneral = await Ticket.countDocuments({ category: "general", status: { $in: ["open", "in_progress", "pending"] } });
+        expect(usage.openTickets).toBe(openGeneral);
+        expect(await Ticket.countDocuments({ category: "general" })).toBeGreaterThan(openGeneral);
     });
 });
 

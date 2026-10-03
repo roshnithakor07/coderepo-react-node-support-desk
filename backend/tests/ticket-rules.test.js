@@ -306,14 +306,16 @@ describe("customers close and reopen their own tickets", () => {
         expect((await api(`/tickets/${ticket._id}`, { token: customer.token })).body.data.permissions.nextStatuses).toEqual([]);
     });
 
-    test("a customer cannot edit a ticket's details or priority", async () => {
+    test("a customer cannot set a ticket's priority, category or tags", async () => {
         const ticket = await openTicket("Customer tries to edit");
-        for (const patch of [{ title: "Renamed by the customer" }, { priority: "critical" }]) {
+        for (const patch of [{ priority: "critical" }, { category: "billing" }, { tags: ["urgent"] }]) {
             const { status, body } = await update(ticket._id, patch, customer.token);
             expect(status).toBe(403);
             expect(body.error.code).toBe("FORBIDDEN");
         }
-        expect((await api(`/tickets/${ticket._id}`, { token: customer.token })).body.data.title).toBe("Customer tries to edit");
+        const stored = await api(`/tickets/${ticket._id}`, { token: customer.token });
+        expect(stored.body.data.priority).toBe("medium");
+        expect(stored.body.data.category).toBe("general");
     });
 
     test("a customer cannot touch someone else's ticket", async () => {
@@ -421,7 +423,15 @@ describe("handing a ticket to another agent", () => {
     test("an agent loses access the moment they reassign, which is why the UI sends them back", async () => {
         const mine = await Ticket.findOne({ assignedTo: agent.user.id, status: { $in: ["open", "in_progress", "pending"] } }).lean();
         expect(mine).not.toBeNull();
-        const target = await User.findOne({ email: "agent4@example.com" }).lean();
+        // The ticket can only go to somebody whose team covers its category, so the hand-off picks
+        // one of them rather than a fixed account.
+        const target = await User.findOne({
+            role: "agent",
+            isActive: true,
+            categories: mine.category,
+            _id: { $ne: agent.user.id },
+        }).lean();
+        expect(target).not.toBeNull();
 
         const handed = await assign(mine._id, String(target._id), agent.token);
         expect(handed.status).toBe(200);

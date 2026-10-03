@@ -7,17 +7,17 @@ describe("seeded baseline", () => {
             admins: 2,
             agents: 5,
             customers: 3,
-            tickets: 22,
-            auditLogs: 70,
+            tickets: 23,
+            auditLogs: 71,
             cannedResponses: 5,
-            notifications: 22,
+            notifications: 24,
             settings: 1,
         });
     });
 
     test("seeds notification read state deterministically", () => {
         expect(seedBaseline().assignedReadPattern).toEqual([false, true, false, true, false, true, false, true]);
-        expect(seedBaseline().unreadNotifications).toBe(18);
+        expect(seedBaseline().unreadNotifications).toBe(20);
     });
 
     test("uses American English in seeded content", () => {
