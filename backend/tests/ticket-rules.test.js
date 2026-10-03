@@ -163,19 +163,26 @@ describe("a closed ticket is read-only", () => {
     });
 });
 
-describe("a customer's reply revives a waiting or resolved ticket", () => {
-    test("a reply on a pending ticket hands it back to the team with a fresh SLA window", async () => {
+describe("a customer's reply on a pending or resolved ticket", () => {
+    test("a reply on a pending ticket hands it back to the team and keeps the breach and the clock", async () => {
         const pending = await seeded("Invoice shows incorrect tax amount");
         expect(pending.status).toBe("pending");
         expect(pending.slaBreached).toBe(true);
-        const repliedAt = Date.now();
 
         const { status, body } = await reply(pending._id, customer.token, "Here is the invoice number you asked for.");
         expect(status).toBe(201);
         expect(body.data.status).toBe("in_progress");
-        expect(body.data.slaBreached).toBe(false);
-        expect(new Date(body.data.slaStartedAt).getTime()).toBeGreaterThanOrEqual(repliedAt - 5000);
-        expect(new Date(body.data.slaDeadline).getTime()).toBeGreaterThan(Date.now());
+        // The breach happened before the ticket went pending, and a breach is permanent.
+        expect(body.data.slaBreached).toBe(true);
+        expect(new Date(body.data.slaStartedAt).getTime()).toBe(new Date(pending.slaStartedAt).getTime());
+        expect(new Date(body.data.slaDeadline).getTime()).toBe(new Date(pending.slaDeadline).getTime());
+    });
+
+    test("that move is a status change in the history, not a reopen", async () => {
+        const revived = await seeded("Invoice shows incorrect tax amount");
+        const { body } = await api(`/tickets/${revived._id}/history`, { token: customer.token });
+        expect(body.data.some((entry) => entry.action === "reopened")).toBe(false);
+        expect(body.data[0]).toMatchObject({ action: "updated", from: "pending", to: "in_progress" });
     });
 
     test("a reply on a resolved ticket reopens it", async () => {

@@ -53,8 +53,8 @@ open -> in_progress -> pending <-> in_progress -> resolved -> closed
 | A closed ticket takes no replies | `POST /tickets/:id/replies` | 409 `TICKET_CLOSED` | "no reply can be added" |
 | A closed ticket's fields and priority are read-only | `PUT /tickets/:id` | 409 `TICKET_CLOSED` | "no field can be edited", "the priority cannot be changed either" |
 | A closed ticket cannot be reassigned | `POST /tickets/:id/assign` | 409 `TICKET_CLOSED` | "it cannot be reassigned" |
-| A customer's reply on a pending ticket hands it back to the team with a fresh SLA window | `POST /tickets/:id/replies` | 201 | "a reply on a pending ticket hands it back to the team with a fresh SLA window" |
-| A customer's reply on a resolved ticket reopens it | `POST /tickets/:id/replies` | 201 | "a reply on a resolved ticket reopens it" |
+| A customer's reply on a pending ticket hands it back to the team; the SLA clock and any breach carry on unchanged, because only a reopen starts a fresh period | `POST /tickets/:id/replies` | 201 | "a reply on a pending ticket hands it back to the team and keeps the breach and the clock" |
+| A customer's reply on a resolved ticket reopens it, with a fresh SLA period and a `reopened` entry | `POST /tickets/:id/replies` | 201 | "a reply on a resolved ticket reopens it" |
 | Only a public staff reply moves an open ticket to in progress; an internal note never moves it | `POST /tickets/:id/replies` | 201 | "a staff reply on an open ticket starts work, and an internal note never moves it" |
 | A staff reply leaves the SLA clock alone | `POST /tickets/:id/replies` | 201 | "the SLA clock is untouched by a staff reply" |
 | Re-sending the status a ticket already has changes nothing | `PUT /tickets/:id` | 200 | "re-sending the status a ticket already has is accepted and changes nothing" |

@@ -1116,3 +1116,22 @@ for five) in all twelve combinations. The white block is the DevTools device-mod
 `color-scheme` is already declared per theme (`styles.css:4` and `:64`) and the selects already carry
 explicit background and color tokens, so **nothing was changed**, which is what I asked for if it
 turned out to be device mode.
+
+### Decision on rule 6, at approval (2026-10-03T07:30:53+00:00)
+
+The agent flagged one judgment call: it had made a customer's reply on a **pending** ticket restart
+the SLA and clear an existing breach flag, reading "the same reopen rules" literally.
+
+| Option | What it means |
+|---|---|
+| Keep it | A revived pending ticket gets a fresh SLA window and its breach flag cleared. |
+| **Change it (my choice)** | A revived pending ticket keeps its clock and its breach flag. Only an explicit reopen of a resolved or closed ticket starts a fresh SLA period. |
+
+**My reason:** the breach already happened before the ticket went to pending, and rule 7 says a
+breach is permanent. A customer replying should not be able to erase it.
+
+**What changed:** a customer reply on a pending ticket moves it to in progress and nothing else: no
+SLA restart, no cleared breach, and the history records it as a status change rather than a
+`reopened` entry, because it is not a reopen. A customer reply on a **resolved** ticket is unchanged:
+it is a reopen, with a fresh SLA period and a `reopened` entry. The test, the README rules table and
+this record were updated together.

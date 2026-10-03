@@ -305,23 +305,19 @@ export const ticketService = {
         ticket.replies.push({ body, author: actor.id, isInternal: internal });
 
         // A public staff reply starts work on an open ticket; an internal note never moves it. A
-        // customer's reply revives a ticket that was waiting on them or already resolved, under the
-        // same reopen rules: a fresh SLA window and a "reopened" entry.
+        // customer's reply on a pending ticket hands it back to the team, and on a resolved ticket
+        // reopens it. Only the reopen starts a fresh SLA period: a pending ticket is still inside
+        // the period it was already in, so its clock, and any breach on it, carry on unchanged.
         const isCustomer = actor.role === "customer";
         const autoStatus = isCustomer ? statusAfterCustomerReply(ticket) : statusAfterStaffReply(ticket, internal);
         const changes = {};
-        if (autoStatus) {
-            const reopening = await applyStatusChange(ticket, autoStatus, now, changes);
-            // A ticket that was only waiting on the customer is still inside its own SLA window, so
-            // the restart has to be asked for explicitly there.
-            if (isCustomer && !reopening) await restartSla(ticket, now, changes);
-        }
+        let reopened = false;
+        if (autoStatus) reopened = await applyStatusChange(ticket, autoStatus, now, changes);
 
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "replied", actor.id, { isInternal: internal });
         if (changes.status) {
-            const action = isCustomer ? "reopened" : "updated";
-            await auditLogService.record(ticket._id, action, actor.id, { ...changes, trigger: "reply" });
+            await auditLogService.record(ticket._id, reopened ? "reopened" : "updated", actor.id, { ...changes, trigger: "reply" });
         }
 
         if (!internal) {
