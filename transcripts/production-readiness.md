@@ -1264,3 +1264,13 @@ cleared.
 **Results:** API 222/222 (was 174, 48 new); routing unit tests 25/25; build OK; Prettier OK; element
 rect check over 3 roles x 7 pages x 1280/375 x dark/light: every page `scrollWidth === viewport`,
 zero elements off screen, zero console errors. No new dependencies.
+
+## [2026-10-03T13:13:38+00:00] `feat/agent-teams` approved and merged
+
+Approved as built. The five UI observations made while reviewing (page spacing, the SLA hours input
+clipping three digits, the Analytics filter row alignment, and the SLA-breached tile reading as too
+alarming) were deliberately kept out of this branch and queued. The user set the order: **next is
+`feat/bulk-actions`**, then `fix/ui-polish`, in which the SLA hours input and the Analytics filter
+row must be fixed, while the page spacing and the SLA-breached tile are only to be touched as small
+safe changes. Merged with --no-ff, pushed, and the branch deleted locally and on origin. Test results
+on main are in the log entry for this turn.
