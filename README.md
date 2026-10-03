@@ -205,6 +205,6 @@ New accounts created through the "Create account" tab on the sign-in screen are 
 | `bun run dev:frontend` | Run only the frontend dev server |
 | `bun run seed` | Re-seed the database (clears and re-inserts the baseline) |
 | `cd frontend && bun run build` | Production frontend build |
-| `bun run test` | API tests (`bun test`) against an isolated `support_desk_test` database; requires MongoDB to be running |
+| `bun run test` | API tests (`bun test`) against an isolated `support_desk_test` database (requires MongoDB), then the routing unit tests (`bun test` in `frontend`) |
 
 `hackerrank.yml` install/run commands: `bun install && bash setup.sh --seed` / `bun start`.

@@ -21,12 +21,16 @@ import { SettingsPage } from "./features/workspace/SettingsPage.jsx";
 import { Sidebar } from "./features/workspace/Sidebar.jsx";
 import { hasSessionToken, setSessionToken } from "./shared/api/client.js";
 import { MenuIcon } from "./shared/components/Icon.jsx";
+import { RouteMessage } from "./shared/components/RouteMessage.jsx";
 import { ToastStack } from "./shared/components/Toast.jsx";
 import { applyTheme, getStoredTheme } from "./shared/utils/theme.js";
 import { getStoredSidebarCollapsed, storeSidebarCollapsed } from "./shared/utils/sidebar.js";
 import { initials, ticketNumber } from "./shared/utils/format.js";
 import { DRAWER_NAV_QUERY, useMediaQuery } from "./shared/utils/media.js";
 import { friendlyErrorMessage } from "./shared/utils/validate.js";
+import { navigate, toHash, useHashRoute } from "./shared/utils/router.js";
+import { canOpen, HOME_PATH, matchRoute, safeReturnPath, SIGN_IN_PATH, ticketPath } from "./shared/utils/routes.js";
+import { filtersFromQuery, queryFromFilters } from "./features/tickets/ticket-filters.js";
 
 const NOTIFICATION_POLL_MS = 15000;
 
@@ -62,17 +66,12 @@ function TicketDetailSkeleton() {
     );
 }
 
-const PAGE_TITLES = {
-    dashboard: "Dashboard",
-    tickets: "Tickets",
-    "ticket-detail": "Ticket",
-    agents: "Agents",
-    "canned-responses": "Canned Responses",
-    analytics: "Analytics",
-    activity: "Activity",
-    settings: "Settings",
-    profile: "Profile",
-};
+// A ticket that can't be loaded gets the page that says why, instead of a toast and a bounce.
+function ticketErrorKind(error) {
+    if (error.status === 403) return "ticket-forbidden";
+    if (error.status === 404 || error.status === 400) return "ticket-not-found";
+    return "load-failed";
+}
 
 export default function App() {
     const [theme, setTheme] = useState(getStoredTheme());
@@ -81,20 +80,33 @@ export default function App() {
     const [authError, setAuthError] = useState("");
     const [authBusy, setAuthBusy] = useState(false);
 
-    const [activeView, setActiveView] = useState("dashboard");
+    // The URL is the single source of truth for which page is open.
+    const route = useHashRoute();
+    const match = useMemo(() => matchRoute(route.path), [route.path]);
+    const activeView = match ? match.route.view : "not-found";
+    const selectedTicketId = match?.params.ticketId ?? null;
     const contentRef = useRef(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getStoredSidebarCollapsed);
     const isDrawerNav = useMediaQuery(DRAWER_NAV_QUERY);
     const [isNavOpen, setIsNavOpen] = useState(false);
     const menuButtonRef = useRef(null);
-    const [selectedTicketId, setSelectedTicketId] = useState(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
     const [isCreatingTicket, setIsCreatingTicket] = useState(false);
     const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
 
     const [tickets, setTickets] = useState([]);
     const [ticketsTotal, setTicketsTotal] = useState(0);
-    const [ticketFilters, setTicketFilters] = useState({ page: 1, pageSize: 20, sort: "newest" });
+    // The list's filters are its URL query. Opening a ticket keeps the last query, so the list, and
+    // the way back to it, return exactly as they were.
+    const [lastTicketsSearch, setLastTicketsSearch] = useState("");
+    if (activeView === "tickets" && route.search !== lastTicketsSearch) setLastTicketsSearch(route.search);
+    const ticketsSearch = activeView === "tickets" ? route.search : lastTicketsSearch;
+    const ticketFilters = useMemo(() => filtersFromQuery(ticketsSearch), [ticketsSearch]);
+    const ticketsHref = toHash("/tickets", ticketsSearch);
+    // Which query the rows on screen belong to, and a counter so a slow, older response never
+    // overwrites a newer one when Back and Forward fire requests quickly.
+    const [ticketsFor, setTicketsFor] = useState(null);
+    const ticketsRequestRef = useRef(0);
     const [ticketsLoading, setTicketsLoading] = useState(false);
     // "Loaded" separates the very first load (skeletons) from a refetch (keep the old rows, dimmed).
     const [ticketsLoaded, setTicketsLoaded] = useState(false);
@@ -112,6 +124,8 @@ export default function App() {
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [auditTrail, setAuditTrail] = useState(null);
     const [statusHistory, setStatusHistory] = useState(null);
+    const [ticketLoadError, setTicketLoadError] = useState(null);
+    const [ticketReloadKey, setTicketReloadKey] = useState(0);
 
     const [agents, setAgents] = useState([]);
     const [agentsLoading, setAgentsLoading] = useState(false);
@@ -162,11 +176,14 @@ export default function App() {
 
     const isDrawerOpen = isDrawerNav && isNavOpen;
 
-    // Every page opens at its own top, so a ticket shows its header first and a list its filters,
-    // whatever the previous page was scrolled to.
+    // Every route change (a link, Back, Forward, a typed URL) closes the drawer and the new-ticket form,
+    // and opens the page at its own top, so a ticket shows its header first and a list its filters.
+    // A new list page counts as a new page.
     useEffect(() => {
+        setIsNavOpen(false);
+        setShowNewTicketModal(false);
         contentRef.current?.scrollTo({ top: 0 });
-    }, [activeView, selectedTicketId]);
+    }, [route.path, ticketFilters.page]);
 
     const closeNav = useCallback(() => setIsNavOpen(false), []);
 
@@ -179,7 +196,7 @@ export default function App() {
     useEffect(() => {
         if (!isDrawerOpen) return undefined;
         const menuButton = menuButtonRef.current;
-        document.querySelector("#app-sidebar nav button")?.focus();
+        document.querySelector("#app-sidebar nav a")?.focus();
         function handleKeyDown(event) {
             if (event.key === "Escape") setIsNavOpen(false);
         }
@@ -215,25 +232,63 @@ export default function App() {
         return () => window.removeEventListener("support-desk-session-expired", handleExpired);
     }, [pushToast]);
 
+    // Signed out, every URL goes to sign-in and remembers where it was headed. Signed in, the sign-in
+    // page forwards there (or home), and the bare root goes home.
+    const isRedirecting = Boolean(currentUser) && (route.path === SIGN_IN_PATH || route.path === "/");
+    useEffect(() => {
+        if (isBootstrapping) return;
+        if (!currentUser) {
+            if (route.path === SIGN_IN_PATH) return;
+            const next = route.path === "/" ? "" : `${route.path}${route.search ? `?${route.search}` : ""}`;
+            navigate(toHash(SIGN_IN_PATH, { next }), { replace: true });
+        } else if (route.path === SIGN_IN_PATH) {
+            navigate(`#${safeReturnPath(new URLSearchParams(route.search).get("next"))}`, { replace: true });
+        } else if (route.path === "/") {
+            navigate(toHash(HOME_PATH), { replace: true });
+        }
+    }, [isBootstrapping, currentUser, route]);
+
     const loadTickets = useCallback(() => {
         if (!currentUser) return;
+        ticketsRequestRef.current += 1;
+        const requestId = ticketsRequestRef.current;
+        const isLatest = () => requestId === ticketsRequestRef.current;
         setTicketsLoading(true);
         ticketApi
             .list(ticketFilters)
             .then((result) => {
+                if (!isLatest()) return;
                 setTickets(result.tickets);
                 setTicketsTotal(result.total);
+                setTicketsFor(ticketsSearch);
             })
-            .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again.")))
+            .catch((error) => isLatest() && pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again.")))
             .finally(() => {
+                if (!isLatest()) return;
                 setTicketsLoading(false);
                 setTicketsLoaded(true);
             });
-    }, [currentUser, ticketFilters, pushToast]);
+    }, [currentUser, ticketFilters, ticketsSearch, pushToast]);
 
     useEffect(() => {
         if (currentUser && activeView === "tickets") loadTickets();
     }, [currentUser, activeView, loadTickets]);
+
+    // A page number past the end (an old link, or a list that has shrunk) moves to the last real page.
+    useEffect(() => {
+        if (activeView !== "tickets" || ticketsFor !== ticketsSearch) return;
+        const lastPage = Math.max(1, Math.ceil(ticketsTotal / ticketFilters.pageSize));
+        if (ticketFilters.page > lastPage) {
+            navigate(toHash("/tickets", queryFromFilters({ ...ticketFilters, page: lastPage })), { replace: true });
+        }
+    }, [activeView, ticketsFor, ticketsSearch, ticketsTotal, ticketFilters]);
+
+    // Typing in the search box replaces the history entry, so Back skips the keystrokes; a status,
+    // priority, sort or page change is a step Back returns to.
+    const handleTicketFilterChange = useCallback(
+        (next) => navigate(toHash("/tickets", queryFromFilters(next)), { replace: next.search !== ticketFilters.search }),
+        [ticketFilters.search],
+    );
 
     const loadDashboard = useCallback(() => {
         if (!currentUser) return;
@@ -344,45 +399,53 @@ export default function App() {
             .catch(() => setStatusHistory([]));
     }, []);
 
-    function loadTicketDetail(id) {
-        if (!id) return;
-        setSelectedTicketId(id);
-        setActiveView("ticket-detail");
+    // The ticket in the URL is loaded whenever the URL names a different one (or Retry is pressed).
+    // Responses for a ticket the user has already left are dropped.
+    useEffect(() => {
+        if (!currentUser || !selectedTicketId) return undefined;
+        let isCurrent = true;
         setSelectedTicket(null);
         setAuditTrail(null);
         setStatusHistory(null);
+        setTicketLoadError(null);
         ticketApi
-            .get(id)
-            .then(setSelectedTicket)
-            .catch((error) => {
-                pushToast("error", friendlyErrorMessage(error, "Couldn't open that ticket."));
-                setActiveView("tickets");
-            });
-        loadStatusHistory(id);
-        if (currentUser?.role === "admin") {
+            .get(selectedTicketId)
+            .then((ticket) => isCurrent && setSelectedTicket(ticket))
+            .catch((error) => isCurrent && setTicketLoadError({ ticketId: selectedTicketId, error }));
+        ticketApi
+            .history(selectedTicketId)
+            .then((history) => isCurrent && setStatusHistory(history))
+            .catch(() => isCurrent && setStatusHistory([]));
+        if (currentUser.role === "admin") {
             ticketApi
-                .audit(id)
-                .then(setAuditTrail)
+                .audit(selectedTicketId)
+                .then((trail) => isCurrent && setAuditTrail(trail))
                 .catch(() => {});
         }
-    }
+        return () => {
+            isCurrent = false;
+        };
+    }, [currentUser, selectedTicketId, ticketReloadKey]);
 
-    // Signing in always starts on the home page with the drawer shut and nothing left over from the
-    // previous session, so a mobile sign-out / sign-in never lands back on a stale view.
+    const openTicket = useCallback((id) => navigate(toHash(ticketPath(id))), []);
+
+    // Signing in starts with the drawer shut and nothing left over from the previous session. Where it
+    // lands is the sign-in page's "next" URL: home after a sign-out, the page that was asked for after
+    // a session expiry or a link opened while signed out.
     function startSession(user) {
         setIsNavOpen(false);
-        setSelectedTicketId(null);
         setSelectedTicket(null);
         setAuditTrail(null);
         setStatusHistory(null);
-        setActiveView("dashboard");
+        setTicketLoadError(null);
         setTickets([]);
         setTicketsTotal(0);
         setDashboardStats(null);
         setDashboardTickets([]);
         setDashboardLoaded(false);
         setDashboardError("");
-        setTicketFilters({ page: 1, pageSize: 20, sort: "newest" });
+        setLastTicketsSearch("");
+        setTicketsFor(null);
         setTicketsLoaded(false);
         setAgents([]);
         setAgentsLoaded(false);
@@ -436,7 +499,7 @@ export default function App() {
         setSessionToken("");
         setIsNavOpen(false);
         setCurrentUser(null);
-        setActiveView("dashboard");
+        navigate(toHash(SIGN_IN_PATH));
     }
 
     async function handleCreateTicket(input) {
@@ -481,8 +544,7 @@ export default function App() {
             const updated = await ticketApi.assign(selectedTicketId, agentId);
             if (isHandOff) {
                 pushToast("success", `Ticket handed to ${updated.assignedTo?.name || "another agent"}.`);
-                handleNavigate("tickets");
-                loadTickets();
+                navigate(ticketsHref);
                 return;
             }
             setSelectedTicket(updated);
@@ -591,20 +653,32 @@ export default function App() {
         }
     }
 
-    function handleNavigate(view) {
-        setActiveView(view);
-        setSelectedTicketId(null);
-        setIsNavOpen(false);
-    }
-
     const analyticsSummary = useMemo(
         () => (analyticsDashboard ? { slaComplianceRate: analyticsDashboard.slaComplianceRate } : null),
         [analyticsDashboard],
     );
 
-    const isTicketView = activeView === "ticket-detail" && selectedTicket;
+    // State from a ticket the user has just left is never shown under the new ticket's URL.
+    const currentTicket = selectedTicket?._id === selectedTicketId ? selectedTicket : null;
+    const currentTicketError = ticketLoadError?.ticketId === selectedTicketId ? ticketLoadError.error : null;
+    const isTicketView = activeView === "ticket-detail" && currentTicket;
+    const routeBlock = currentUser && (!match ? "not-found" : canOpen(match.route, currentUser.role) ? null : "forbidden");
+    const pageTitle = !currentUser
+        ? "Sign in"
+        : routeBlock === "not-found"
+          ? "Page not found"
+          : routeBlock === "forbidden"
+            ? "No access"
+            : isTicketView
+              ? `${ticketNumber(currentTicket._id)} ${currentTicket.title}`
+              : match?.route.title;
 
-    if (isBootstrapping) {
+    // The tab title names the page, so history menus and a row of tabs say where each one goes.
+    useEffect(() => {
+        document.title = pageTitle ? `${pageTitle} · Support Desk` : "Support Desk";
+    }, [pageTitle]);
+
+    if (isBootstrapping || isRedirecting) {
         return (
             <div className="boot-screen">
                 <img src="/favicon.svg" alt="" />
@@ -626,12 +700,8 @@ export default function App() {
         <div className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
             <Sidebar
                 currentUser={currentUser}
-                activeView={activeView}
-                onNavigate={handleNavigate}
-                onOpenProfile={() => {
-                    setActiveView("profile");
-                    setIsNavOpen(false);
-                }}
+                activeView={activeView === "ticket-detail" ? "tickets" : activeView}
+                onOpenProfile={() => navigate(toHash("/profile"))}
                 onLogout={handleLogout}
                 isCollapsed={isSidebarCollapsed && !isDrawerNav}
                 onToggleCollapse={() => setIsSidebarCollapsed((value) => !value)}
@@ -655,16 +725,16 @@ export default function App() {
                         </button>
                         {isTicketView ? (
                             <h1 className="topbar-title topbar-breadcrumb">
-                                <button type="button" className="breadcrumb-link" onClick={() => handleNavigate("tickets")}>
+                                <a className="breadcrumb-link" href={ticketsHref}>
                                     Tickets
-                                </button>
+                                </a>
                                 <span className="breadcrumb-separator" aria-hidden="true">
                                     /
                                 </span>
-                                <span aria-current="page">{ticketNumber(selectedTicket._id)}</span>
+                                <span aria-current="page">{ticketNumber(currentTicket._id)}</span>
                             </h1>
                         ) : (
-                            <h1 className="topbar-title">{PAGE_TITLES[activeView] || "Support Desk"}</h1>
+                            <h1 className="topbar-title">{pageTitle}</h1>
                         )}
                     </div>
                     <div className="topbar-actions">
@@ -673,9 +743,9 @@ export default function App() {
                             unreadCount={unreadCount}
                             onMarkRead={handleMarkNotificationsRead}
                             onClear={handleClearNotifications}
-                            onOpenTicket={loadTicketDetail}
+                            onOpenTicket={openTicket}
                         />
-                        <button type="button" className="topbar-profile-chip" onClick={() => setActiveView("profile")}>
+                        <button type="button" className="topbar-profile-chip" onClick={() => navigate(toHash("/profile"))}>
                             <span className="topbar-profile-avatar">{initials(currentUser.name)}</span>
                             <span className="topbar-profile-name">{currentUser.name}</span>
                         </button>
@@ -683,14 +753,14 @@ export default function App() {
                 </header>
 
                 <main className="app-content" ref={contentRef}>
-                    {activeView === "dashboard" && (
+                    {routeBlock && <RouteMessage kind={routeBlock} />}
+
+                    {!routeBlock && activeView === "dashboard" && (
                         <Dashboard
                             currentUser={currentUser}
                             tickets={dashboardTickets}
                             stats={dashboardStats}
-                            onSelectTicket={loadTicketDetail}
                             onNewTicket={() => setShowNewTicketModal(true)}
-                            onViewAllTickets={() => handleNavigate("tickets")}
                             analyticsSummary={analyticsSummary}
                             isLoading={!dashboardLoaded}
                             isRefreshing={dashboardLoading && dashboardLoaded}
@@ -699,13 +769,13 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "tickets" && (
+                    {!routeBlock && activeView === "tickets" && (
                         <TicketList
                             tickets={tickets}
                             total={ticketsTotal}
                             filters={ticketFilters}
-                            onFilterChange={setTicketFilters}
-                            onSelectTicket={loadTicketDetail}
+                            onFilterChange={handleTicketFilterChange}
+                            onSelectTicket={openTicket}
                             onNewTicket={() => setShowNewTicketModal(true)}
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
@@ -713,15 +783,31 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "ticket-detail" && selectedTicket && (
+                    {!routeBlock && activeView === "ticket-detail" && currentTicketError && (
+                        <RouteMessage
+                            kind={ticketErrorKind(currentTicketError)}
+                            detail={
+                                ticketErrorKind(currentTicketError) === "load-failed"
+                                    ? friendlyErrorMessage(currentTicketError, "Couldn't load this ticket. Please try again.")
+                                    : undefined
+                            }
+                            onRetry={
+                                ticketErrorKind(currentTicketError) === "load-failed"
+                                    ? () => setTicketReloadKey((key) => key + 1)
+                                    : undefined
+                            }
+                        />
+                    )}
+
+                    {!routeBlock && activeView === "ticket-detail" && !currentTicketError && currentTicket && (
                         <TicketDetail
-                            ticket={selectedTicket}
+                            ticket={currentTicket}
                             currentUser={currentUser}
                             agents={agents}
                             cannedResponses={cannedResponses}
                             auditTrail={auditTrail}
                             statusHistory={statusHistory}
-                            onBack={() => handleNavigate("tickets")}
+                            onBack={() => navigate(ticketsHref)}
                             onUpdate={handleUpdateTicket}
                             onReply={handleReply}
                             onAssign={handleAssignTicket}
@@ -730,9 +816,9 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "ticket-detail" && !selectedTicket && <TicketDetailSkeleton />}
+                    {!routeBlock && activeView === "ticket-detail" && !currentTicketError && !currentTicket && <TicketDetailSkeleton />}
 
-                    {activeView === "agents" && (
+                    {!routeBlock && activeView === "agents" && (
                         <AgentsPage
                             agents={agents}
                             onCreateAgent={handleCreateAgent}
@@ -747,7 +833,7 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "canned-responses" && (
+                    {!routeBlock && activeView === "canned-responses" && (
                         <CannedResponsesPage
                             responses={cannedResponses}
                             onCreate={handleCreateCannedResponse}
@@ -761,9 +847,9 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "activity" && currentUser.role === "admin" && <ActivityPage onOpenTicket={loadTicketDetail} />}
+                    {!routeBlock && activeView === "activity" && <ActivityPage onOpenTicket={openTicket} />}
 
-                    {activeView === "analytics" && currentUser.role === "admin" && (
+                    {!routeBlock && activeView === "analytics" && (
                         <AnalyticsPage
                             dashboard={analyticsDashboard}
                             filters={analyticsFilters}
@@ -774,7 +860,7 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "settings" && currentUser.role === "admin" && (
+                    {!routeBlock && activeView === "settings" && (
                         <SettingsPage
                             settings={settings}
                             onSave={handleSaveSettings}
@@ -785,7 +871,7 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "profile" && (
+                    {!routeBlock && activeView === "profile" && (
                         <ProfilePage
                             currentUser={currentUser}
                             onLogout={handleLogout}

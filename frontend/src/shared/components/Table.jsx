@@ -104,8 +104,15 @@ export function Table({
         );
     }
 
+    // A link inside a row does its own job (including Ctrl/Cmd-click into a new tab), so the row only
+    // handles clicks and keys that land on the row itself.
+    function handleClick(event, row) {
+        if (event.target.closest("a")) return;
+        onRowClick(row);
+    }
+
     function handleKeyDown(event, row) {
-        if (!onRowClick) return;
+        if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             onRowClick(row);
@@ -122,7 +129,7 @@ export function Table({
                         <tr
                             key={rowKey(row)}
                             className={onRowClick ? "clickable" : ""}
-                            onClick={onRowClick ? () => onRowClick(row) : undefined}
+                            onClick={onRowClick ? (event) => handleClick(event, row) : undefined}
                             onKeyDown={onRowClick ? (event) => handleKeyDown(event, row) : undefined}
                             tabIndex={onRowClick ? 0 : undefined}
                             role={onRowClick ? "button" : undefined}

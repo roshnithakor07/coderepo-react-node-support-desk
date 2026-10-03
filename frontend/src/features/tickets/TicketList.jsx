@@ -2,6 +2,9 @@ import { StatusBadge } from "../../shared/components/Badge.jsx";
 import { SearchField } from "../../shared/components/SearchField.jsx";
 import { Table } from "../../shared/components/Table.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
+import { toHash } from "../../shared/utils/router.js";
+import { ticketPath } from "../../shared/utils/routes.js";
+import { DEFAULT_SORT, PRIORITY_OPTIONS, SORT_OPTIONS, STATUS_OPTIONS } from "./ticket-filters.js";
 
 function PriorityCell({ priority }) {
     return (
@@ -35,21 +38,6 @@ function SlaCell({ ticket }) {
         </span>
     );
 }
-
-const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
-const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
-
-// Plain-language sort names; the values are the keys the API sorts by.
-const SORT_OPTIONS = [
-    { value: "newest", label: "Newest first" },
-    { value: "oldest", label: "Oldest first" },
-    { value: "title_asc", label: "Title A–Z" },
-    { value: "title_desc", label: "Title Z–A" },
-    { value: "priority_desc", label: "Priority: highest first" },
-    { value: "status", label: "Status" },
-];
-
-const DEFAULT_SORT = "newest";
 
 // What the list means depends on who is looking: a customer sees their own tickets, an agent the
 // ones assigned to them, an admin everything.
@@ -158,7 +146,12 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                         key: "title",
                         header: "Title",
                         sort: ["title_asc", "title_desc"],
-                        render: (row) => <span className="ticket-title-cell">{row.title}</span>,
+                        // A real link, so the ticket can be opened in a new tab; the rest of the row opens it here.
+                        render: (row) => (
+                            <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row._id))}>
+                                {row.title}
+                            </a>
+                        ),
                     },
                     { key: "status", header: "Status", sort: ["status"], render: (row) => <StatusBadge status={row.status} /> },
                     {

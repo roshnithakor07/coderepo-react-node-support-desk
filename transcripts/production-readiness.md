@@ -1135,3 +1135,46 @@ SLA restart, no cleared breach, and the history records it as a status change ra
 `reopened` entry, because it is not a reopen. A customer reply on a **resolved** ticket is unchanged:
 it is a reopen, with a fresh SLA period and a `reopened` entry. The test, the README rules table and
 this record were updated together.
+
+## [2026-10-03T11:30:05+00:00] Task: `fix/flaky-sla-checker-test` merged, 3 full runs on main, and `feat/hash-routing`
+
+**HackerRank feedback (recorded as the user gave it, 3 Oct 2026):** Darshan (HackerRank) replied on Discord to my message listing the revisions from my approved proposal: *"It will be good to add these details in the readme before you submit, also add a video walkthrough of the app."* He did not object to the revisions. The README section "Changes from the approved proposal" covers the first request. I will record the video walkthrough at the end, before submitting.
+
+**Approved and merged:** `fix/flaky-sla-checker-test` (--no-ff, main `ab622c6`); branch deleted locally and on origin.
+- The flaky test: four schedule tests slept a fixed time and asserted how many timer ticks had landed. Under CPU load the event loop coalesces ticks, so fewer arrived. The fix waits for the condition instead of the clock (reproduced 5 failures in 10 loaded runs before the fix).
+- **Full suite 3 times on main:** 174 pass, 0 fail, 604 checks each time (15.0 s, 12.3 s, 11.3 s), and the frontend build passes.
+
+**Process notes:**
+- MongoDB was down for part of this task because Docker Desktop's WSL integration was off. I asked, and the user started it. Nothing was merged or tested while it was down.
+- The hash-routing work had been started in an earlier session that was never logged (its first prompt is the Darshan message above). It was left uncommitted on a branch cut from the flaky-test branch. I stashed it, merged the approved branch, recreated `feat/hash-routing` from the updated main, restored the work, reviewed all of it, and finished it. A catch-up entry for that earlier session is in the log.
+
+**`feat/hash-routing` (approved earlier; no new dependency; native `hashchange`):**
+- Every page and ticket has its own URL: #/dashboard, #/tickets, #/tickets/<id>, #/agents, #/canned-responses, #/activity, #/analytics, #/settings, #/profile.
+- The list's search, status, priority, sort and page are in the URL query, so a refresh keeps them. Typing in the search box replaces the history entry, so Back doesn't step through keystrokes; filters and paging add an entry.
+- Refresh keeps the page. Back and Forward work inside the app. Sidebar items, ticket titles and the dashboard list are real links, so they open in a new tab.
+- A role can't open a page → "You don't have access" (also for another customer's ticket, or one not assigned to the agent). An unknown URL, a missing ticket or a malformed id → "Not found". Both pages link home, and the tab title doesn't reveal a ticket the user may not see.
+- Signed out, or with an expired session, any URL goes to sign-in and returns to that URL afterwards. A `next` that points outside the app is ignored.
+- Every route change closes the drawer and the new-ticket form and starts at the top. Stale list and ticket responses are dropped when Back/Forward fire quickly.
+
+**Decisions and bugs found:**
+| Item | Choice | Reason |
+|---|---|---|
+| Where the routing tests live | Plain-function unit tests in `frontend/tests` run by `bun test`; the root `test` script runs backend then frontend | No new package, and the routing rules are pure functions |
+| `page=1e3` | Digits only; anything else falls back to page 1 | A unit test showed `Number("1e3")` made it page 1000; unknown values should fall back |
+| Browser checks | Temporary scripts outside the repo (Chromium over the DevTools protocol, no package) | The Playwright dependency was removed on purpose |
+
+My own test-harness bugs (not app bugs), fixed: the first runs loaded the app, then set the token, then navigated, so the app booted signed out and rewrote the URL. Real deep links are one fresh load, so the harness now sets the session before the page's scripts run.
+
+**Definition of Done:**
+- ✅ UI: reachable from the sidebar, dashboard, ticket list, activity page and notifications; works for every role; refused roles get a clear page.
+- ✅ API: unchanged; the 403, 404 and 400 responses are now shown as pages.
+- ✅ Data: nothing new is stored; the URL is the state. A refresh restores it (checked).
+- ✅ States: loading skeletons kept; "couldn't load" has a Retry; not-found and no-access pages added.
+- ✅ Responsive and themes: layout checked at 1280, 1024, 900, 768, 600 and 375; new pages screenshotted in dark and light at 1280 and 375.
+- ✅ Old data: opened every seeded ticket route as admin, agent and customer.
+- ✅ Tests: 21 routing unit tests plus 174 API tests.
+- ✅ No half-work: nothing left unfinished.
+
+**Results:** API 174/174; routing unit tests 21/21; build OK; dependency sections identical to the reference.
+- Browser routing check: 93/93 (every URL as each role, refresh, filters/sort/page in the URL, Back/Forward, new-tab links, sign-in return, expired session, sign-out, drawer closing and scroll reset at 375, 768 and 900), 0 console errors.
+- Layout rect check: 304 states (every page, role and width; the open drawer; dialogs; the notification panel; the no-access and not-found pages), 33,970 elements, 0 outside the screen, 0 sideways scrollers, 0 console errors.
