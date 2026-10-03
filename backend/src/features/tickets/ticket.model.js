@@ -25,6 +25,9 @@ const ticketSchema = new mongoose.Schema(
         tags: { type: [String], default: [] },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
         assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+        // The SLA clock starts here. Reopening a resolved or closed ticket moves it to the reopen
+        // time, so the deadline is never measured from a window that already elapsed.
+        slaStartedAt: { type: Date, default: Date.now },
         slaDeadline: { type: Date, required: true },
         slaBreached: { type: Boolean, default: false, index: true },
         slaWarningNotifiedAt: { type: Date, default: null },
@@ -34,7 +37,6 @@ const ticketSchema = new mongoose.Schema(
     { timestamps: true, versionKey: false },
 );
 
-ticketSchema.index({ title: "text", description: "text" });
 ticketSchema.index({ status: 1, priority: 1 });
 ticketSchema.index({ createdAt: -1 });
 

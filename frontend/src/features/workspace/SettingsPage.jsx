@@ -7,7 +7,7 @@ const PRIORITIES = ["critical", "high", "medium", "low"];
 const MAX_SLA_HOURS = 720;
 const MAX_CATEGORIES = 20;
 
-export function SettingsPage({ settings, onSave, isBusy, error }) {
+export function SettingsPage({ settings, onSave, isBusy, error, loadError, onRetry }) {
     const [slaHours, setSlaHours] = useState(settings?.slaHours || { critical: 1, high: 4, medium: 8, low: 24 });
     const [categories, setCategories] = useState(settings?.categories || []);
     const [newCategory, setNewCategory] = useState("");
@@ -81,13 +81,27 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
         setNewCategory("");
     }
 
-    if (!settings) {
+    if (loadError && !settings) {
         return (
             <section className="panel">
-                <h2>SLA &amp; category settings</h2>
+                <p className="panel-subtitle">Response-time targets and the categories tickets can be filed under.</p>
+                <div className="form-error" role="alert">
+                    {loadError}{" "}
+                    <button type="button" className="link-button" onClick={onRetry}>
+                        Retry
+                    </button>
+                </div>
+            </section>
+        );
+    }
+
+    if (!settings) {
+        return (
+            <section className="panel" aria-busy="true">
+                <p className="panel-subtitle">Response-time targets and the categories tickets can be filed under.</p>
                 <div className="settings-form">
-                    <span className="skeleton skeleton-block" style={{ height: "140px" }} />
-                    <span className="skeleton skeleton-block" style={{ height: "120px" }} />
+                    <span className="skeleton skeleton-block" style={{ height: "180px" }} />
+                    <span className="skeleton skeleton-block" style={{ height: "160px" }} />
                 </div>
             </section>
         );
@@ -95,8 +109,7 @@ export function SettingsPage({ settings, onSave, isBusy, error }) {
 
     return (
         <section className="panel">
-            <h2>SLA &amp; category settings</h2>
-            <p className="panel-subtitle">Response-time targets apply to every new ticket, based on its priority.</p>
+            <p className="panel-subtitle">Response-time targets and the categories tickets can be filed under.</p>
             <form onSubmit={handleSubmit} className="settings-form" noValidate>
                 <div className="settings-section">
                     <div className="settings-section-header">

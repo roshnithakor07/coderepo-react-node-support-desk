@@ -3,13 +3,15 @@ import { Modal } from "../../shared/components/Modal.jsx";
 import { titleCase } from "../../shared/utils/format.js";
 import { validateMaxLength, validateRequired } from "../../shared/utils/validate.js";
 
-const CATEGORIES = ["general", "billing", "technical", "account"];
+// The admin-managed list from Settings; the fallback only covers the moment before it arrives.
+const FALLBACK_CATEGORIES = ["general"];
 
-export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
+export function NewTicketModal({ onClose, onCreate, categories, isBusy, error }) {
+    const options = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState("medium");
-    const [category, setCategory] = useState("general");
+    const [category, setCategory] = useState(options[0]);
     const [fieldErrors, setFieldErrors] = useState({});
 
     function validate() {
@@ -100,7 +102,7 @@ export function NewTicketModal({ onClose, onCreate, isBusy, error }) {
                             onChange={(event) => setCategory(event.target.value)}
                             disabled={isBusy}
                         >
-                            {CATEGORIES.map((option) => (
+                            {options.map((option) => (
                                 <option key={option} value={option}>
                                     {titleCase(option)}
                                 </option>

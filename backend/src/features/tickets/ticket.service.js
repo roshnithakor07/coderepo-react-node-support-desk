@@ -13,11 +13,37 @@ const STATUS_TRANSITIONS = {
     closed: ["open"],
 };
 
+// How statuses read in messages people see, instead of the raw stored values.
+const STATUS_LABELS = {
+    open: "Open",
+    in_progress: "In Progress",
+    pending: "Pending",
+    resolved: "Resolved",
+    closed: "Closed",
+};
+
+// Statuses where the SLA clock is running. Moving back into one of them from a finished status
+// restarts the clock (see `update`).
+const ACTIVE_STATUSES = ["open", "in_progress", "pending"];
+
+// Each sort the UI offers maps to one database sort. `priorityRank`, `statusRank` and `titleSort`
+// are computed by the repository so word enums order by meaning and titles ignore case.
+const SORT_ORDERS = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    title_asc: { titleSort: 1 },
+    title_desc: { titleSort: -1 },
+    priority_desc: { priorityRank: -1, createdAt: -1 },
+    status: { statusRank: 1, createdAt: -1 },
+};
+
+export const TICKET_SORT_KEYS = Object.keys(SORT_ORDERS);
+
 function assertTransitionAllowed(current, next) {
     if (current === next) return;
     const allowed = STATUS_TRANSITIONS[current] || [];
     if (!allowed.includes(next)) {
-        throw new AppError(400, "INVALID_STATUS_TRANSITION", `Cannot move a ticket from "${current}" to "${next}".`);
+        throw new AppError(409, "INVALID_STATUS_TRANSITION", `Cannot move a ticket from "${current}" to "${next}".`);
     }
 }
 
@@ -26,9 +52,24 @@ async function computeSlaDeadline(priority, fromDate = new Date()) {
     return new Date(fromDate.getTime() + hours * 60 * 60 * 1000);
 }
 
+// Search matches part of a word, case-insensitively, in the title or the description. The term is
+// escaped so characters like "(" or "*" are searched for literally instead of breaking the regex.
+function searchConditions(term) {
+    const pattern = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    return [{ title: pattern }, { description: pattern }];
+}
+
 async function pickAutoAssignee() {
     const candidates = await authRepository.findAgentsWithWorkload();
     return candidates.length > 0 ? candidates[0] : null;
+}
+
+// What a role may see at all: an admin everything, an agent their assignments, a customer their own
+// tickets. Both the list and the dashboard counts start from this.
+function scopeFor(actor) {
+    if (actor.role === "customer") return { createdBy: actor.id };
+    if (actor.role === "agent") return { assignedTo: actor.id };
+    return {};
 }
 
 function assertCanView(ticket, actor) {
@@ -46,7 +87,8 @@ function presentTicket(ticket, actor) {
 
 export const ticketService = {
     async create(input, actor) {
-        const slaDeadline = await computeSlaDeadline(input.priority);
+        const slaStartedAt = new Date();
+        const slaDeadline = await computeSlaDeadline(input.priority, slaStartedAt);
         const autoAssignee = await pickAutoAssignee();
 
         const ticket = await ticketRepository.create({
@@ -57,6 +99,7 @@ export const ticketService = {
             tags: input.tags || [],
             createdBy: actor.id,
             assignedTo: autoAssignee ? autoAssignee._id : null,
+            slaStartedAt,
             slaDeadline,
         });
 
@@ -75,25 +118,31 @@ export const ticketService = {
     },
 
     async list(filters, actor) {
-        const query = {};
-        if (actor.role === "customer") query.createdBy = actor.id;
-        else if (actor.role === "agent") query.assignedTo = actor.id;
+        const query = scopeFor(actor);
 
         if (filters.status) query.status = filters.status;
         if (filters.priority) query.priority = filters.priority;
         if (filters.category) query.category = filters.category;
         if (filters.assignedTo && actor.role === "admin") query.assignedTo = filters.assignedTo;
-        if (filters.search) query.$text = { $search: filters.search };
+        const search = (filters.search || "").trim();
+        if (search) query.$or = searchConditions(search);
 
         const page = filters.page || 1;
         const pageSize = filters.pageSize || 20;
         const skip = (page - 1) * pageSize;
+        const sort = SORT_ORDERS[filters.sort] || SORT_ORDERS.newest;
 
         const [tickets, total] = await Promise.all([
-            ticketRepository.findMany(query, { skip, limit: pageSize }),
+            ticketRepository.findMany(query, { skip, limit: pageSize, sort }),
             ticketRepository.count(query),
         ]);
         return { tickets: tickets.map((ticket) => presentTicket(ticket, actor)), total, page, pageSize };
+    },
+
+    // Counts for the dashboard tiles. Deliberately independent of the ticket list's filters, so
+    // filtering the list cannot change what the home page reports.
+    summarize(actor) {
+        return ticketRepository.summarize(scopeFor(actor));
     },
 
     async getById(id, actor) {
@@ -112,16 +161,28 @@ export const ticketService = {
 
         if (patch.status && patch.status !== ticket.status) {
             assertTransitionAllowed(ticket.status, patch.status);
+            const wasFinished = !ACTIVE_STATUSES.includes(ticket.status);
             changes.status = { from: ticket.status, to: patch.status };
             ticket.status = patch.status;
             // Resolving stamps the time; closing keeps it; any other status clears it.
             ticket.resolvedAt = patch.status === "resolved" ? new Date() : patch.status === "closed" ? ticket.resolvedAt : null;
+
+            // Reopening restarts the SLA clock from now. Measuring it from the original creation
+            // time would hand a reopened ticket a deadline that has already passed.
+            if (wasFinished && ACTIVE_STATUSES.includes(patch.status)) {
+                const reopenedAt = new Date();
+                ticket.slaStartedAt = reopenedAt;
+                ticket.slaDeadline = await computeSlaDeadline(ticket.priority, reopenedAt);
+                ticket.slaBreached = false;
+                ticket.slaWarningNotifiedAt = null;
+                changes.slaRestartedAt = reopenedAt;
+            }
         }
 
         if (patch.priority && patch.priority !== ticket.priority) {
             changes.priority = { from: ticket.priority, to: patch.priority };
             ticket.priority = patch.priority;
-            const newDeadline = await computeSlaDeadline(patch.priority, ticket.createdAt);
+            const newDeadline = await computeSlaDeadline(patch.priority, ticket.slaStartedAt || ticket.createdAt);
             ticket.slaDeadline = newDeadline;
             if (newDeadline.getTime() > Date.now()) {
                 ticket.slaBreached = false;
@@ -159,7 +220,7 @@ export const ticketService = {
             await notificationService.notify(
                 ticket.createdBy,
                 "status_changed",
-                `Ticket "${ticket.title}" status changed to ${ticket.status}.`,
+                `Ticket "${ticket.title}" status changed to ${STATUS_LABELS[ticket.status] || ticket.status}.`,
                 ticket._id,
             );
         }

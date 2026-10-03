@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ticketService } from "./ticket.service.js";
+import { TICKET_SORT_KEYS, ticketService } from "./ticket.service.js";
 
 const createSchema = z
     .object({
@@ -36,7 +36,8 @@ const listQuerySchema = z.object({
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     category: z.string().optional(),
     assignedTo: z.string().optional(),
-    search: z.string().optional(),
+    search: z.string().max(140).optional(),
+    sort: z.enum(TICKET_SORT_KEYS).optional(),
     page: z.coerce.number().int().min(1).optional(),
     pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -46,6 +47,15 @@ export async function listTickets(request, response, next) {
         const filters = listQuerySchema.parse(request.query);
         const result = await ticketService.list(filters, request.user);
         response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getTicketStats(request, response, next) {
+    try {
+        const summary = await ticketService.summarize(request.user);
+        response.json({ data: summary });
     } catch (error) {
         next(error);
     }

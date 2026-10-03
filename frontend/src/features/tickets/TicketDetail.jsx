@@ -7,9 +7,9 @@ const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
 const COMPOSER_MAX_HEIGHT = 200;
 
-function MessageCard({ author, body, isInternal, createdAt }) {
+function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
     return (
-        <li className={`message-card ${isInternal ? "message-card-internal" : ""}`}>
+        <li ref={innerRef} className={`message-card ${isInternal ? "message-card-internal" : ""}`}>
             <div className="message-card-header">
                 <span className="message-card-avatar">{initials(author?.name)}</span>
                 <span className="message-card-meta">
@@ -63,34 +63,20 @@ export function TicketDetail({
     const [isInternal, setIsInternal] = useState(false);
     const [showCanned, setShowCanned] = useState(false);
     const replyFieldRef = useRef(null);
-    const threadEndRef = useRef(null);
-    const messageListRef = useRef(null);
+    const latestMessageRef = useRef(null);
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
-    const sla = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
+    const sla = getSlaProgress(ticket.slaStartedAt || ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
 
-    // Open on the latest message and keep it in view while the reader stays at the bottom, including
-    // when fonts or late layout change the height. The composer follows the list in the layout, so
-    // scrolling to the end always leaves the last message fully visible above it.
+    // The ticket opens at its header (App scrolls the content area to the top). Only a message added
+    // during this visit scrolls, and then only to the new message, never on the way in.
+    const replyCountRef = useRef(visibleReplies.length);
     useEffect(() => {
-        const scroller = threadEndRef.current?.closest(".app-content");
-        if (!scroller) return undefined;
-        let followLatest = true;
-        const scrollToLatest = () => {
-            if (followLatest) scroller.scrollTop = scroller.scrollHeight;
-        };
-        const trackReader = () => {
-            followLatest = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
-        };
-        scrollToLatest();
-        const observer = new ResizeObserver(scrollToLatest);
-        observer.observe(messageListRef.current);
-        scroller.addEventListener("scroll", trackReader, { passive: true });
-        return () => {
-            observer.disconnect();
-            scroller.removeEventListener("scroll", trackReader);
-        };
+        if (visibleReplies.length > replyCountRef.current) {
+            latestMessageRef.current?.scrollIntoView({ block: "nearest" });
+        }
+        replyCountRef.current = visibleReplies.length;
     }, [ticket._id, visibleReplies.length]);
 
     // The composer starts at two lines and grows with its content up to a maximum height.
@@ -168,24 +154,24 @@ export function TicketDetail({
                                 Jump to reply
                             </button>
                         </div>
-                        <ol className="message-list" ref={messageListRef}>
+                        <ol className="message-list">
                             <MessageCard
                                 author={ticket.createdBy}
                                 body={ticket.description}
                                 isInternal={false}
                                 createdAt={ticket.createdAt}
                             />
-                            {visibleReplies.map((reply) => (
+                            {visibleReplies.map((reply, index) => (
                                 <MessageCard
                                     key={reply._id}
                                     author={reply.author}
                                     body={reply.body}
                                     isInternal={reply.isInternal}
                                     createdAt={reply.createdAt}
+                                    innerRef={index === visibleReplies.length - 1 ? latestMessageRef : undefined}
                                 />
                             ))}
                         </ol>
-                        <div ref={threadEndRef} />
                     </div>
 
                     <form className="reply-form" onSubmit={submitReply} noValidate>

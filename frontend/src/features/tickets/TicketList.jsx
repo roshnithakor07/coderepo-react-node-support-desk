@@ -1,14 +1,13 @@
-import { useMemo, useState } from "react";
 import { StatusBadge } from "../../shared/components/Badge.jsx";
-import { SearchIcon } from "../../shared/components/Icon.jsx";
+import { SearchField } from "../../shared/components/SearchField.jsx";
 import { Table } from "../../shared/components/Table.jsx";
-import { formatDateTime, formatSlaCountdown, getSlaProgress, initials } from "../../shared/utils/format.js";
+import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
 
 function PriorityCell({ priority }) {
     return (
         <span className="priority-cell">
             <span className={`priority-dot priority-dot-${priority}`} aria-hidden="true" />
-            {priority}
+            {titleCase(priority)}
         </span>
     );
 }
@@ -24,7 +23,7 @@ function AgentCell({ agent }) {
 }
 
 function SlaCell({ ticket }) {
-    const { percent, tone } = getSlaProgress(ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
+    const { percent, tone } = getSlaProgress(ticket.slaStartedAt || ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
     return (
         <span className="sla-cell">
             <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
@@ -40,31 +39,53 @@ function SlaCell({ ticket }) {
 const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
 const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
 
-export function TicketList({ tickets, total, filters, onFilterChange, onSelectTicket, onNewTicket, isLoading, canCreate = true }) {
-    const [sort, setSort] = useState({ key: "createdAt", direction: "desc" });
-    const hasActiveFilters = Boolean(filters.search || filters.status || filters.priority);
+// Plain-language sort names; the values are the keys the API sorts by.
+const SORT_OPTIONS = [
+    { value: "newest", label: "Newest first" },
+    { value: "oldest", label: "Oldest first" },
+    { value: "title_asc", label: "Title A–Z" },
+    { value: "title_desc", label: "Title Z–A" },
+    { value: "priority_desc", label: "Priority: highest first" },
+    { value: "status", label: "Status" },
+];
 
-    const sortedTickets = useMemo(() => {
-        const copy = [...tickets];
-        copy.sort((a, b) => {
-            const left = sort.key === "createdAt" ? new Date(a.createdAt).getTime() : a[sort.key];
-            const right = sort.key === "createdAt" ? new Date(b.createdAt).getTime() : b[sort.key];
-            const comparison = typeof left === "string" ? left.localeCompare(right) : left - right;
-            return sort.direction === "asc" ? comparison : -comparison;
-        });
-        return copy;
-    }, [tickets, sort]);
+const DEFAULT_SORT = "newest";
+
+// What the list means depends on who is looking: a customer sees their own tickets, an agent the
+// ones assigned to them, an admin everything.
+const SUBTITLES = {
+    admin: "Every ticket in the workspace.",
+    agent: "Tickets assigned to you.",
+    customer: "Tickets you have opened.",
+};
+
+const EMPTY_DESCRIPTIONS = {
+    admin: "Tickets will show up here as soon as customers create them.",
+    agent: "Nothing is assigned to you right now. New tickets appear here once an admin assigns them.",
+    customer: "Create your first ticket to get help from our team.",
+};
+
+export function TicketList({ tickets, total, filters, onFilterChange, onSelectTicket, onNewTicket, isLoading, isRefreshing, role }) {
+    const search = filters.search || "";
+    const hasActiveFilters = Boolean(search || filters.status || filters.priority);
+    const canCreate = role === "customer";
+    const pageSize = filters.pageSize || 20;
+    const page = filters.page || 1;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     function clearFilters() {
-        onFilterChange({ page: 1, pageSize: filters.pageSize || 20 });
+        onFilterChange({ page: 1, pageSize, sort: filters.sort || DEFAULT_SORT });
     }
 
     return (
         <section className="panel">
             <div className="panel-header">
                 <div>
-                    <h2>Tickets</h2>
-                    <p className="panel-subtitle">{total} total &middot; showing your current filters</p>
+                    <p className="panel-count">
+                        {total} {total === 1 ? "ticket" : "tickets"}
+                        {hasActiveFilters ? " match your filters" : ""}
+                    </p>
+                    <p className="panel-subtitle">{SUBTITLES[role]}</p>
                 </div>
                 {canCreate && (
                     <button type="button" className="button-primary" onClick={onNewTicket}>
@@ -74,16 +95,13 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
             </div>
 
             <div className="filter-bar">
-                <div className="search-input">
-                    <SearchIcon />
-                    <input
-                        type="search"
-                        placeholder="Search tickets..."
-                        value={filters.search || ""}
-                        onChange={(event) => onFilterChange({ ...filters, search: event.target.value, page: 1 })}
-                        aria-label="Search tickets"
-                    />
-                </div>
+                <SearchField
+                    id="ticket-search"
+                    value={search}
+                    onChange={(value) => onFilterChange({ ...filters, search: value, page: 1 })}
+                    label="Search tickets"
+                    placeholder="Search tickets..."
+                />
                 <select
                     value={filters.status || ""}
                     onChange={(event) => onFilterChange({ ...filters, status: event.target.value, page: 1 })}
@@ -92,7 +110,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                     <option value="">All statuses</option>
                     {STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
-                            {status.replace("_", " ")}
+                            {titleCase(status)}
                         </option>
                     ))}
                 </select>
@@ -104,7 +122,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                     <option value="">All priorities</option>
                     {PRIORITY_OPTIONS.map((priority) => (
                         <option key={priority} value={priority}>
-                            {priority}
+                            {titleCase(priority)}
                         </option>
                     ))}
                 </select>
@@ -118,13 +136,9 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
             <Table
                 rowKey={(row) => row._id}
                 onRowClick={(row) => onSelectTicket(row._id)}
-                emptyTitle={hasActiveFilters ? "No matching tickets" : "No tickets yet"}
+                emptyTitle={search ? `No tickets match "${search}"` : hasActiveFilters ? "No tickets match your filters" : "No tickets yet"}
                 emptyDescription={
-                    hasActiveFilters
-                        ? "Try clearing your filters to see more results."
-                        : canCreate
-                          ? "Create your first ticket to get help from our team."
-                          : "Tickets will show up here once they're created."
+                    hasActiveFilters ? "Try a different term, or clear the filters to see everything." : EMPTY_DESCRIPTIONS[role]
                 }
                 emptyAction={
                     hasActiveFilters
@@ -133,43 +147,54 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                           ? { label: "New ticket", onClick: onNewTicket }
                           : undefined
                 }
-                rows={sortedTickets}
+                rows={tickets}
                 isLoading={isLoading}
-                sort={sort}
-                onSortChange={setSort}
+                isRefreshing={isRefreshing}
+                sortValue={filters.sort || DEFAULT_SORT}
+                sortOptions={SORT_OPTIONS}
+                onSortChange={(value) => onFilterChange({ ...filters, sort: value, page: 1 })}
                 columns={[
                     {
                         key: "title",
                         header: "Title",
-                        sortable: true,
+                        sort: ["title_asc", "title_desc"],
                         render: (row) => <span className="ticket-title-cell">{row.title}</span>,
                     },
-                    { key: "status", header: "Status", sortable: true, render: (row) => <StatusBadge status={row.status} /> },
-                    { key: "priority", header: "Priority", sortable: true, render: (row) => <PriorityCell priority={row.priority} /> },
+                    { key: "status", header: "Status", sort: ["status"], render: (row) => <StatusBadge status={row.status} /> },
+                    {
+                        key: "priority",
+                        header: "Priority",
+                        sort: ["priority_desc"],
+                        render: (row) => <PriorityCell priority={row.priority} />,
+                    },
                     { key: "assignedTo", header: "Assigned to", render: (row) => <AgentCell agent={row.assignedTo} /> },
                     { key: "sla", header: "SLA", render: (row) => <SlaCell ticket={row} /> },
                     {
                         key: "createdAt",
                         header: "Created",
-                        sortable: true,
+                        sort: ["oldest", "newest"],
                         render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span>,
                     },
                 ]}
             />
 
-            {!isLoading && total > tickets.length && (
+            {!isLoading && totalPages > 1 && (
                 <div className="pagination">
                     <button
                         type="button"
-                        disabled={(filters.page || 1) <= 1}
-                        onClick={() => onFilterChange({ ...filters, page: (filters.page || 1) - 1 })}
+                        disabled={page <= 1 || isRefreshing}
+                        onClick={() => onFilterChange({ ...filters, page: page - 1 })}
                     >
                         Previous
                     </button>
                     <span>
-                        Page {filters.page || 1} of {Math.ceil(total / (filters.pageSize || 20))}
+                        Page {page} of {totalPages}
                     </span>
-                    <button type="button" onClick={() => onFilterChange({ ...filters, page: (filters.page || 1) + 1 })}>
+                    <button
+                        type="button"
+                        disabled={page >= totalPages || isRefreshing}
+                        onClick={() => onFilterChange({ ...filters, page: page + 1 })}
+                    >
                         Next
                     </button>
                 </div>
