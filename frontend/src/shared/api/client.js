@@ -31,7 +31,8 @@ export async function request(path, options = {}) {
             setSessionToken("");
             window.dispatchEvent(new CustomEvent("support-desk-session-expired", { detail: message }));
         }
-        throw new Error(message);
+        // The status travels with the message, so a page can tell "not yours" (403) from "gone" (404).
+        throw Object.assign(new Error(message), { status: response.status, code });
     }
 
     if (!payload || !("data" in payload)) throw new Error("Service returned an invalid response.");

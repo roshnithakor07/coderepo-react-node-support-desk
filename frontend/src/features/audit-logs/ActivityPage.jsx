@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Table } from "../../shared/components/Table.jsx";
 import { formatDateTime, titleCase } from "../../shared/utils/format.js";
 import { auditLogApi } from "./audit-log.api.js";
+import { toHash } from "../../shared/utils/router.js";
+import { ticketPath } from "../../shared/utils/routes.js";
 
 const PAGE_SIZE = 25;
 
@@ -80,7 +82,14 @@ export function ActivityPage({ onOpenTicket }) {
                         {
                             key: "ticket",
                             header: "Ticket",
-                            render: (row) => <span className="ticket-title-cell">{row.ticketId?.title || "Deleted ticket"}</span>,
+                            render: (row) =>
+                                row.ticketId?._id ? (
+                                    <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row.ticketId._id))}>
+                                        {row.ticketId.title}
+                                    </a>
+                                ) : (
+                                    <span className="ticket-title-cell">Deleted ticket</span>
+                                ),
                         },
                         { key: "action", header: "Action", render: (row) => ACTION_LABELS[row.action] || titleCase(row.action) },
                         { key: "details", header: "Details", render: (row) => describeChanges(row) },

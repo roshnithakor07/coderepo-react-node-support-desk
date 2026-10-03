@@ -1,6 +1,8 @@
 import { StatusBadge } from "../../shared/components/Badge.jsx";
 import { InboxIcon } from "../../shared/components/Icon.jsx";
 import { formatSlaCountdown } from "../../shared/utils/format.js";
+import { toHash } from "../../shared/utils/router.js";
+import { ticketPath } from "../../shared/utils/routes.js";
 
 // Each role is looking at a different set of tickets, so the subtitle has to say which.
 const SUBTITLES = {
@@ -15,19 +17,7 @@ const EMPTY_DESCRIPTIONS = {
     customer: "Create your first ticket to get help from our team.",
 };
 
-export function Dashboard({
-    currentUser,
-    tickets,
-    stats,
-    onSelectTicket,
-    onNewTicket,
-    onViewAllTickets,
-    analyticsSummary,
-    isLoading,
-    isRefreshing,
-    error,
-    onRetry,
-}) {
+export function Dashboard({ currentUser, tickets, stats, onNewTicket, analyticsSummary, isLoading, isRefreshing, error, onRetry }) {
     // Counts come from the server, over every ticket this role may see, not just the few listed.
     const { open = 0, resolved = 0, breached = 0 } = stats || {};
     const canCreate = currentUser.role === "customer";
@@ -121,9 +111,9 @@ export function Dashboard({
             <div className="panel-subheader">
                 <h3>Recent tickets</h3>
                 {tickets.length > 0 && (
-                    <button type="button" className="link-button" onClick={onViewAllTickets}>
+                    <a className="link-button" href={toHash("/tickets")}>
                         View all
-                    </button>
+                    </a>
                 )}
             </div>
             {tickets.length === 0 ? (
@@ -141,13 +131,13 @@ export function Dashboard({
                 <ul className="dashboard-ticket-list">
                     {tickets.map((ticket) => (
                         <li key={ticket._id}>
-                            <button type="button" onClick={() => onSelectTicket(ticket._id)}>
+                            <a href={toHash(ticketPath(ticket._id))}>
                                 <span className="ticket-title-cell">{ticket.title}</span>
                                 <StatusBadge status={ticket.status} />
                                 <span className={ticket.slaBreached ? "sla-breached" : "sla-ok"}>
                                     {formatSlaCountdown(ticket.slaDeadline, ticket.slaBreached)}
                                 </span>
-                            </button>
+                            </a>
                         </li>
                     ))}
                 </ul>

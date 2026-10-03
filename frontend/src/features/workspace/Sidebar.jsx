@@ -10,29 +10,32 @@ import {
     UsersIcon,
 } from "../../shared/components/Icon.jsx";
 import { initials } from "../../shared/utils/format.js";
+import { toHash } from "../../shared/utils/router.js";
+import { canOpen, routeForView } from "../../shared/utils/routes.js";
 
 const NAV_SECTIONS = [
     {
         label: "Tickets",
         items: [
-            { key: "dashboard", label: "Dashboard", roles: ["admin", "agent", "customer"], Icon: HomeIcon },
-            { key: "tickets", label: "Tickets", roles: ["admin", "agent", "customer"], Icon: TicketIcon },
+            { view: "dashboard", label: "Dashboard", Icon: HomeIcon },
+            { view: "tickets", label: "Tickets", Icon: TicketIcon },
         ],
     },
     {
         label: "Manage",
         items: [
-            { key: "agents", label: "Agents", roles: ["admin", "agent"], Icon: UsersIcon },
-            { key: "canned-responses", label: "Canned responses", roles: ["admin", "agent"], Icon: MessageIcon },
-            { key: "analytics", label: "Analytics", roles: ["admin"], Icon: ChartIcon },
-            { key: "activity", label: "Activity", roles: ["admin"], Icon: ClockIcon },
-            { key: "settings", label: "Settings", roles: ["admin"], Icon: SettingsIcon },
+            { view: "agents", label: "Agents", Icon: UsersIcon },
+            { view: "canned-responses", label: "Canned responses", Icon: MessageIcon },
+            { view: "analytics", label: "Analytics", Icon: ChartIcon },
+            { view: "activity", label: "Activity", Icon: ClockIcon },
+            { view: "settings", label: "Settings", Icon: SettingsIcon },
         ],
     },
-];
+].map((section) => ({ ...section, items: section.items.map((item) => ({ ...item, route: routeForView(item.view) })) }));
 
-// Below 1000px the sidebar is a drawer: isOpen shows it, and onClose hides it again.
-export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, onLogout, isCollapsed, onToggleCollapse, isOpen, onClose }) {
+// Below 1000px the sidebar is a drawer: isOpen shows it, and onClose hides it again. Nav items are
+// links, so they open in a new tab too; following one changes the URL, and the app follows the URL.
+export function Sidebar({ currentUser, activeView, onOpenProfile, onLogout, isCollapsed, onToggleCollapse, isOpen, onClose }) {
     return (
         <aside id="app-sidebar" className={`sidebar ${isCollapsed ? "sidebar-collapsed" : ""} ${isOpen ? "sidebar-open" : ""}`}>
             <div className="sidebar-brand">
@@ -44,23 +47,23 @@ export function Sidebar({ currentUser, activeView, onNavigate, onOpenProfile, on
             </div>
             <nav aria-label="Main">
                 {NAV_SECTIONS.map((section) => {
-                    const visibleItems = section.items.filter((item) => item.roles.includes(currentUser.role));
+                    const visibleItems = section.items.filter((item) => canOpen(item.route, currentUser.role));
                     if (visibleItems.length === 0) return null;
                     return (
                         <div key={section.label}>
                             {!isCollapsed && <div className="sidebar-section-label">{section.label}</div>}
                             {visibleItems.map((item) => (
-                                <button
-                                    type="button"
-                                    key={item.key}
-                                    className={activeView === item.key ? "active" : ""}
-                                    onClick={() => onNavigate(item.key)}
-                                    aria-current={activeView === item.key ? "page" : undefined}
+                                <a
+                                    key={item.view}
+                                    href={toHash(item.route.path)}
+                                    className={activeView === item.view ? "active" : ""}
+                                    onClick={onClose}
+                                    aria-current={activeView === item.view ? "page" : undefined}
                                     title={isCollapsed ? item.label : undefined}
                                 >
                                     <item.Icon />
                                     {!isCollapsed && <span>{item.label}</span>}
-                                </button>
+                                </a>
                             ))}
                         </div>
                     );
