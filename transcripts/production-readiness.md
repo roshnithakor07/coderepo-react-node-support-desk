@@ -1029,3 +1029,19 @@ and reported.
   rebuilding navigation inside a QA branch is the kind of architecture change I ask about first.
 - **Customers closing and reopening their own tickets** (my decision 5a). The server forbids it today
   and no screen offers it, so it is consistent rather than half-built. It needs its own branch.
+
+### My decisions on the low findings (2026-10-03T05:38:14+00:00)
+
+I approved the branch and decided each low item, with my reasons. None of them is dropped; each has a
+named branch so it cannot quietly disappear.
+
+| Item | My decision | My reason |
+|---|---|---|
+| L1 refresh / Back | Fix it with **hash routing** (already approved, no new package), on its own branch `feat/hash-routing`, **after** `feat/ticket-lifecycle` | A reviewer refreshes the page or presses Back within a minute of opening the app. Landing back on the dashboard, or leaving the app entirely, reads as broken. |
+| L2 customer close / reopen | Build it in `feat/ticket-lifecycle` | It is my decision 5a and the server already restarts the SLA clock correctly, so the rule is ready for a screen. |
+| L3 admin notification bell | Admins get notified of **SLA breaches** and of **tickets with no assignee**, in `feat/ticket-lifecycle` | An always-empty bell looks broken. These are the two things an admin actually needs to act on. |
+| L4 handing a ticket away | Return the agent to the ticket list with a toast **"Ticket handed to <name>"**, in `feat/ticket-lifecycle` | The agent loses access the moment they reassign, so leaving the ticket on screen until the next click is misleading. |
+| `seed.js` one-line edit (`slaStartedAt`) | Approved | It is our product's seed; the read-only path only protects it from candidates during the assessment. Decision already recorded on the previous branch. |
+
+**Merge:** `fix/functional-qa` merged into `main` with `--no-ff`, branch deleted locally and on origin,
+all tests re-run on `main`.
