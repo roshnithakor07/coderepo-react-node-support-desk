@@ -1178,3 +1178,7 @@ My own test-harness bugs (not app bugs), fixed: the first runs loaded the app, t
 **Results:** API 174/174; routing unit tests 21/21; build OK; dependency sections identical to the reference.
 - Browser routing check: 93/93 (every URL as each role, refresh, filters/sort/page in the URL, Back/Forward, new-tab links, sign-in return, expired session, sign-out, drawer closing and scroll reset at 375, 768 and 900), 0 console errors.
 - Layout rect check: 304 states (every page, role and width; the open drawer; dialogs; the notification panel; the no-access and not-found pages), 33,970 elements, 0 outside the screen, 0 sideways scrollers, 0 console errors.
+
+## [2026-10-03T11:32:48+00:00] `feat/hash-routing` approved and merged
+
+Approved by the user. Merged with --no-ff (main `d0d79bc`), pushed, and the branch deleted locally and on origin. On main: API 174/174, routing unit tests 21/21, build OK. Dependency sections still identical to the reference. The video walkthrough Darshan asked for is still to be recorded before submitting.
