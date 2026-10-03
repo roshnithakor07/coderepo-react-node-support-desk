@@ -3112,6 +3112,143 @@ textarea:disabled {
     flex: 1;
 }
 
+/* A category something still depends on cannot be removed, so its chip is muted and carries the
+   count that explains why. */
+.category-tag-locked {
+    opacity: 0.75;
+}
+
+.category-tag-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 100%;
+}
+
+.category-tag-reason {
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 260px;
+}
+
+/* Agent teams: the categories an agent works, as checkboxes drawn from Settings. */
+.category-picker {
+    border: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+
+.category-picker-hint {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.category-picker-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.category-picker-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.category-picker-option input {
+    width: auto;
+    margin: 0;
+}
+
+.category-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+/* The two views of the ticket list: the viewer's own tickets, and the unassigned queue. */
+.view-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.view-tabs a {
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+}
+
+.view-tabs a:hover {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.view-tabs a.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* Editing an internal note, inside the message it belongs to. */
+.message-card-edited {
+    font-style: italic;
+}
+
+.message-card-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.message-card-note-reason {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.message-card-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.message-card-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* The "Opened by" line and the action that edits what the ticket says, on one row. */
+.ticket-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ticket-meta-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+}
+
 .settings-form-actions {
     display: flex;
     justify-content: flex-end;

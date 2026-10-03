@@ -1,8 +1,10 @@
 import { Ticket } from "./ticket.model.js";
 
+// The assignee's categories come along because the team rules are checked against them: refiling a
+// ticket has to know whether whoever owns it covers the new category.
 const populateFields = [
     { path: "createdBy", select: "name email role avatar" },
-    { path: "assignedTo", select: "name email role avatar" },
+    { path: "assignedTo", select: "name email role avatar categories" },
     { path: "replies.author", select: "name email role avatar" },
 ];
 
@@ -86,6 +88,16 @@ export const ticketRepository = {
             { $project: { _id: 0 } },
         ]);
         return summary || { total: 0, open: 0, resolved: 0, breached: 0 };
+    },
+
+    // How many tickets still in the working queue sit in each of these categories, which is what
+    // stops a category being deleted while work is filed under it.
+    async countOpenByCategories(categories, activeStatuses) {
+        const rows = await Ticket.aggregate([
+            { $match: { category: { $in: categories }, status: { $in: activeStatuses } } },
+            { $group: { _id: "$category", count: { $sum: 1 } } },
+        ]);
+        return Object.fromEntries(rows.map((row) => [row._id, row.count]));
     },
 
     create: (input) => Ticket.create(input),

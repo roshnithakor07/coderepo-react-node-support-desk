@@ -2,7 +2,11 @@ export const SEEDED_PASSWORD = "SupportDesk@2026";
 
 export const SEEDED_ACCOUNTS = {
     admin: "admin1@example.com",
+    // Named by the team each one is on, because the category rules are what the tests ask about:
+    // agent1 covers billing and technical, agent3 billing and account, agent4 general alone.
     agent: "agent1@example.com",
+    agentAccount: "agent3@example.com",
+    agentGeneral: "agent4@example.com",
     customer: "customer1@example.com",
     inactiveAgent: "agent5@example.com",
 };

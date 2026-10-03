@@ -54,12 +54,21 @@ async function seedUsers() {
         { name: "Marcus Chen", email: "admin2@example.com", password, role: "admin" },
     ]);
 
+    // Every agent works one or more categories. Among the active agents, "general" is deliberately
+    // covered by Noah alone, so that category has a single point of failure the Agents page shows.
     const agents = await User.insertMany([
-        { name: "Priya Sharma", email: "agent1@example.com", password, role: "agent" },
-        { name: "Diego Fernandez", email: "agent2@example.com", password, role: "agent" },
-        { name: "Lena Kowalski", email: "agent3@example.com", password, role: "agent" },
-        { name: "Noah Williams", email: "agent4@example.com", password, role: "agent" },
-        { name: "Sofia Rossi", email: "agent5@example.com", password, role: "agent", isActive: false },
+        { name: "Priya Sharma", email: "agent1@example.com", password, role: "agent", categories: ["billing", "technical"] },
+        { name: "Diego Fernandez", email: "agent2@example.com", password, role: "agent", categories: ["technical", "account"] },
+        { name: "Lena Kowalski", email: "agent3@example.com", password, role: "agent", categories: ["billing", "account"] },
+        { name: "Noah Williams", email: "agent4@example.com", password, role: "agent", categories: ["general"] },
+        {
+            name: "Sofia Rossi",
+            email: "agent5@example.com",
+            password,
+            role: "agent",
+            categories: ["general", "account"],
+            isActive: false,
+        },
     ]);
 
     const customers = await User.insertMany([
@@ -153,8 +162,10 @@ const TICKET_BLUEPRINTS = [
     // Closed three weeks ago: past the 14-day reopen window, so the ticket page shows why it cannot
     // be reopened and points the customer at a new ticket.
     { title: "Old import job never finished", priority: "medium", category: "technical", status: "closed", ageHours: 504, resolvedAfterHours: 9, closedAfterHours: 11 },
-    // Nobody picked this one up, which is what the admin "no assignee" alert is for.
+    // Nobody picked these two up, which is what the unassigned queue and the admin "no assignee"
+    // alert are for. They sit in different categories, so each agent's queue shows only its own.
     { title: "Cannot download my past invoices", priority: "medium", category: "billing", status: "open", ageHours: 1, unassigned: true },
+    { title: "Where do I find my account history?", priority: "low", category: "general", status: "open", ageHours: 13, unassigned: true },
 ];
 
 const REPLY_SNIPPETS = [
@@ -165,6 +176,14 @@ const REPLY_SNIPPETS = [
     "Appreciate your patience while we work through this.",
 ];
 
+// A ticket only ever sits with an agent whose team covers its category, so the team rule is already
+// true of the seeded board. Round-robin within the eligible agents spreads the workload, and
+// `null` means nobody active covers it, which puts the ticket in the unassigned queue.
+function pickAgent(activeAgents, category, index) {
+    const eligible = activeAgents.filter((agent) => agent.categories.includes(category));
+    return eligible.length > 0 ? eligible[index % eligible.length] : null;
+}
+
 async function seedTickets(agents, customers) {
     console.log("\nSeeding tickets...");
     const activeAgents = agents.filter((agent) => agent.isActive);
@@ -173,7 +192,7 @@ async function seedTickets(agents, customers) {
     for (let index = 0; index < TICKET_BLUEPRINTS.length; index += 1) {
         const blueprint = TICKET_BLUEPRINTS[index];
         const customer = customers[index % customers.length];
-        const agent = activeAgents[index % activeAgents.length];
+        const agent = blueprint.unassigned ? null : pickAgent(activeAgents, blueprint.category, index);
         // The deadline follows the seeded SLA hours for the ticket's priority, like a ticket created in the app.
         // A ticket is breached if it is still open past its deadline, or was resolved after it.
         const createdAt = hoursAgo(blueprint.ageHours);
@@ -184,7 +203,7 @@ async function seedTickets(agents, customers) {
         const closedAt = blueprint.status === "closed" ? hoursAgo(blueprint.ageHours - blueprint.closedAfterHours) : null;
         const slaBreached = (resolvedAt || new Date()).getTime() > slaDeadline.getTime();
 
-        const replyCount = blueprint.unassigned ? 0 : index % 3;
+        const replyCount = agent ? index % 3 : 0;
         const replies = [];
         for (let replyIndex = 0; replyIndex < replyCount; replyIndex += 1) {
             const isAgentReply = replyIndex % 2 === 0;
@@ -204,14 +223,14 @@ async function seedTickets(agents, customers) {
             category: blueprint.category,
             tags: [blueprint.category, blueprint.priority],
             createdBy: customer._id,
-            assignedTo: blueprint.unassigned ? null : agent._id,
+            assignedTo: agent ? agent._id : null,
             slaStartedAt: createdAt,
             slaDeadline,
             slaBreached,
             resolvedAt,
             closedAt,
             // The admins are told about an unowned ticket once, and the seeded alert below is that one time.
-            unassignedNotifiedAt: blueprint.unassigned ? createdAt : null,
+            unassignedNotifiedAt: agent ? null : createdAt,
             replies,
             createdAt,
             updatedAt: createdAt,
@@ -354,6 +373,8 @@ async function seed() {
         console.log(`   Password: ${PASSWORD}`);
         console.log("   Admin:    admin1@example.com / admin2@example.com");
         console.log("   Agent:    agent1@example.com ... agent5@example.com (agent5 is inactive)");
+        console.log("             teams: agent1 billing+technical, agent2 technical+account,");
+        console.log("                    agent3 billing+account, agent4 general, agent5 general+account");
         console.log("   Customer: customer1@example.com ... customer3@example.com");
         console.log("=================================================\n");
     } catch (error) {

@@ -15,6 +15,16 @@ import {
     statusAfterCustomerReply,
     statusAfterStaffReply,
 } from "./ticket-lifecycle.js";
+import { assertNoteEditable, canEditNote, noteEditBlockedReason } from "./ticket-notes.js";
+import {
+    assertAssigneeCoversCategory,
+    assertInTeam,
+    categoryLabel,
+    coversCategory,
+    isClaimableByTeam,
+    normalizeCategories,
+    unownedOutsideTeamReason,
+} from "./ticket-teams.js";
 import { ticketRepository } from "./ticket.repository.js";
 
 // Each sort the UI offers maps to one database sort. `priorityRank`, `statusRank` and `titleSort`
@@ -45,8 +55,11 @@ function searchConditions(term) {
     return [{ title: pattern }, { description: pattern }];
 }
 
-async function pickAutoAssignee() {
-    const candidates = await authRepository.findAgentsWithWorkload();
+// The ticket goes to the least-loaded active agent who covers its category. Nobody covering it means
+// nobody is picked: the ticket waits in the unassigned queue and the admins hear about it, which is
+// better than handing it to an agent who is not allowed to work it.
+async function pickAutoAssignee(category) {
+    const candidates = await authRepository.findAgentsWithWorkload({ category });
     return candidates.length > 0 ? candidates[0] : null;
 }
 
@@ -58,10 +71,37 @@ function scopeFor(actor) {
     return {};
 }
 
+// The unassigned queue: tickets still in the working queue that nobody owns. An agent sees only the
+// categories their team covers, an admin the whole backlog. A customer has no such queue.
+function unassignedScopeFor(actor) {
+    if (actor.role === "customer") {
+        throw new AppError(403, "FORBIDDEN", "The unassigned queue is for the support team. Your tickets are on the Tickets page.");
+    }
+    const base = { assignedTo: null, status: { $in: ACTIVE_STATUSES } };
+    if (actor.role === "admin") return base;
+    return { ...base, category: { $in: normalizeCategories(actor.categories) } };
+}
+
+function scopeForView(actor, view) {
+    return view === "unassigned" ? unassignedScopeFor(actor) : scopeFor(actor);
+}
+
+// A filter value the current scope allows, or a condition that matches nothing. `$in: []` is how a
+// filter outside the scope returns an empty list instead of silently widening it.
+function narrowTo(value, isAllowed) {
+    return isAllowed ? value : { $in: [] };
+}
+
 function assertCanView(ticket, actor) {
     if (actor.role === "admin") return;
     if (actor.role === "agent" && String(ticket.assignedTo?._id || ticket.assignedTo) === actor.id) return;
+    // An agent can open anything in their own queue, which is how they get to the page they claim
+    // it from.
+    if (isClaimableByTeam(ticket, actor)) return;
     if (actor.role === "customer" && String(ticket.createdBy?._id || ticket.createdBy) === actor.id) return;
+    // Refused either way; an agent looking at the shared backlog is told which team it belongs to.
+    const outsideTeam = unownedOutsideTeamReason(ticket, actor);
+    if (outsideTeam) throw new AppError(403, "OUTSIDE_TEAM", outsideTeam);
     throw new AppError(403, "FORBIDDEN", "You do not have access to this ticket.");
 }
 
@@ -71,13 +111,31 @@ function presentTicket(ticket, actor) {
     return { ...ticket, replies: ticket.replies.filter((reply) => !reply.isInternal) };
 }
 
+// Each internal note carries whether this viewer may still change it, and why not, so the Edit and
+// Delete controls appear on exactly the notes the API would accept them for.
+function presentReplies(replies, actor, now) {
+    return (replies || []).map((reply) =>
+        reply.isInternal
+            ? { ...reply, canEdit: canEditNote(reply, actor, now), editBlockedReason: noteEditBlockedReason(reply, actor, now) }
+            : reply,
+    );
+}
+
 // The ticket page also gets what this viewer may do and why not, so every control is hidden or
 // disabled from the same rules the API enforces.
 function presentTicketDetail(ticket, actor) {
+    const now = new Date();
     const presented = presentTicket(ticket, actor);
     // Permissions are derived from the full ticket: an internal note still counts as a reply even
     // though the customer never sees it.
-    return { ...presented, permissions: permissionsFor(ticket, actor) };
+    return {
+        ...presented,
+        replies: presentReplies(presented.replies, actor, now),
+        permissions: {
+            ...permissionsFor(ticket, actor, now),
+            canClaim: isClaimableByTeam(ticket, actor),
+        },
+    };
 }
 
 // Reopening restarts the SLA clock from this moment. Measuring it from the original creation time
@@ -108,6 +166,21 @@ async function applyStatusChange(ticket, next, at, changes) {
     return reopening;
 }
 
+// Loads the ticket and the one reply an edit or a delete names, with every check both actions share:
+// the ticket is reachable and not closed, the reply exists, and this person may still change it.
+async function findReplyForEdit(ticketId, replyId, actor) {
+    const ticket = await ticketRepository.findById(ticketId);
+    if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+    assertCanView(ticket, actor);
+    assertNotClosed(ticket);
+
+    const reply = ticket.replies.id(replyId);
+    if (!reply) throw new AppError(404, "REPLY_NOT_FOUND", "That message is no longer on this ticket.");
+    assertNoteEditable(reply, actor);
+
+    return { ticket, reply };
+}
+
 function statusChangeMessage(ticket) {
     return `Ticket "${ticket.title}" status changed to ${STATUS_LABELS[ticket.status] || ticket.status}.`;
 }
@@ -129,14 +202,15 @@ function toHistoryEntry(entry) {
 export const ticketService = {
     async create(input, actor) {
         const slaStartedAt = new Date();
+        const category = input.category || "general";
         const slaDeadline = await computeSlaDeadline(input.priority, slaStartedAt);
-        const autoAssignee = await pickAutoAssignee();
+        const autoAssignee = await pickAutoAssignee(category);
 
         const ticket = await ticketRepository.create({
             title: input.title,
             description: input.description,
             priority: input.priority,
-            category: input.category || "general",
+            category,
             tags: input.tags || [],
             createdBy: actor.id,
             assignedTo: autoAssignee ? autoAssignee._id : null,
@@ -157,10 +231,12 @@ export const ticketService = {
                 ticket._id,
             );
         } else {
+            // Nobody covers this category, so the admins are the ones who have to act: either claim
+            // it onto a team or put somebody on that category.
             await notificationService.notifyMany(
                 await authRepository.findAdminIds(),
                 "ticket_unassigned",
-                `Ticket "${ticket.title}" has no assignee and is waiting to be picked up.`,
+                `Ticket "${ticket.title}" is in ${categoryLabel(category)} with no agent covering it, and is waiting to be picked up.`,
                 ticket._id,
             );
         }
@@ -169,12 +245,21 @@ export const ticketService = {
     },
 
     async list(filters, actor) {
-        const query = scopeFor(actor);
+        const query = scopeForView(actor, filters.view);
+        const isUnassignedQueue = filters.view === "unassigned";
 
-        if (filters.status) query.status = filters.status;
+        // Inside the unassigned queue a filter can only narrow what the queue already allows, never
+        // widen it: asking for a finished status, or for a category the team does not cover, matches
+        // nothing rather than reaching past the scope.
+        if (filters.status) query.status = narrowTo(filters.status, !isUnassignedQueue || ACTIVE_STATUSES.includes(filters.status));
         if (filters.priority) query.priority = filters.priority;
-        if (filters.category) query.category = filters.category;
-        if (filters.assignedTo && actor.role === "admin") query.assignedTo = filters.assignedTo;
+        if (filters.category) {
+            query.category = narrowTo(
+                filters.category,
+                !isUnassignedQueue || actor.role === "admin" || coversCategory(actor, filters.category),
+            );
+        }
+        if (filters.assignedTo && actor.role === "admin" && !isUnassignedQueue) query.assignedTo = filters.assignedTo;
         const search = (filters.search || "").trim();
         if (search) query.$or = searchConditions(search);
 
@@ -207,7 +292,7 @@ export const ticketService = {
         const ticket = await ticketRepository.findById(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
-        assertPatchAllowed(patch, actor);
+        assertPatchAllowed(patch, ticket, actor);
 
         const now = new Date();
         const nextStatus = patch.status && patch.status !== ticket.status ? patch.status : null;
@@ -250,6 +335,9 @@ export const ticketService = {
         }
 
         if (patch.category && patch.category !== ticket.category) {
+            // Refiling a ticket cannot leave it owned by an agent who is not on that category's
+            // team, or the team rule would be true at assignment and false a moment later.
+            assertAssigneeCoversCategory(ticket.assignedTo, patch.category);
             changes.category = { from: ticket.category, to: patch.category };
             ticket.category = patch.category;
         }
@@ -282,13 +370,42 @@ export const ticketService = {
         if (!agent || agent.role !== "agent" || !agent.isActive) {
             throw new AppError(400, "INVALID_AGENT", "The selected agent is not available for assignment.");
         }
+        // The second access rule: an agent works only the categories their team covers, whether they
+        // are claiming the ticket themselves or an admin is handing it to them.
+        assertInTeam(agent, ticket.category, actor);
 
+        const isClaim = String(agent._id) === actor.id;
         ticket.assignedTo = agent._id;
         // Somebody owns it again, so a later spell without an assignee alerts the admins afresh.
         ticket.unassignedNotifiedAt = null;
         await ticketRepository.save(ticket);
-        await auditLogService.record(ticket._id, "assigned", actor.id, { assignedTo: agent.name });
-        await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
+        await auditLogService.record(ticket._id, isClaim ? "claimed" : "assigned", actor.id, { assignedTo: agent.name });
+        // Claiming a ticket needs no notification: the agent who did it is looking at the ticket.
+        if (!isClaim) {
+            await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
+        }
+
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+    },
+
+    // An internal note is a working note: its author (or an admin) can correct it while it is fresh.
+    async updateReply(id, replyId, body, actor) {
+        const { ticket, reply } = await findReplyForEdit(id, replyId, actor);
+
+        reply.body = body;
+        reply.editedAt = new Date();
+        await ticketRepository.save(ticket);
+        await auditLogService.record(ticket._id, "note_edited", actor.id, { replyId: String(reply._id) });
+
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+    },
+
+    async deleteReply(id, replyId, actor) {
+        const { ticket, reply } = await findReplyForEdit(id, replyId, actor);
+
+        reply.deleteOne();
+        await ticketRepository.save(ticket);
+        await auditLogService.record(ticket._id, "note_deleted", actor.id, { replyId: String(replyId) });
 
         return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
     },

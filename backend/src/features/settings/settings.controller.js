@@ -34,7 +34,7 @@ const updateSchema = z
 
 export async function getSettings(request, response, next) {
     try {
-        const settings = await settingsService.getSettings();
+        const settings = await settingsService.getSettingsWithUsage();
         response.json({ data: settings });
     } catch (error) {
         next(error);

@@ -47,8 +47,12 @@ const CUSTOMER_TRANSITIONS = {
     closed: ["open"],
 };
 
-// Fields only the support team may edit. A customer's patch may carry `status` and nothing else.
-export const STAFF_ONLY_FIELDS = ["title", "description", "priority", "category", "tags"];
+// Fields only the support team may edit, whatever state the ticket is in: how urgent it is, where it
+// is filed and how it is tagged are the team's calls, not the requester's.
+export const STAFF_ONLY_FIELDS = ["priority", "category", "tags"];
+
+// What a requester may correct on their own ticket, while the correction can still be acted on.
+export const REQUESTER_FIELDS = ["title", "description"];
 
 export function isActiveStatus(status) {
     return ACTIVE_STATUSES.includes(status);
@@ -161,14 +165,41 @@ export function assertTransitionAllowed(ticket, next, actor, now = new Date()) {
     }
 }
 
-// A customer may send `status` and nothing else: the title, description, priority, category and tags
-// belong to the team working the ticket.
-export function assertPatchAllowed(patch, actor) {
+// A requester can still fix what they wrote while nobody has acted on it: the ticket is open and the
+// team has not answered yet. After that the description is what the answer was written against, so
+// changing it would leave the conversation talking about a question that is no longer there. A reply
+// is the way to add to it.
+export function requesterEditBlockedReason(ticket) {
+    // The answer is the more specific cause, and the usual one: a staff reply is also what moves an
+    // open ticket into progress, so checking the status first would report the symptom.
+    if (hasPublicStaffReply(ticket)) {
+        return "Our team has already replied to this ticket, so its title and description are fixed. Add a reply instead and we will pick it up.";
+    }
+    if (ticket.status !== "open") {
+        return "Work has already started on this ticket, so its title and description are fixed. Add a reply instead and we will pick it up.";
+    }
+    return null;
+}
+
+// A customer may send `status`, and their own title and description while the ticket is still
+// untouched. Priority, category and tags belong to the team working the ticket.
+export function assertPatchAllowed(patch, ticket, actor) {
     if (actor.role !== "customer") return;
+
     const staffField = STAFF_ONLY_FIELDS.find((field) => patch[field] !== undefined);
     if (staffField) {
-        throw new AppError(403, "FORBIDDEN", "Only the support team can edit a ticket's details. Reply on the ticket to add information.");
+        throw new AppError(
+            403,
+            "FORBIDDEN",
+            "Only the support team can set a ticket's priority, category and tags. Reply on the ticket if something has changed.",
+        );
     }
+
+    const editsOwnFields = REQUESTER_FIELDS.some((field) => patch[field] !== undefined);
+    if (!editsOwnFields) return;
+    const blocked = requesterEditBlockedReason(ticket);
+    // The ticket has moved on, which is a conflict with its state rather than a permission failure.
+    if (blocked) throw new AppError(409, "TICKET_LOCKED", blocked);
 }
 
 // Where a customer's reply puts a ticket that was waiting or already finished. `pending` means the
@@ -192,6 +223,7 @@ export function permissionsFor(ticket, actor, now = new Date()) {
     const isRequester = String(ticket.createdBy?._id || ticket.createdBy) === actor.id;
     const isStaff = actor.role === "admin" || actor.role === "agent";
     const closed = ticket.status === "closed";
+    const requesterEditBlocked = isRequester && !isStaff ? requesterEditBlockedReason(ticket) : null;
 
     return {
         nextStatuses: allowedNextStatuses(ticket, actor, now),
@@ -199,6 +231,10 @@ export function permissionsFor(ticket, actor, now = new Date()) {
         canReply: !closed,
         canEditFields: isStaff && !closed,
         canAssign: isStaff && !closed,
+        // A requester edits their own wording while the ticket is untouched; the team edits it for as
+        // long as the ticket is open at all.
+        canEditDetails: isStaff ? !closed : isRequester && !requesterEditBlocked,
+        requesterEditBlockedReason: requesterEditBlocked,
         resolveBlockedReason: isStaff ? resolveBlockedReason(ticket) : null,
         closedReason: closedReason(ticket),
         reopenBlockedReason: reopenBlockedReason(ticket, now),

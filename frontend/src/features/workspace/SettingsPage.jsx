@@ -7,6 +7,22 @@ const PRIORITIES = ["critical", "high", "medium", "low"];
 const MAX_SLA_HOURS = 720;
 const MAX_CATEGORIES = 20;
 
+function countPhrase(count, singular) {
+    return `${count} ${count === 1 ? singular : `${singular}s`}`;
+}
+
+// A category agents are on, or open tickets are filed under, cannot be removed: the server refuses
+// it, so the remove button says why instead of letting the save fail.
+function inUseReason(category, usage) {
+    const entry = usage?.[category];
+    if (!entry) return "";
+    const parts = [];
+    if (entry.agents > 0) parts.push(countPhrase(entry.agents, "agent"));
+    if (entry.openTickets > 0) parts.push(countPhrase(entry.openTickets, "open ticket"));
+    if (parts.length === 0) return "";
+    return `Used by ${parts.join(" and ")}. Move them elsewhere before removing it.`;
+}
+
 export function SettingsPage({ settings, onSave, isBusy, error, loadError, onRetry }) {
     const [slaHours, setSlaHours] = useState(settings?.slaHours || { critical: 1, high: 4, medium: 8, low: 24 });
     const [categories, setCategories] = useState(settings?.categories || []);
@@ -165,22 +181,31 @@ export function SettingsPage({ settings, onSave, isBusy, error, loadError, onRet
 
                     {categories.length > 0 ? (
                         <ul className="category-tag-list">
-                            {categories.map((category) => (
-                                <li key={category}>
-                                    <span className="tag category-tag">
-                                        {titleCase(category)}
-                                        <button
-                                            type="button"
-                                            className="category-tag-remove"
-                                            onClick={() => handleRemoveCategory(category)}
-                                            aria-label={`Remove ${category} category`}
-                                            disabled={isBusy}
-                                        >
-                                            <CloseIcon />
-                                        </button>
-                                    </span>
-                                </li>
-                            ))}
+                            {categories.map((category) => {
+                                const reason = inUseReason(category, settings.categoryUsage);
+                                return (
+                                    <li key={category}>
+                                        <span className={`tag category-tag ${reason ? "category-tag-locked" : ""}`}>
+                                            {titleCase(category)}
+                                            <button
+                                                type="button"
+                                                className="category-tag-remove"
+                                                onClick={() => handleRemoveCategory(category)}
+                                                aria-label={
+                                                    reason
+                                                        ? `${titleCase(category)} cannot be removed. ${reason}`
+                                                        : `Remove ${category} category`
+                                                }
+                                                title={reason || `Remove ${titleCase(category)}`}
+                                                disabled={isBusy || Boolean(reason)}
+                                            >
+                                                <CloseIcon />
+                                            </button>
+                                        </span>
+                                        {reason && <span className="category-tag-reason">{reason}</span>}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     ) : (
                         <p className="settings-section-description">No categories yet - add one below.</p>

@@ -72,6 +72,55 @@ open -> in_progress -> pending <-> in_progress -> resolved -> closed
 | Admins are told about every breach, not only the assignee | background sweep | - | "an SLA breach reaches every admin, not only the assignee" |
 | A ticket with no assignee is reported to the admins once, not every minute | background sweep | - | "the sweep reports a ticket with no assignee once, not every minute" |
 
+### Agent teams, the second kind of access rule
+
+Access is decided twice: by role, and by team. Every agent covers one or more of the categories from
+Settings, and works only inside them. An agent with no categories yet covers nothing, which is what an
+account created before teams existed looks like until an admin sets them on the Agents page.
+
+| Rule | Endpoint | Code | Test |
+|---|---|---|---|
+| An agent sees their own tickets plus an unassigned queue limited to their categories | `GET /tickets?view=unassigned` | 200 | "an agent sees the tickets nobody owns in their own categories, and no others" |
+| Another team's queue holds the rest; an admin's queue is the whole backlog | `GET /tickets?view=unassigned` | 200 | "another team's queue holds the other tickets", "an admin's queue is the whole backlog" |
+| A customer has no unassigned queue | `GET /tickets?view=unassigned` | 403 `FORBIDDEN` | "a customer has no unassigned queue" |
+| A filter inside the queue narrows it and never reaches past the team | `GET /tickets?view=unassigned` | 200 | "a filter inside the queue narrows it and never reaches past the team" |
+| An agent can open and claim an unowned ticket in their categories | `GET`/`POST /tickets/:id/assign` | 200 | "claiming takes the ticket, clears the unassigned alert and is recorded as a claim" |
+| An agent cannot open an unowned ticket outside them, and hears which team has it | `GET /tickets/:id` | 403 `OUTSIDE_TEAM` | "an agent cannot open an unowned ticket outside their categories, and hears which team has it" |
+| An agent cannot claim a ticket outside their categories; the message names the category | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an agent cannot claim a ticket outside their categories, and the message names it" |
+| An admin cannot assign a ticket to an agent whose team does not cover it | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an admin cannot hand a billing ticket to an agent who covers only general" |
+| The rule holds on tickets seeded days ago, and on agents who have no categories yet | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "the rule holds on a ticket seeded days ago, not only on new ones", "an agent with no categories yet covers nothing" |
+| Auto-assignment picks the least-loaded active agent in the ticket's category | `POST /tickets` | 201 | "the ticket goes to somebody whose team covers it" |
+| With nobody covering the category the ticket waits in the queue and every admin is told | `POST /tickets` | 201 | "with nobody covering the category the ticket waits in the queue and the admins are told" |
+| Refiling a ticket cannot leave it with an assignee outside that category's team | `PUT /tickets/:id` | 409 `ASSIGNEE_OUTSIDE_TEAM` | "moving it to a category the assignee does not cover is refused" |
+| Only an admin sets an agent's categories | `PATCH /agents/:id/categories` | 403 `FORBIDDEN` | "an agent cannot change a team" |
+| An agent's categories must exist in Settings | `POST /agents`, `PATCH /agents/:id/categories` | 422 `UNKNOWN_CATEGORY` | "a category that is not in Settings is refused, and the message says where to add it" |
+| An agent must be on at least one category | `POST /agents`, `PATCH /agents/:id/categories` | 400 `VALIDATION_ERROR` | "an empty team is refused: an agent nothing can reach is not a team" |
+| Changing a team never moves what the agent already holds | `PATCH /agents/:id/categories` | 200 | "an admin sets them, and what the agent already holds stays with them" |
+
+### The requester's edit window
+
+| Rule | Endpoint | Code | Test |
+|---|---|---|---|
+| A requester can correct the title and description while the ticket is open and unanswered | `PUT /tickets/:id` | 200 | "the title and description can be corrected on an open ticket nobody has answered" |
+| An internal note does not close the window, because the customer never sees it | `PUT /tickets/:id` | 200 | "an internal note does not count as an answer, because the customer never sees it" |
+| A public staff reply closes it; the reason given is the answer, not the status move it caused | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "a public staff reply locks the title and description, and the message says why" |
+| Work starting on the ticket closes it too, with its own reason | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "work starting on the ticket locks it too, with its own reason" |
+| The page hides the edit button and shows the same reason | `GET /tickets/:id` | 200 | "the page hides the edit button and shows the same reason" |
+| The support team edits a ticket for as long as it is not closed | `PUT /tickets/:id` | 200 | "an admin can rename a ticket the customer no longer can", "so can the agent the ticket is assigned to" |
+
+### Internal notes are editable for fifteen minutes
+
+| Rule | Endpoint | Code | Test |
+|---|---|---|---|
+| The author, or an admin, can edit a note within 15 minutes; the ticket then shows it as edited | `PUT /tickets/:id/replies/:replyId` | 200 | "editing it changes the text, marks it edited and leaves the posting time alone" |
+| They can delete it in the same window | `DELETE /tickets/:id/replies/:replyId` | 200 | "deleting it takes it off the ticket" |
+| After 15 minutes it is part of the ticket's record | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 422 `EDIT_WINDOW_EXPIRED` | "a note posted 16 minutes ago can no longer be edited or deleted" |
+| Nobody else can change it, and the page gives them no controls for it | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "another agent on the same ticket cannot touch it, and sees no trace of the controls" |
+| An admin can remove any note, because somebody has to be able to | `DELETE /tickets/:id/replies/:replyId` | 200 | "an admin can remove any note, because somebody has to be able to" |
+| A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
+| Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
+| A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
+
 ### Access
 
 | Rule | Endpoint | Code | Test |
@@ -79,7 +128,7 @@ open -> in_progress -> pending <-> in_progress -> resolved -> closed
 | Only customers raise tickets | `POST /tickets` | 403 `FORBIDDEN` | "an agent may not", "an admin may not" |
 | A customer sees and touches only their own tickets | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot touch someone else's ticket" |
 | A customer may close or reopen their own ticket, and nothing else in the lifecycle | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot move a ticket anywhere else in the lifecycle" |
-| A customer cannot edit a ticket's details or priority | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot edit a ticket's details or priority" |
+| A customer cannot set a ticket's priority, category or tags | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot set a ticket's priority, category or tags" |
 | Internal notes never reach a customer, on any endpoint that returns a ticket | `GET /tickets`, `GET /tickets/:id` | 200 | "ticket detail omits internal note content but keeps public replies", "ticket list omits internal note content" |
 | A customer cannot post an internal note | `POST /tickets/:id/replies` | 201 (forced public) | "a customer cannot post an internal note" |
 | An agent may assign only a ticket they can see; an admin any ticket | `POST /tickets/:id/assign` | 403 `FORBIDDEN` | "an agent cannot reassign a ticket assigned to another agent" |
@@ -95,6 +144,9 @@ open -> in_progress -> pending <-> in_progress -> resolved -> closed
 | An agent's template is personal; only an admin can publish a global one | `POST /canned-responses` | 201 | "an agent's template is personal, whatever they ask for" |
 | A template is deletable only by its author or an admin | `DELETE /canned-responses/:id` | 403 `FORBIDDEN` | "an agent cannot delete a template somebody else owns" |
 | Only admins change settings | `PUT /settings` | 403 `FORBIDDEN` | "only admins can change settings" |
+| A category agents are on, or open tickets are filed under, cannot be removed; the message counts both | `PUT /settings` | 409 `CATEGORY_IN_USE` | "the refusal names the category and counts what is using it" |
+| The Settings page is told what is in use, so the remove button says why it is disabled | `GET /settings` | 200 | "the settings page is told what is in use, so the remove button can say why" |
+| Finished tickets do not hold a category open | `PUT /settings` | 200 | "closed and resolved tickets do not hold a category open" |
 
 ### Input and resilience
 
@@ -186,11 +238,18 @@ MongoDB behavior: `setup.sh` checks `127.0.0.1:27017` and starts a local `mongod
 
 All seeded accounts share one password: **`SupportDesk@2026`**
 
-| Role | Email |
-|---|---|
-| Admin | `admin1@example.com`, `admin2@example.com` |
-| Agent | `agent1@example.com` ... `agent5@example.com` (`agent5` is seeded inactive) |
-| Customer | `customer1@example.com` ... `customer3@example.com` |
+| Role | Email | Team (categories) |
+|---|---|---|
+| Admin | `admin1@example.com`, `admin2@example.com` | sees every category |
+| Agent | `agent1@example.com` | Billing, Technical |
+| Agent | `agent2@example.com` | Technical, Account |
+| Agent | `agent3@example.com` | Billing, Account |
+| Agent | `agent4@example.com` | General (the only active agent covering it) |
+| Agent | `agent5@example.com` (seeded inactive) | General, Account |
+| Customer | `customer1@example.com` ... `customer3@example.com` | n/a |
+
+Two seeded tickets are left unassigned, one Billing and one General, so each agent's **Unassigned**
+queue (`#/tickets?view=unassigned`) shows only its own and the claim can be tried from either side.
 
 New accounts created through the "Create account" tab on the sign-in screen are always customers; agent and admin access is provisioned by an admin from the **Agents** page.
 

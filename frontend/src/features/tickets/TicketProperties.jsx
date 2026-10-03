@@ -115,10 +115,23 @@ function RequesterActions({ ticket, permissions, onUpdate, isUpdating }) {
     );
 }
 
-export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUpdate, onAssign, isUpdating }) {
+// An agent can only be given a ticket in a category their team covers, so the picker shows everyone
+// and disables the rest with the reason, rather than quietly hiding half the roster.
+function coversCategory(agent, category) {
+    return (agent.categories || []).includes(String(category || "general").toLowerCase());
+}
+
+function assigneeOptionLabel(agent, category) {
+    if (!agent.isActive) return `${agent.name} (inactive)`;
+    if (!coversCategory(agent, category)) return `${agent.name} (not on the ${titleCase(category || "general")} team)`;
+    return agent.name;
+}
+
+export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUpdate, onAssign, onClaim, isUpdating }) {
     const permissions = ticket.permissions || {};
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const isClosed = ticket.status === "closed";
+    const category = ticket.category || "general";
 
     return (
         <div className="properties-card">
@@ -175,8 +188,12 @@ export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUp
                             {agents
                                 .filter((agent) => agent.isActive || agent._id === ticket.assignedTo?._id)
                                 .map((agent) => (
-                                    <option key={agent._id} value={agent._id} disabled={!agent.isActive}>
-                                        {agent.isActive ? agent.name : `${agent.name} (inactive)`}
+                                    <option
+                                        key={agent._id}
+                                        value={agent._id}
+                                        disabled={!agent.isActive || !coversCategory(agent, category)}
+                                    >
+                                        {assigneeOptionLabel(agent, category)}
                                     </option>
                                 ))}
                         </select>
@@ -184,11 +201,18 @@ export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUp
                         <span className="ticket-info-value">{ticket.assignedTo?.name || "Unassigned"}</span>
                     )}
                 </PropertyRow>
+                {permissions.canClaim && (
+                    <PropertyRow label="Your queue" hint="This ticket is in your categories and nobody has picked it up.">
+                        <button type="button" className="button-primary button-compact" onClick={onClaim} disabled={isUpdating}>
+                            Claim ticket
+                        </button>
+                    </PropertyRow>
+                )}
                 <PropertyRow label="Requester">
                     <span className="ticket-info-value">{ticket.createdBy?.name}</span>
                 </PropertyRow>
                 <PropertyRow label="Category">
-                    <span className="ticket-info-value">{titleCase(ticket.category || "general")}</span>
+                    <span className="ticket-info-value">{titleCase(category)}</span>
                 </PropertyRow>
                 <PropertyRow label="Created">
                     <span className="ticket-info-value">{formatDateTime(ticket.createdAt)}</span>

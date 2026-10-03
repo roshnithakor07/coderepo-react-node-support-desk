@@ -6,6 +6,7 @@ import {
     queryFromFilters,
     SORT_OPTIONS,
     STATUS_OPTIONS,
+    UNASSIGNED_VIEW,
 } from "../src/features/tickets/ticket-filters.js";
 import { navigate, parseHash, toHash } from "../src/shared/utils/router.js";
 import { canOpen, HOME_PATH, matchRoute, ROUTES, routeForView, safeReturnPath, ticketPath } from "../src/shared/utils/routes.js";
@@ -108,12 +109,13 @@ describe("ticket list filters in the URL", () => {
             search: "refund",
             status: "open",
             priority: "high",
+            view: "",
         });
     });
 
     test("an empty query is the plain list", () => {
-        expect(filtersFromQuery("")).toEqual({ page: 1, pageSize: 20, sort: DEFAULT_SORT, search: "", status: "", priority: "" });
-        expect(queryFromFilters(filtersFromQuery(""))).toEqual({ search: "", status: "", priority: "", sort: "", page: "" });
+        expect(filtersFromQuery("")).toEqual({ page: 1, pageSize: 20, sort: DEFAULT_SORT, search: "", status: "", priority: "", view: "" });
+        expect(queryFromFilters(filtersFromQuery(""))).toEqual({ view: "", search: "", status: "", priority: "", sort: "", page: "" });
     });
 
     test("anything unknown falls back instead of reaching the API", () => {
@@ -127,7 +129,7 @@ describe("ticket list filters in the URL", () => {
         for (const status of STATUS_OPTIONS) {
             for (const priority of PRIORITY_OPTIONS) {
                 for (const { value: sort } of SORT_OPTIONS) {
-                    const filters = { page: 4, pageSize: 20, sort, search: "a b&c", status, priority };
+                    const filters = { page: 4, pageSize: 20, sort, search: "a b&c", status, priority, view: "" };
                     const url = toHash("/tickets", queryFromFilters(filters));
                     expect(filtersFromQuery(parseHash(url).search)).toEqual(filters);
                 }
@@ -137,6 +139,30 @@ describe("ticket list filters in the URL", () => {
 
     test("the default sort and the first page stay out of the URL", () => {
         expect(toHash("/tickets", queryFromFilters({ page: 1, sort: DEFAULT_SORT, status: "open" }))).toBe("#/tickets?status=open");
+    });
+});
+
+describe("the unassigned queue is a view in the URL", () => {
+    test("the support team's queue survives a refresh and keeps the filters with it", () => {
+        const filters = filtersFromQuery("view=unassigned&priority=high&page=2", "agent");
+        expect(filters).toMatchObject({ view: UNASSIGNED_VIEW, priority: "high", page: 2 });
+        expect(toHash("/tickets", queryFromFilters(filters))).toBe("#/tickets?view=unassigned&priority=high&page=2");
+        // The round trip is what a refresh does.
+        expect(filtersFromQuery(parseHash(toHash("/tickets", queryFromFilters(filters))).search, "agent")).toEqual(filters);
+    });
+
+    test("an admin has the same queue", () => {
+        expect(filtersFromQuery("view=unassigned", "admin").view).toBe(UNASSIGNED_VIEW);
+    });
+
+    test("a customer has no such view, so the URL gives them their own list", () => {
+        expect(filtersFromQuery("view=unassigned", "customer").view).toBe("");
+        expect(queryFromFilters(filtersFromQuery("view=unassigned", "customer")).view).toBe("");
+    });
+
+    test("a view nobody has falls back to the plain list", () => {
+        expect(filtersFromQuery("view=everything", "admin").view).toBe("");
+        expect(filtersFromQuery("view=", "agent").view).toBe("");
     });
 });
 
