@@ -104,10 +104,10 @@ export function Table({
         );
     }
 
-    // A link inside a row does its own job (including Ctrl/Cmd-click into a new tab), so the row only
-    // handles clicks and keys that land on the row itself.
+    // A link or a button inside a row does its own job (including Ctrl/Cmd-click into a new tab), so
+    // the row only handles clicks and keys that land on the row itself.
     function handleClick(event, row) {
-        if (event.target.closest("a")) return;
+        if (event.target.closest("a, button")) return;
         onRowClick(row);
     }
 

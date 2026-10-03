@@ -8,6 +8,7 @@ import { cannedResponseApi } from "./features/canned-responses/canned-response.a
 import { CannedResponsesPage } from "./features/canned-responses/CannedResponsesPage.jsx";
 import { NotificationBell } from "./features/notifications/NotificationBell.jsx";
 import { notificationApi } from "./features/notifications/notification.api.js";
+import { EditTicketModal } from "./features/tickets/EditTicketModal.jsx";
 import { NewTicketModal } from "./features/tickets/NewTicketModal.jsx";
 import { ticketApi } from "./features/tickets/ticket.api.js";
 import { TicketDetail } from "./features/tickets/TicketDetail.jsx";
@@ -101,7 +102,9 @@ export default function App() {
     const [lastTicketsSearch, setLastTicketsSearch] = useState("");
     if (activeView === "tickets" && route.search !== lastTicketsSearch) setLastTicketsSearch(route.search);
     const ticketsSearch = activeView === "tickets" ? route.search : lastTicketsSearch;
-    const ticketFilters = useMemo(() => filtersFromQuery(ticketsSearch), [ticketsSearch]);
+    // The unassigned queue is a staff view, so a customer who lands on its URL simply gets their own
+    // list rather than an error about a page that does not exist for them.
+    const ticketFilters = useMemo(() => filtersFromQuery(ticketsSearch, currentUser?.role), [ticketsSearch, currentUser?.role]);
     const ticketsHref = toHash("/tickets", ticketsSearch);
     // Which query the rows on screen belong to, and a counter so a slow, older response never
     // overwrites a newer one when Back and Forward fire requests quickly.
@@ -112,6 +115,11 @@ export default function App() {
     const [ticketsLoaded, setTicketsLoaded] = useState(false);
     const [ticketCreateError, setTicketCreateError] = useState("");
     const [isReplying, setIsReplying] = useState(false);
+    const [isSavingNote, setIsSavingNote] = useState(false);
+    // Which row in the unassigned queue is being claimed right now, so only its button is disabled.
+    const [claimingTicketId, setClaimingTicketId] = useState(null);
+    const [showEditTicketModal, setShowEditTicketModal] = useState(false);
+    const [ticketEditError, setTicketEditError] = useState("");
 
     // The dashboard has its own data: counts over everything the viewer may see, and the newest few
     // tickets. Sharing the list's state made the home page follow whatever filter was last applied.
@@ -189,6 +197,7 @@ export default function App() {
     useEffect(() => {
         setIsNavOpen(false);
         setShowNewTicketModal(false);
+        setShowEditTicketModal(false);
         contentRef.current?.scrollTo({ top: 0 });
     }, [route.path, ticketFilters.page]);
 
@@ -545,7 +554,8 @@ export default function App() {
         if (!agentId) return;
         // An agent who hands a ticket to someone else loses access to it, so leaving them on a page
         // they can no longer load would be misleading: they go back to their list instead.
-        const isHandOff = currentUser.role === "agent" && agentId !== currentUser.id;
+        const isClaim = agentId === currentUser.id;
+        const isHandOff = currentUser.role === "agent" && !isClaim;
         setIsUpdatingTicket(true);
         try {
             const updated = await ticketApi.assign(selectedTicketId, agentId);
@@ -555,11 +565,72 @@ export default function App() {
                 return;
             }
             setSelectedTicket(updated);
-            pushToast("success", "Ticket reassigned.");
+            pushToast("success", isClaim ? "Ticket claimed. It is yours now." : "Ticket reassigned.");
+            loadTickets();
         } catch (error) {
             pushToast("error", friendlyErrorMessage(error, "Couldn't reassign the ticket. Please try again."));
         } finally {
             setIsUpdatingTicket(false);
+        }
+    }
+
+    // Claiming from the queue takes the ticket off the list it was claimed from, so the rows reload.
+    async function handleClaimFromQueue(ticketId) {
+        setClaimingTicketId(ticketId);
+        try {
+            await ticketApi.assign(ticketId, currentUser.id);
+            pushToast("success", "Ticket claimed. It is yours now.");
+            loadTickets();
+            loadDashboard();
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't claim this ticket. Please try again."));
+            loadTickets();
+        } finally {
+            setClaimingTicketId(null);
+        }
+    }
+
+    async function handleEditTicketDetails(patch) {
+        setIsUpdatingTicket(true);
+        setTicketEditError("");
+        try {
+            const updated = await ticketApi.update(selectedTicketId, patch);
+            setSelectedTicket(updated);
+            setShowEditTicketModal(false);
+            pushToast("success", "Ticket updated.");
+            loadTickets();
+        } catch (error) {
+            setTicketEditError(friendlyErrorMessage(error, "Couldn't save your changes. Please try again."));
+        } finally {
+            setIsUpdatingTicket(false);
+        }
+    }
+
+    async function handleEditNote(replyId, body) {
+        setIsSavingNote(true);
+        try {
+            const updated = await ticketApi.updateReply(selectedTicketId, replyId, body);
+            setSelectedTicket(updated);
+            pushToast("success", "Internal note updated.");
+            return updated;
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't update this note. Please try again."));
+            throw error;
+        } finally {
+            setIsSavingNote(false);
+        }
+    }
+
+    async function handleDeleteNote(replyId) {
+        setIsSavingNote(true);
+        try {
+            const updated = await ticketApi.deleteReply(selectedTicketId, replyId);
+            setSelectedTicket(updated);
+            pushToast("success", "Internal note deleted.");
+        } catch (error) {
+            pushToast("error", friendlyErrorMessage(error, "Couldn't delete this note. Please try again."));
+        } finally {
+            setIsSavingNote(false);
         }
     }
 
@@ -592,6 +663,19 @@ export default function App() {
         } catch (error) {
             setAgentError(friendlyErrorMessage(error, "Couldn't add this agent. Please try again."));
             throw error;
+        } finally {
+            setAgentBusy(false);
+        }
+    }
+
+    async function handleSetAgentCategories(id, categories) {
+        setAgentBusy(true);
+        try {
+            await agentApi.setCategories(id, categories);
+            pushToast("success", "Categories updated.");
+            loadAgents();
+        } catch (error) {
+            throw new Error(friendlyErrorMessage(error, "Couldn't update these categories. Please try again."));
         } finally {
             setAgentBusy(false);
         }
@@ -784,9 +868,12 @@ export default function App() {
                             onFilterChange={handleTicketFilterChange}
                             onSelectTicket={openTicket}
                             onNewTicket={() => setShowNewTicketModal(true)}
+                            onClaim={handleClaimFromQueue}
+                            claimingId={claimingTicketId}
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
                             role={currentUser.role}
+                            categories={currentUser.categories}
                         />
                     )}
 
@@ -818,8 +905,16 @@ export default function App() {
                             onUpdate={handleUpdateTicket}
                             onReply={handleReply}
                             onAssign={handleAssignTicket}
+                            onClaim={() => handleAssignTicket(currentUser.id)}
+                            onEditNote={handleEditNote}
+                            onDeleteNote={handleDeleteNote}
+                            onEditDetails={() => {
+                                setTicketEditError("");
+                                setShowEditTicketModal(true);
+                            }}
                             isReplying={isReplying}
                             isUpdating={isUpdatingTicket}
+                            isSavingNote={isSavingNote}
                         />
                     )}
 
@@ -828,8 +923,10 @@ export default function App() {
                     {!routeBlock && activeView === "agents" && (
                         <AgentsPage
                             agents={agents}
+                            categories={settings?.categories || []}
                             onCreateAgent={handleCreateAgent}
                             onSetActive={handleSetAgentActive}
+                            onSetCategories={handleSetAgentCategories}
                             isAdmin={currentUser.role === "admin"}
                             error={agentError}
                             loadError={agentsLoadError}
@@ -888,6 +985,16 @@ export default function App() {
                     )}
                 </main>
             </div>
+
+            {showEditTicketModal && currentTicket && (
+                <EditTicketModal
+                    ticket={currentTicket}
+                    onClose={() => setShowEditTicketModal(false)}
+                    onSave={handleEditTicketDetails}
+                    error={ticketEditError}
+                    isBusy={isUpdatingTicket}
+                />
+            )}
 
             {showNewTicketModal && (
                 <NewTicketModal

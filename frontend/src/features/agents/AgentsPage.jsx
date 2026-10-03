@@ -3,7 +3,66 @@ import { Modal } from "../../shared/components/Modal.jsx";
 import { Table } from "../../shared/components/Table.jsx";
 import { Badge } from "../../shared/components/Badge.jsx";
 import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
+import { titleCase } from "../../shared/utils/format.js";
 import { validateEmail, validatePassword, validateRequired } from "../../shared/utils/validate.js";
+
+// An agent's team: the categories they work. The checkboxes come from Settings, which is the only
+// place a category can exist, so a team can never point at one that does not.
+function CategoryPicker({ idPrefix, categories, selected, onToggle, error, disabled }) {
+    return (
+        <fieldset className="category-picker">
+            <legend className="label-row">
+                Categories<span className="required-mark">*</span>
+            </legend>
+            <p className="category-picker-hint">They are assigned and can claim tickets only in these categories.</p>
+            {categories.length === 0 ? (
+                <p className="field-error">There are no categories yet. Add one on the Settings page first.</p>
+            ) : (
+                <div className="category-picker-options">
+                    {categories.map((category) => (
+                        <label key={category} className="category-picker-option" htmlFor={`${idPrefix}-${category}`}>
+                            <input
+                                id={`${idPrefix}-${category}`}
+                                type="checkbox"
+                                checked={selected.includes(category)}
+                                onChange={() => onToggle(category)}
+                                disabled={disabled}
+                            />
+                            {titleCase(category)}
+                        </label>
+                    ))}
+                </div>
+            )}
+            {error && <span className="field-error">{error}</span>}
+        </fieldset>
+    );
+}
+
+// A team of none is what an agent added before teams existed looks like. Nothing can reach them, so
+// the row says so and the admin has one click to fix it.
+function CategoryCell({ agent, isAdmin, onEdit }) {
+    if ((agent.categories || []).length === 0) {
+        return (
+            <span className="category-cell">
+                <Badge tone="warning">No categories</Badge>
+                {isAdmin && (
+                    <button type="button" className="link-button row-action" onClick={() => onEdit(agent)}>
+                        Set
+                    </button>
+                )}
+            </span>
+        );
+    }
+    return (
+        <span className="category-cell">
+            {agent.categories.map((category) => (
+                <span key={category} className="tag">
+                    {titleCase(category)}
+                </span>
+            ))}
+        </span>
+    );
+}
 
 // Plain-language sort names, each paired with how it compares two agents.
 const SORT_OPTIONS = [
@@ -15,14 +74,31 @@ const SORT_OPTIONS = [
 
 const DEFAULT_SORT = "name_asc";
 
-export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error, loadError, isBusy, isLoading, isRefreshing, onRetry }) {
+export function AgentsPage({
+    agents,
+    categories = [],
+    onCreateAgent,
+    onSetActive,
+    onSetCategories,
+    isAdmin,
+    error,
+    loadError,
+    isBusy,
+    isLoading,
+    isRefreshing,
+    onRetry,
+}) {
     const [showCreate, setShowCreate] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [newCategories, setNewCategories] = useState([]);
     const [fieldErrors, setFieldErrors] = useState({});
     const [sortValue, setSortValue] = useState(DEFAULT_SORT);
     const [agentToDeactivate, setAgentToDeactivate] = useState(null);
+    const [agentToEdit, setAgentToEdit] = useState(null);
+    const [editCategories, setEditCategories] = useState([]);
+    const [editError, setEditError] = useState("");
 
     const sortedAgents = useMemo(() => {
         const compare = (SORT_OPTIONS.find((option) => option.value === sortValue) || SORT_OPTIONS[0]).compare;
@@ -39,6 +115,7 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
         if (nameError) errors.name = nameError;
         if (emailError) errors.email = emailError;
         if (passwordError) errors.password = passwordError;
+        if (newCategories.length === 0) errors.categories = "Choose at least one category for this agent.";
         return errors;
     }
 
@@ -47,12 +124,13 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
         const errors = validate();
         setFieldErrors(errors);
         if (Object.keys(errors).length > 0) return;
-        onCreateAgent({ name: name.trim(), email: email.trim(), password })
+        onCreateAgent({ name: name.trim(), email: email.trim(), password, categories: newCategories })
             .then(() => {
                 setShowCreate(false);
                 setName("");
                 setEmail("");
                 setPassword("");
+                setNewCategories([]);
                 setFieldErrors({});
             })
             .catch(() => {
@@ -63,6 +141,27 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
     function closeCreate() {
         setShowCreate(false);
         setFieldErrors({});
+    }
+
+    function toggle(list, category) {
+        return list.includes(category) ? list.filter((existing) => existing !== category) : [...list, category];
+    }
+
+    function openEdit(agent) {
+        setAgentToEdit(agent);
+        setEditCategories(agent.categories || []);
+        setEditError("");
+    }
+
+    function submitCategories(event) {
+        event.preventDefault();
+        if (editCategories.length === 0) {
+            setEditError("Choose at least one category for this agent.");
+            return;
+        }
+        onSetCategories(agentToEdit._id, editCategories)
+            .then(() => setAgentToEdit(null))
+            .catch((problem) => setEditError(problem.message));
     }
 
     // Deactivation asks first; reactivation is not destructive, so it happens at once.
@@ -133,6 +232,11 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                         { key: "name", header: "Name", sort: ["name_asc", "name_desc"] },
                         { key: "email", header: "Email" },
                         {
+                            key: "categories",
+                            header: "Categories",
+                            render: (row) => <CategoryCell agent={row} isAdmin={isAdmin} onEdit={openEdit} />,
+                        },
+                        {
                             key: "openTicketCount",
                             header: "Open tickets",
                             sort: ["open_asc", "open_desc"],
@@ -151,6 +255,9 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                             render: (row) =>
                                 isAdmin ? (
                                     <div className="row-actions">
+                                        <button type="button" className="link-button row-action" onClick={() => openEdit(row)}>
+                                            Categories
+                                        </button>
                                         <button type="button" className="link-button row-action" onClick={() => handleToggleActive(row)}>
                                             {row.isActive ? "Deactivate" : "Activate"}
                                         </button>
@@ -231,6 +338,17 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                                 </span>
                             )}
                         </label>
+                        <CategoryPicker
+                            idPrefix="new-agent-category"
+                            categories={categories}
+                            selected={newCategories}
+                            onToggle={(category) => {
+                                setNewCategories((current) => toggle(current, category));
+                                setFieldErrors((current) => ({ ...current, categories: undefined }));
+                            }}
+                            error={fieldErrors.categories}
+                            disabled={isBusy}
+                        />
                         {error && (
                             <p className="form-error" role="alert">
                                 {error}
@@ -243,6 +361,37 @@ export function AgentsPage({ agents, onCreateAgent, onSetActive, isAdmin, error,
                             <button type="submit" className="button-primary" disabled={isBusy}>
                                 {isBusy && <span className="spinner" aria-hidden="true" />}
                                 {isBusy ? "Adding..." : "Add agent"}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
+            {agentToEdit && (
+                <Modal onClose={() => setAgentToEdit(null)} label={`Categories for ${agentToEdit.name}`} className="modal-form">
+                    <h2>{agentToEdit.name}&rsquo;s categories</h2>
+                    <form onSubmit={submitCategories} noValidate>
+                        <CategoryPicker
+                            idPrefix="edit-agent-category"
+                            categories={categories}
+                            selected={editCategories}
+                            onToggle={(category) => {
+                                setEditCategories((current) => toggle(current, category));
+                                setEditError("");
+                            }}
+                            error={editError}
+                            disabled={isBusy}
+                        />
+                        <p className="settings-section-description">
+                            Tickets already assigned to {agentToEdit.name.split(" ")[0]} stay with them. This decides what they can be given
+                            or claim next.
+                        </p>
+                        <div className="modal-actions">
+                            <button type="button" className="button-secondary" onClick={() => setAgentToEdit(null)} disabled={isBusy}>
+                                Cancel
+                            </button>
+                            <button type="submit" className="button-primary" disabled={isBusy}>
+                                {isBusy && <span className="spinner" aria-hidden="true" />}
+                                {isBusy ? "Saving..." : "Save categories"}
                             </button>
                         </div>
                     </form>

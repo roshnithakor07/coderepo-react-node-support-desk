@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { ArrowLeftIcon, LockIcon } from "../../shared/components/Icon.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber } from "../../shared/utils/format.js";
 import { useFitsInView } from "../../shared/utils/pinning.js";
@@ -10,7 +11,74 @@ const COMPOSER_MAX_HEIGHT = 200;
 // The pinned header (64px) plus the gaps above and below the right-hand column.
 const SIDE_COLUMN_RESERVED_HEIGHT = 64 + 8 + 12;
 
-function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
+// An internal note its author (or an admin) may still change, while the edit window is open. The
+// server sends `canEdit` and, once the window has closed, the reason it is gone.
+function NoteActions({ reply, onEdit, onDelete, isBusy }) {
+    if (reply.canEdit) {
+        return (
+            <div className="message-card-actions">
+                <button type="button" className="link-button row-action" onClick={onEdit} disabled={isBusy}>
+                    Edit
+                </button>
+                <button type="button" className="link-button row-action" onClick={onDelete} disabled={isBusy}>
+                    Delete
+                </button>
+            </div>
+        );
+    }
+    if (!reply.editBlockedReason) return null;
+    return <p className="message-card-note-reason">{reply.editBlockedReason}</p>;
+}
+
+function NoteEditor({ reply, onSave, onCancel, isBusy }) {
+    const [body, setBody] = useState(reply.body);
+    const [error, setError] = useState("");
+
+    function submit(event) {
+        event.preventDefault();
+        const trimmed = body.trim();
+        if (!trimmed) {
+            setError("An internal note cannot be empty. Delete it instead.");
+            return;
+        }
+        setError("");
+        onSave(trimmed);
+    }
+
+    return (
+        <form className="message-card-editor" onSubmit={submit} noValidate>
+            <label htmlFor={`note-${reply._id}`} className="visually-hidden">
+                Edit internal note
+            </label>
+            <textarea
+                id={`note-${reply._id}`}
+                value={body}
+                onChange={(event) => {
+                    setBody(event.target.value);
+                    if (error) setError("");
+                }}
+                rows={3}
+                maxLength={5000}
+                aria-invalid={Boolean(error)}
+                className={`reply-body-internal ${error ? "field-invalid" : ""}`}
+                disabled={isBusy}
+                autoFocus
+            />
+            {error && <span className="field-error">{error}</span>}
+            <div className="message-card-editor-actions">
+                <button type="button" className="button-secondary button-compact" onClick={onCancel} disabled={isBusy}>
+                    Cancel
+                </button>
+                <button type="submit" className="button-primary button-compact" disabled={isBusy}>
+                    {isBusy && <span className="spinner" aria-hidden="true" />}
+                    {isBusy ? "Saving..." : "Save note"}
+                </button>
+            </div>
+        </form>
+    );
+}
+
+function MessageCard({ author, body, isInternal, createdAt, editedAt, innerRef, actions, editor }) {
     return (
         <li ref={innerRef} className={`message-card ${isInternal ? "message-card-internal" : ""}`}>
             <div className="message-card-header">
@@ -25,10 +93,14 @@ function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
                             <LockIcon /> Internal Note
                         </span>
                     )}
-                    <span className="message-card-time">{formatDateTime(createdAt)}</span>
+                    <span className="message-card-time">
+                        {formatDateTime(createdAt)}
+                        {editedAt && <span className="message-card-edited"> · edited</span>}
+                    </span>
                 </span>
             </div>
-            <p className="message-card-body">{body}</p>
+            {editor || <p className="message-card-body">{body}</p>}
+            {!editor && actions}
         </li>
     );
 }
@@ -44,8 +116,13 @@ export function TicketDetail({
     onUpdate,
     onReply,
     onAssign,
+    onClaim,
+    onEditNote,
+    onDeleteNote,
+    onEditDetails,
     isReplying,
     isUpdating,
+    isSavingNote,
 }) {
     const sideColumnRef = useRef(null);
     const sideColumnFits = useFitsInView(sideColumnRef, ".app-content", SIDE_COLUMN_RESERVED_HEIGHT);
@@ -53,6 +130,8 @@ export function TicketDetail({
     const [replyError, setReplyError] = useState("");
     const [isInternal, setIsInternal] = useState(false);
     const [showCanned, setShowCanned] = useState(false);
+    const [editingNoteId, setEditingNoteId] = useState(null);
+    const [noteToDelete, setNoteToDelete] = useState(null);
     const replyFieldRef = useRef(null);
     const latestMessageRef = useRef(null);
 
@@ -109,6 +188,14 @@ export function TicketDetail({
         replyFieldRef.current?.scrollIntoView({ block: "center" });
     }
 
+    function saveNote(replyId, body) {
+        onEditNote(replyId, body)
+            .then(() => setEditingNoteId(null))
+            .catch(() => {
+                // The toast already says what went wrong; the draft stays on screen.
+            });
+    }
+
     return (
         <section className="ticket-detail">
             <header className="ticket-detail-header">
@@ -137,9 +224,24 @@ export function TicketDetail({
                         </span>
                     </div>
                 </div>
-                <p className="ticket-meta">
-                    Opened by {ticket.createdBy?.name} &middot; {formatDateTime(ticket.createdAt)}
-                </p>
+                <div className="ticket-meta-row">
+                    <p className="ticket-meta">
+                        Opened by {ticket.createdBy?.name} &middot; {formatDateTime(ticket.createdAt)}
+                    </p>
+                    {/* A requester can still correct their own wording while nothing has been acted on;
+                        after that the button is gone and the reason takes its place. */}
+                    {permissions.canEditDetails ? (
+                        <button type="button" className="button-secondary button-compact" onClick={onEditDetails} disabled={isUpdating}>
+                            Edit ticket
+                        </button>
+                    ) : (
+                        permissions.requesterEditBlockedReason && (
+                            <p className="ticket-meta-note">
+                                <LockIcon /> {permissions.requesterEditBlockedReason}
+                            </p>
+                        )
+                    )}
+                </div>
             </header>
 
             <div className="ticket-detail-layout">
@@ -167,7 +269,28 @@ export function TicketDetail({
                                     body={reply.body}
                                     isInternal={reply.isInternal}
                                     createdAt={reply.createdAt}
+                                    editedAt={reply.editedAt}
                                     innerRef={index === visibleReplies.length - 1 ? latestMessageRef : undefined}
+                                    editor={
+                                        editingNoteId === reply._id ? (
+                                            <NoteEditor
+                                                reply={reply}
+                                                onSave={(body) => saveNote(reply._id, body)}
+                                                onCancel={() => setEditingNoteId(null)}
+                                                isBusy={isSavingNote}
+                                            />
+                                        ) : null
+                                    }
+                                    actions={
+                                        reply.isInternal ? (
+                                            <NoteActions
+                                                reply={reply}
+                                                onEdit={() => setEditingNoteId(reply._id)}
+                                                onDelete={() => setNoteToDelete(reply)}
+                                                isBusy={isSavingNote}
+                                            />
+                                        ) : null
+                                    }
                                 />
                             ))}
                         </ol>
@@ -281,6 +404,7 @@ export function TicketDetail({
                             auditTrail={auditTrail}
                             onUpdate={onUpdate}
                             onAssign={onAssign}
+                            onClaim={onClaim}
                             isUpdating={isUpdating}
                         />
                     </aside>
@@ -290,6 +414,21 @@ export function TicketDetail({
                     </aside>
                 </div>
             </div>
+
+            {noteToDelete && (
+                <ConfirmationDialog
+                    title="Delete this internal note?"
+                    message="It disappears from the ticket for everyone on the team. This cannot be undone."
+                    confirmLabel="Delete note"
+                    danger
+                    onCancel={() => setNoteToDelete(null)}
+                    onConfirm={() => {
+                        const replyId = noteToDelete._id;
+                        setNoteToDelete(null);
+                        onDeleteNote(replyId);
+                    }}
+                />
+            )}
         </section>
     );
 }

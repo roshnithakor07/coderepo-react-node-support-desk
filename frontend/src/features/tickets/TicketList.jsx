@@ -4,7 +4,7 @@ import { Table } from "../../shared/components/Table.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
 import { toHash } from "../../shared/utils/router.js";
 import { ticketPath } from "../../shared/utils/routes.js";
-import { DEFAULT_SORT, PRIORITY_OPTIONS, SORT_OPTIONS, STATUS_OPTIONS } from "./ticket-filters.js";
+import { DEFAULT_SORT, PRIORITY_OPTIONS, queryFromFilters, SORT_OPTIONS, STATUS_OPTIONS, UNASSIGNED_VIEW } from "./ticket-filters.js";
 
 function PriorityCell({ priority }) {
     return (
@@ -49,21 +49,107 @@ const SUBTITLES = {
 
 const EMPTY_DESCRIPTIONS = {
     admin: "Tickets will show up here as soon as customers create them.",
-    agent: "Nothing is assigned to you right now. New tickets appear here once an admin assigns them.",
+    agent: "Nothing is assigned to you right now. Check the Unassigned queue for tickets in your categories.",
     customer: "Create your first ticket to get help from our team.",
 };
 
-export function TicketList({ tickets, total, filters, onFilterChange, onSelectTicket, onNewTicket, isLoading, isRefreshing, role }) {
+// The unassigned queue is scoped by team, so it says whose categories it is showing.
+function queueSubtitle(categories) {
+    if (!categories || categories.length === 0) {
+        return "You have no categories yet, so no tickets can reach your queue. Ask an admin to set them on the Agents page.";
+    }
+    return `Tickets nobody has picked up, in your categories: ${categories.map(titleCase).join(", ")}.`;
+}
+
+function ClaimCell({ ticket, onClaim, isClaiming }) {
+    return (
+        <div className="row-actions">
+            <button type="button" className="button-secondary button-compact" onClick={() => onClaim(ticket._id)} disabled={isClaiming}>
+                Claim
+            </button>
+        </div>
+    );
+}
+
+export function TicketList({
+    tickets,
+    total,
+    filters,
+    onFilterChange,
+    onSelectTicket,
+    onNewTicket,
+    onClaim,
+    claimingId,
+    isLoading,
+    isRefreshing,
+    role,
+    categories,
+}) {
     const search = filters.search || "";
     const hasActiveFilters = Boolean(search || filters.status || filters.priority);
     const canCreate = role === "customer";
+    const isQueue = filters.view === UNASSIGNED_VIEW;
+    // Only an agent can take a ticket for themselves; an admin opens it and picks somebody.
+    const canClaim = isQueue && role === "agent";
     const pageSize = filters.pageSize || 20;
     const page = filters.page || 1;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     function clearFilters() {
-        onFilterChange({ page: 1, pageSize, sort: filters.sort || DEFAULT_SORT });
+        onFilterChange({ page: 1, pageSize, sort: filters.sort || DEFAULT_SORT, view: filters.view });
     }
+
+    // The two views are links, so each has its own URL, opens in a new tab and comes back on a
+    // refresh. Switching keeps the filters and starts again at page one.
+    function viewHref(view) {
+        return toHash("/tickets", queryFromFilters({ ...filters, view, page: 1 }));
+    }
+
+    const columns = [
+        {
+            key: "title",
+            header: "Title",
+            sort: ["title_asc", "title_desc"],
+            // A real link, so the ticket can be opened in a new tab; the rest of the row opens it here.
+            render: (row) => (
+                <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row._id))}>
+                    {row.title}
+                </a>
+            ),
+        },
+        { key: "status", header: "Status", sort: ["status"], render: (row) => <StatusBadge status={row.status} /> },
+        {
+            key: "priority",
+            header: "Priority",
+            sort: ["priority_desc"],
+            render: (row) => <PriorityCell priority={row.priority} />,
+        },
+        { key: "category", header: "Category", render: (row) => titleCase(row.category || "general") },
+        { key: "assignedTo", header: "Assigned to", render: (row) => <AgentCell agent={row.assignedTo} /> },
+        { key: "sla", header: "SLA", render: (row) => <SlaCell ticket={row} /> },
+        {
+            key: "createdAt",
+            header: "Created",
+            sort: ["oldest", "newest"],
+            render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span>,
+        },
+    ];
+
+    // In the queue nobody owns anything, so that column is replaced by the action that changes it.
+    const visibleColumns = isQueue
+        ? [
+              ...columns.filter((column) => column.key !== "assignedTo"),
+              ...(canClaim
+                  ? [
+                        {
+                            key: "claim",
+                            header: "",
+                            render: (row) => <ClaimCell ticket={row} onClaim={onClaim} isClaiming={claimingId === row._id} />,
+                        },
+                    ]
+                  : []),
+          ]
+        : columns;
 
     return (
         <section className="panel">
@@ -73,7 +159,9 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                         {total} {total === 1 ? "ticket" : "tickets"}
                         {hasActiveFilters ? " match your filters" : ""}
                     </p>
-                    <p className="panel-subtitle">{SUBTITLES[role]}</p>
+                    <p className="panel-subtitle">
+                        {isQueue ? (role === "agent" ? queueSubtitle(categories) : "Tickets nobody has picked up yet.") : SUBTITLES[role]}
+                    </p>
                 </div>
                 {canCreate && (
                     <button type="button" className="button-primary" onClick={onNewTicket}>
@@ -81,6 +169,17 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                     </button>
                 )}
             </div>
+
+            {role !== "customer" && (
+                <nav className="view-tabs" aria-label="Ticket views">
+                    <a className={isQueue ? "" : "active"} aria-current={isQueue ? undefined : "page"} href={viewHref("")}>
+                        {role === "admin" ? "All tickets" : "Assigned to me"}
+                    </a>
+                    <a className={isQueue ? "active" : ""} aria-current={isQueue ? "page" : undefined} href={viewHref(UNASSIGNED_VIEW)}>
+                        Unassigned
+                    </a>
+                </nav>
+            )}
 
             <div className="filter-bar">
                 <SearchField
@@ -124,9 +223,23 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
             <Table
                 rowKey={(row) => row._id}
                 onRowClick={(row) => onSelectTicket(row._id)}
-                emptyTitle={search ? `No tickets match "${search}"` : hasActiveFilters ? "No tickets match your filters" : "No tickets yet"}
+                emptyTitle={
+                    search
+                        ? `No tickets match "${search}"`
+                        : hasActiveFilters
+                          ? "No tickets match your filters"
+                          : isQueue
+                            ? "Nothing waiting"
+                            : "No tickets yet"
+                }
                 emptyDescription={
-                    hasActiveFilters ? "Try a different term, or clear the filters to see everything." : EMPTY_DESCRIPTIONS[role]
+                    hasActiveFilters
+                        ? "Try a different term, or clear the filters to see everything."
+                        : isQueue
+                          ? role === "agent"
+                              ? queueSubtitle(categories)
+                              : "Every ticket in the workspace has an agent on it."
+                          : EMPTY_DESCRIPTIONS[role]
                 }
                 emptyAction={
                     hasActiveFilters
@@ -141,34 +254,7 @@ export function TicketList({ tickets, total, filters, onFilterChange, onSelectTi
                 sortValue={filters.sort || DEFAULT_SORT}
                 sortOptions={SORT_OPTIONS}
                 onSortChange={(value) => onFilterChange({ ...filters, sort: value, page: 1 })}
-                columns={[
-                    {
-                        key: "title",
-                        header: "Title",
-                        sort: ["title_asc", "title_desc"],
-                        // A real link, so the ticket can be opened in a new tab; the rest of the row opens it here.
-                        render: (row) => (
-                            <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row._id))}>
-                                {row.title}
-                            </a>
-                        ),
-                    },
-                    { key: "status", header: "Status", sort: ["status"], render: (row) => <StatusBadge status={row.status} /> },
-                    {
-                        key: "priority",
-                        header: "Priority",
-                        sort: ["priority_desc"],
-                        render: (row) => <PriorityCell priority={row.priority} />,
-                    },
-                    { key: "assignedTo", header: "Assigned to", render: (row) => <AgentCell agent={row.assignedTo} /> },
-                    { key: "sla", header: "SLA", render: (row) => <SlaCell ticket={row} /> },
-                    {
-                        key: "createdAt",
-                        header: "Created",
-                        sort: ["oldest", "newest"],
-                        render: (row) => <span className="mono">{formatDateTime(row.createdAt)}</span>,
-                    },
-                ]}
+                columns={visibleColumns}
             />
 
             {!isLoading && totalPages > 1 && (
