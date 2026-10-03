@@ -32,6 +32,11 @@ const ticketSchema = new mongoose.Schema(
         slaBreached: { type: Boolean, default: false, index: true },
         slaWarningNotifiedAt: { type: Date, default: null },
         resolvedAt: { type: Date, default: null },
+        // When the ticket was closed, which starts the 14-day reopen window. Cleared on a reopen.
+        closedAt: { type: Date, default: null },
+        // Set once admins have been told the ticket has nobody on it, so the alert is not repeated
+        // every minute by the sweep. Cleared when someone is assigned.
+        unassignedNotifiedAt: { type: Date, default: null },
         replies: { type: [replySchema], default: [] },
     },
     { timestamps: true, versionKey: false },

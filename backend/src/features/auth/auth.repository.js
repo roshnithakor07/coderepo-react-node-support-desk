@@ -4,6 +4,7 @@ export const authRepository = {
     findByEmail: (email) => User.findOne({ email }).select("+password"),
     findById: (id) => User.findById(id).lean(),
     create: (input) => User.create(input),
+    findAdminIds: async () => (await User.find({ role: "admin", isActive: true }).select("_id").lean()).map((admin) => admin._id),
     findAgentsWithWorkload: async ({ activeOnly = true } = {}) => {
         return User.aggregate([
             { $match: activeOnly ? { role: "agent", isActive: true } : { role: "agent" } },

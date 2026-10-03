@@ -1045,3 +1045,93 @@ named branch so it cannot quietly disappear.
 
 **Merge:** `fix/functional-qa` merged into `main` with `--no-ff`, branch deleted locally and on origin,
 all tests re-run on `main`.
+
+---
+
+## Task: `feat/ticket-lifecycle` - the ticket state machine as real product rules (2026-10-03T07:01:53+00:00)
+
+**Criteria this branch improves:** functionality (every lifecycle move now behaves the same in the UI
+and the API), production readiness (eight server-enforced rules with the right status codes),
+testing (two new test files, 173 tests in total), code architecture (the rules live in one pure
+module, not in the request handlers).
+
+Eight rules I asked for, plus the four follow-ups queued from the QA sweep. The rules sit in a new
+`backend/src/features/tickets/ticket-lifecycle.js`: a pure module with no database access, which the
+service calls. The ticket page asks the API what the viewer may do, so a control is never offered for
+a move the API would refuse.
+
+### The lifecycle I chose
+
+```text
+open -> in_progress -> pending <-> in_progress -> resolved -> closed
+                                                     |           |
+                                                     +-> open <--+   (reopen, 14 days)
+```
+
+### Decisions on this branch
+
+| Decision | Options | What I chose, and why |
+|---|---|---|
+| Where the rules live | Spread through `ticket.service.js`, or a separate module | **A separate `ticket-lifecycle.js` with no database access.** The service reads as a sequence of decisions, and every rule can be tested and reasoned about on its own. It is also the direct answer to the PagerDuty rejection note "business logic in the request handlers". |
+| How the UI learns the rules | Mirror the transition table in the frontend, or have the API say what is allowed | **The API returns a `permissions` block on the ticket detail.** A mirrored table in the frontend is a second source of truth that drifts. The status control now offers exactly the moves the server accepts, and every disabled action carries the server's own reason. |
+| Error code for an illegal move | Keep `INVALID_STATUS_TRANSITION`, or rename to `INVALID_TRANSITION` | **Renamed to `INVALID_TRANSITION`**, the code I asked for. One name in the API, the tests and the README table. |
+| `pending -> resolved` | Allow it, or force a step back through in progress | **Force the step.** "No skipping" has to mean something; a pending ticket is waiting on the customer, so somebody has to pick the work back up before it can be called resolved. |
+| A customer's reply on a **pending** ticket | Move it to in progress with the clock untouched, or treat it as a reopen | **Treat it as a reopen,** as I asked: a fresh SLA window from the reply, the breach and warning flags cleared, and a `reopened` entry. While a ticket is pending the team is waiting on the customer, so the clock should not keep running against them for the customer's own delay. This is the one place where a breach flag is cleared by something other than an explicit reopen; rule 7's "a breach is permanent" is about **priority changes**, which never clear it. |
+| What `closedAt` does for old records | Add the field and accept that old tickets have none, or fall back | **Fall back to the resolve stamp, then to the last write.** The 14-day window has to be measurable on records written before the field existed. There is a test that unsets `closedAt` on a seeded ticket and proves the window is still enforced. |
+| Who may close a ticket | Let a customer close from any status, or only from resolved | **Only from resolved,** because "no skipping" applies to them too. A customer closes a ticket the team has already resolved, or reopens it; everything else on the board is the team's. |
+| The status history | Reuse the admin audit trail, or a separate endpoint | **A separate `GET /tickets/:id/history`** for anyone who can see the ticket, carrying lifecycle entries only. The full audit trail stays admin-only because it names internal activity. |
+| Seeded tickets' history | Leave them with one "Opened" line, or seed the moves | **Seed the moves.** A seeded resolved ticket whose history showed only "Opened" made the feature look broken on exactly the data a reviewer opens first. The seed now writes the moves that must have happened to reach each seeded status. |
+| Reaching 15+ rules | Build everything in the independent review, or the lifecycle set first | **The lifecycle set first.** It is the one a reviewer exercises by clicking through a ticket, and it covers the "action did the wrong thing on an old record" rejection directly. |
+
+### Changes from the approved proposal: my decision, and why
+
+I asked for these to be recorded as my own calls rather than as things that quietly did not get
+built. In every case the submission guidelines and the proposal disagreed, and **the guidelines win**
+(my standing rule). The README now carries the same table so a reviewer sees it without reading the
+transcripts.
+
+| Proposal item | What we built | My reason |
+|---|---|---|
+| TypeScript | JavaScript with ES modules | The reference calendar repo is JavaScript and the sample stack is kept as declared (`AGENTS.md:238`). TypeScript would also mean new build dependencies, and `GUIDELINES.md:65` forbids adding any. |
+| Redis caching | No caching layer at all | `GUIDELINES.md:65`. `ioredis` is not in the reference repo. I would rather answer every request from MongoDB than add a dependency that could fail the submission outright, and dropping the cache removed a class of stale-data bugs. |
+| WebSockets | Polling every 15 seconds | `GUIDELINES.md:186` names WebSockets as unavailable in the HackerRank environment. |
+| Inbound email webhook | Removed | `GUIDELINES.md:186`, same line. It needed an external sender to be worth anything and left a route with no screen behind it, which is the "unused routes" finding from the PagerDuty rejection. |
+| Cursor pagination | Page numbers (`page`, `pageSize`) with the sort applied in MongoDB | The list shows "Page N of M", which needs a total that a cursor cannot give. At this volume the simpler thing is also the better thing. |
+| "Inspired by Zendesk/Freshdesk" | Removed; the product is described in its own words | `GUIDELINES.md:146` forbids external brands and trademarked product content. A real brand name in the README is what got the PagerDuty submission marked down. |
+
+### A bug I introduced and caught before pushing
+
+Replacing the composer with the "this ticket is closed" notice left the composer's auto-grow effect
+reading `.style` on a ref that was now `null`, so **every closed ticket rendered a blank page**. The
+element-rect check found it (205 elements on every other ticket, 2 on that one) and the browser
+console named the line. Fixed by guarding the ref and hiding "Jump to reply" when there is no
+composer. It is the reason the layout check runs over real pages and not only over the happy path.
+
+### What I found, not the agent (2026-10-03)
+
+I reported a large white block next to the dark option list when opening a `<select>`, and asked for
+it to be confirmed in a real browser window first. It did **not** reproduce: in a real window at 375,
+768 and 1280 in both themes, the popup measured exactly its list (140x146 for six options, 140x122
+for five) in all twelve combinations. The white block is the DevTools device-mode popup-sizing quirk.
+`color-scheme` is already declared per theme (`styles.css:4` and `:64`) and the selects already carry
+explicit background and color tokens, so **nothing was changed**, which is what I asked for if it
+turned out to be device mode.
+
+### Decision on rule 6, at approval (2026-10-03T07:30:53+00:00)
+
+The agent flagged one judgment call: it had made a customer's reply on a **pending** ticket restart
+the SLA and clear an existing breach flag, reading "the same reopen rules" literally.
+
+| Option | What it means |
+|---|---|
+| Keep it | A revived pending ticket gets a fresh SLA window and its breach flag cleared. |
+| **Change it (my choice)** | A revived pending ticket keeps its clock and its breach flag. Only an explicit reopen of a resolved or closed ticket starts a fresh SLA period. |
+
+**My reason:** the breach already happened before the ticket went to pending, and rule 7 says a
+breach is permanent. A customer replying should not be able to erase it.
+
+**What changed:** a customer reply on a pending ticket moves it to in progress and nothing else: no
+SLA restart, no cleared breach, and the history records it as a status change rather than a
+`reopened` entry, because it is not a reopen. A customer reply on a **resolved** ticket is unchanged:
+it is a reopen, with a fresh SLA period and a `reopened` entry. The test, the README rules table and
+this record were updated together.

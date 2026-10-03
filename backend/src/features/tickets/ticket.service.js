@@ -3,28 +3,19 @@ import { auditLogService } from "../audit-logs/audit-log.service.js";
 import { authRepository } from "../auth/auth.repository.js";
 import { notificationService } from "../notifications/notification.service.js";
 import { settingsService } from "../settings/settings.service.js";
+import {
+    ACTIVE_STATUSES,
+    STATUS_LABELS,
+    assertNotClosed,
+    assertPatchAllowed,
+    assertTransitionAllowed,
+    isActiveStatus,
+    isReopen,
+    permissionsFor,
+    statusAfterCustomerReply,
+    statusAfterStaffReply,
+} from "./ticket-lifecycle.js";
 import { ticketRepository } from "./ticket.repository.js";
-
-const STATUS_TRANSITIONS = {
-    open: ["in_progress", "pending", "resolved", "closed"],
-    in_progress: ["open", "pending", "resolved", "closed"],
-    pending: ["open", "in_progress", "resolved", "closed"],
-    resolved: ["closed", "open"],
-    closed: ["open"],
-};
-
-// How statuses read in messages people see, instead of the raw stored values.
-const STATUS_LABELS = {
-    open: "Open",
-    in_progress: "In Progress",
-    pending: "Pending",
-    resolved: "Resolved",
-    closed: "Closed",
-};
-
-// Statuses where the SLA clock is running. Moving back into one of them from a finished status
-// restarts the clock (see `update`).
-const ACTIVE_STATUSES = ["open", "in_progress", "pending"];
 
 // Each sort the UI offers maps to one database sort. `priorityRank`, `statusRank` and `titleSort`
 // are computed by the repository so word enums order by meaning and titles ignore case.
@@ -39,13 +30,8 @@ const SORT_ORDERS = {
 
 export const TICKET_SORT_KEYS = Object.keys(SORT_ORDERS);
 
-function assertTransitionAllowed(current, next) {
-    if (current === next) return;
-    const allowed = STATUS_TRANSITIONS[current] || [];
-    if (!allowed.includes(next)) {
-        throw new AppError(409, "INVALID_STATUS_TRANSITION", `Cannot move a ticket from "${current}" to "${next}".`);
-    }
-}
+// Audit actions that belong on the status history the ticket page shows.
+const HISTORY_ACTIONS = ["created", "reopened", "sla_breached"];
 
 async function computeSlaDeadline(priority, fromDate = new Date()) {
     const hours = await settingsService.getSlaHours(priority);
@@ -85,6 +71,61 @@ function presentTicket(ticket, actor) {
     return { ...ticket, replies: ticket.replies.filter((reply) => !reply.isInternal) };
 }
 
+// The ticket page also gets what this viewer may do and why not, so every control is hidden or
+// disabled from the same rules the API enforces.
+function presentTicketDetail(ticket, actor) {
+    const presented = presentTicket(ticket, actor);
+    // Permissions are derived from the full ticket: an internal note still counts as a reply even
+    // though the customer never sees it.
+    return { ...presented, permissions: permissionsFor(ticket, actor) };
+}
+
+// Reopening restarts the SLA clock from this moment. Measuring it from the original creation time
+// would hand a revived ticket a deadline that has already passed.
+async function restartSla(ticket, at, changes) {
+    ticket.slaStartedAt = at;
+    const deadline = await computeSlaDeadline(ticket.priority, at);
+    changes.slaDeadline = { from: ticket.slaDeadline, to: deadline };
+    ticket.slaDeadline = deadline;
+    ticket.slaBreached = false;
+    ticket.slaWarningNotifiedAt = null;
+    ticket.resolvedAt = null;
+    ticket.closedAt = null;
+    changes.slaRestartedAt = at;
+}
+
+// Applies a status move that has already been checked, plus the stamps and clock that go with it.
+async function applyStatusChange(ticket, next, at, changes) {
+    const reopening = isReopen(ticket.status, next);
+    changes.status = { from: ticket.status, to: next };
+    ticket.status = next;
+
+    if (next === "resolved") ticket.resolvedAt = at;
+    // Closing keeps the resolve stamp and starts the reopen window.
+    if (next === "closed") ticket.closedAt = at;
+    if (reopening) await restartSla(ticket, at, changes);
+
+    return reopening;
+}
+
+function statusChangeMessage(ticket) {
+    return `Ticket "${ticket.title}" status changed to ${STATUS_LABELS[ticket.status] || ticket.status}.`;
+}
+
+// One audit entry per history row: who moved the ticket, from what to what, and when.
+function toHistoryEntry(entry) {
+    const status = entry.changes?.status;
+    return {
+        _id: entry._id,
+        action: entry.action,
+        from: status?.from || null,
+        to: entry.action === "created" ? "open" : status?.to || null,
+        slaRestartedAt: entry.changes?.slaRestartedAt || null,
+        performedBy: entry.performedBy ? { name: entry.performedBy.name, role: entry.performedBy.role } : null,
+        createdAt: entry.createdAt,
+    };
+}
+
 export const ticketService = {
     async create(input, actor) {
         const slaStartedAt = new Date();
@@ -101,6 +142,9 @@ export const ticketService = {
             assignedTo: autoAssignee ? autoAssignee._id : null,
             slaStartedAt,
             slaDeadline,
+            // A ticket nobody could be assigned to is reported to the admins now, so the sweep does
+            // not repeat the alert a minute later.
+            unassignedNotifiedAt: autoAssignee ? null : slaStartedAt,
         });
 
         await auditLogService.record(ticket._id, "created", actor.id, { priority: input.priority, autoAssigned: Boolean(autoAssignee) });
@@ -112,9 +156,16 @@ export const ticketService = {
                 `You were auto-assigned ticket "${ticket.title}".`,
                 ticket._id,
             );
+        } else {
+            await notificationService.notifyMany(
+                await authRepository.findAdminIds(),
+                "ticket_unassigned",
+                `Ticket "${ticket.title}" has no assignee and is waiting to be picked up.`,
+                ticket._id,
+            );
         }
 
-        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async list(filters, actor) {
@@ -149,44 +200,42 @@ export const ticketService = {
         const ticket = await ticketRepository.findByIdLean(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
-        return presentTicket(ticket, actor);
+        return presentTicketDetail(ticket, actor);
     },
 
     async update(id, patch, actor) {
         const ticket = await ticketRepository.findById(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
+        assertPatchAllowed(patch, actor);
+
+        const now = new Date();
+        const nextStatus = patch.status && patch.status !== ticket.status ? patch.status : null;
+        const editsFields = ["title", "description", "priority", "category", "tags"].some((field) => patch[field] !== undefined);
+
+        // A closed ticket is read-only. The reopen is the one change it still accepts, so the status
+        // is checked by the lifecycle rules below rather than blocked here.
+        if (ticket.status === "closed" && editsFields) assertNotClosed(ticket);
 
         const changes = {};
+        let reopened = false;
 
-        if (patch.status && patch.status !== ticket.status) {
-            assertTransitionAllowed(ticket.status, patch.status);
-            const wasFinished = !ACTIVE_STATUSES.includes(ticket.status);
-            changes.status = { from: ticket.status, to: patch.status };
-            ticket.status = patch.status;
-            // Resolving stamps the time; closing keeps it; any other status clears it.
-            ticket.resolvedAt = patch.status === "resolved" ? new Date() : patch.status === "closed" ? ticket.resolvedAt : null;
-
-            // Reopening restarts the SLA clock from now. Measuring it from the original creation
-            // time would hand a reopened ticket a deadline that has already passed.
-            if (wasFinished && ACTIVE_STATUSES.includes(patch.status)) {
-                const reopenedAt = new Date();
-                ticket.slaStartedAt = reopenedAt;
-                ticket.slaDeadline = await computeSlaDeadline(ticket.priority, reopenedAt);
-                ticket.slaBreached = false;
-                ticket.slaWarningNotifiedAt = null;
-                changes.slaRestartedAt = reopenedAt;
-            }
+        if (nextStatus) {
+            assertTransitionAllowed(ticket, nextStatus, actor, now);
+            reopened = await applyStatusChange(ticket, nextStatus, now, changes);
         }
 
         if (patch.priority && patch.priority !== ticket.priority) {
             changes.priority = { from: ticket.priority, to: patch.priority };
             ticket.priority = patch.priority;
-            const newDeadline = await computeSlaDeadline(patch.priority, ticket.slaStartedAt || ticket.createdAt);
-            ticket.slaDeadline = newDeadline;
-            if (newDeadline.getTime() > Date.now()) {
-                ticket.slaBreached = false;
-                ticket.slaWarningNotifiedAt = null;
+            // The new window runs from the change, not from when the ticket was created: a ticket
+            // raised to critical gets a full critical window to answer in. A breach already on the
+            // record stays on it.
+            if (isActiveStatus(ticket.status)) {
+                const deadline = await computeSlaDeadline(patch.priority, now);
+                changes.slaDeadline = { from: changes.slaDeadline?.to || ticket.slaDeadline, to: deadline };
+                ticket.slaStartedAt = now;
+                ticket.slaDeadline = deadline;
             }
         }
 
@@ -213,25 +262,21 @@ export const ticketService = {
         await ticketRepository.save(ticket);
 
         if (Object.keys(changes).length > 0) {
-            await auditLogService.record(ticket._id, "updated", actor.id, changes);
+            await auditLogService.record(ticket._id, reopened ? "reopened" : "updated", actor.id, changes);
         }
 
         if (changes.status && String(ticket.createdBy) !== actor.id) {
-            await notificationService.notify(
-                ticket.createdBy,
-                "status_changed",
-                `Ticket "${ticket.title}" status changed to ${STATUS_LABELS[ticket.status] || ticket.status}.`,
-                ticket._id,
-            );
+            await notificationService.notify(ticket.createdBy, "status_changed", statusChangeMessage(ticket), ticket._id);
         }
 
-        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async assign(id, agentId, actor) {
         const ticket = await ticketRepository.findById(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
+        assertNotClosed(ticket);
 
         const agent = await authRepository.findById(agentId);
         if (!agent || agent.role !== "agent" || !agent.isActive) {
@@ -239,27 +284,41 @@ export const ticketService = {
         }
 
         ticket.assignedTo = agent._id;
+        // Somebody owns it again, so a later spell without an assignee alerts the admins afresh.
+        ticket.unassignedNotifiedAt = null;
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "assigned", actor.id, { assignedTo: agent.name });
         await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
 
-        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async addReply(id, actor, { body, isInternal }) {
         const ticket = await ticketRepository.findById(id);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
+        // A closed ticket's conversation is a record of what happened.
+        assertNotClosed(ticket);
 
         const internal = actor.role === "customer" ? false : Boolean(isInternal);
+        const now = new Date();
         ticket.replies.push({ body, author: actor.id, isInternal: internal });
 
-        if (actor.role !== "customer" && ticket.status === "open") {
-            ticket.status = "in_progress";
-        }
+        // A public staff reply starts work on an open ticket; an internal note never moves it. A
+        // customer's reply on a pending ticket hands it back to the team, and on a resolved ticket
+        // reopens it. Only the reopen starts a fresh SLA period: a pending ticket is still inside
+        // the period it was already in, so its clock, and any breach on it, carry on unchanged.
+        const isCustomer = actor.role === "customer";
+        const autoStatus = isCustomer ? statusAfterCustomerReply(ticket) : statusAfterStaffReply(ticket, internal);
+        const changes = {};
+        let reopened = false;
+        if (autoStatus) reopened = await applyStatusChange(ticket, autoStatus, now, changes);
 
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "replied", actor.id, { isInternal: internal });
+        if (changes.status) {
+            await auditLogService.record(ticket._id, reopened ? "reopened" : "updated", actor.id, { ...changes, trigger: "reply" });
+        }
 
         if (!internal) {
             if (actor.role === "customer" && ticket.assignedTo) {
@@ -269,7 +328,7 @@ export const ticketService = {
             }
         }
 
-        return presentTicket(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
     },
 
     async getAuditTrail(id) {
@@ -277,16 +336,32 @@ export const ticketService = {
         return auditLogService.listForTicket(id);
     },
 
+    // The status history everyone who can see the ticket gets: the lifecycle only, with no internal
+    // notes, assignments or field edits in it.
+    async getStatusHistory(id, actor) {
+        const ticket = await ticketRepository.findByIdLean(id);
+        if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+        assertCanView(ticket, actor);
+        const entries = await auditLogService.listStatusHistory(id, HISTORY_ACTIONS);
+        return entries.map(toHistoryEntry);
+    },
+
     async runSlaSweep() {
         const now = new Date();
+        // Admins watch the whole board, so a missed deadline or an unowned ticket reaches them too.
+        const adminIds = await authRepository.findAdminIds();
 
         const overdue = await ticketRepository.findOverdueUnbreached(now);
         for (const ticket of overdue) {
             ticket.slaBreached = true;
             await ticketRepository.save(ticket);
             await auditLogService.record(ticket._id, "sla_breached", null, { slaDeadline: ticket.slaDeadline });
-            const recipients = [ticket.assignedTo].filter(Boolean);
-            await notificationService.notifyMany(recipients, "sla_breached", `SLA breached for ticket "${ticket.title}".`, ticket._id);
+            await notificationService.notifyMany(
+                [ticket.assignedTo, ...adminIds],
+                "sla_breached",
+                `SLA breached for ticket "${ticket.title}".`,
+                ticket._id,
+            );
         }
 
         const windowEnd = new Date(now.getTime() + 30 * 60 * 1000);
@@ -294,15 +369,26 @@ export const ticketService = {
         for (const ticket of approaching) {
             ticket.slaWarningNotifiedAt = now;
             await ticketRepository.save(ticket);
-            const recipients = [ticket.assignedTo].filter(Boolean);
             await notificationService.notifyMany(
-                recipients,
+                [ticket.assignedTo].filter(Boolean),
                 "sla_warning",
                 `SLA due within 30 minutes for ticket "${ticket.title}".`,
                 ticket._id,
             );
         }
 
-        return { breached: overdue.length, warned: approaching.length };
+        const unassigned = await ticketRepository.findUnassignedUnnotified(ACTIVE_STATUSES);
+        for (const ticket of unassigned) {
+            ticket.unassignedNotifiedAt = now;
+            await ticketRepository.save(ticket);
+            await notificationService.notifyMany(
+                adminIds,
+                "ticket_unassigned",
+                `Ticket "${ticket.title}" has no assignee and is waiting to be picked up.`,
+                ticket._id,
+            );
+        }
+
+        return { breached: overdue.length, warned: approaching.length, unassigned: unassigned.length };
     },
 };

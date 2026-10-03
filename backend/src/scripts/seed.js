@@ -138,7 +138,7 @@ const TICKET_BLUEPRINTS = [
     { title: "Unable to reset password", priority: "high", category: "account", status: "resolved", ageHours: 30, resolvedAfterHours: 3 },
     { title: "Slow dashboard loading times", priority: "medium", category: "technical", status: "in_progress", ageHours: 4 },
     { title: "Duplicate charge on my card", priority: "critical", category: "billing", status: "resolved", ageHours: 48, resolvedAfterHours: 2 },
-    { title: "How do I export my data?", priority: "low", category: "general", status: "closed", ageHours: 72, resolvedAfterHours: 5 },
+    { title: "How do I export my data?", priority: "low", category: "general", status: "closed", ageHours: 72, resolvedAfterHours: 5, closedAfterHours: 7 },
     { title: "Two-factor authentication not working", priority: "high", category: "account", status: "open", ageHours: 3 },
     { title: "Mobile app freezes on upload", priority: "medium", category: "technical", status: "pending", ageHours: 15 },
     { title: "Need to update billing address", priority: "low", category: "billing", status: "resolved", ageHours: 40, resolvedAfterHours: 4 },
@@ -146,10 +146,15 @@ const TICKET_BLUEPRINTS = [
     { title: "Trouble understanding my subscription tier", priority: "low", category: "billing", status: "open", ageHours: 8 },
     { title: "Account suspended without explanation", priority: "critical", category: "account", status: "in_progress", ageHours: 4 },
     { title: "Search results are inaccurate", priority: "medium", category: "technical", status: "open", ageHours: 9 },
-    { title: "Requesting a demo for enterprise plan", priority: "low", category: "general", status: "closed", ageHours: 96, resolvedAfterHours: 6 },
+    { title: "Requesting a demo for enterprise plan", priority: "low", category: "general", status: "closed", ageHours: 96, resolvedAfterHours: 6, closedAfterHours: 8 },
     { title: "Refund not received after 10 days", priority: "high", category: "billing", status: "pending", ageHours: 25 },
     { title: "Notification emails not arriving", priority: "medium", category: "technical", status: "resolved", ageHours: 18, resolvedAfterHours: 4 },
     { title: "Question about GDPR data deletion", priority: "medium", category: "account", status: "open", ageHours: 7 },
+    // Closed three weeks ago: past the 14-day reopen window, so the ticket page shows why it cannot
+    // be reopened and points the customer at a new ticket.
+    { title: "Old import job never finished", priority: "medium", category: "technical", status: "closed", ageHours: 504, resolvedAfterHours: 9, closedAfterHours: 11 },
+    // Nobody picked this one up, which is what the admin "no assignee" alert is for.
+    { title: "Cannot download my past invoices", priority: "medium", category: "billing", status: "open", ageHours: 1, unassigned: true },
 ];
 
 const REPLY_SNIPPETS = [
@@ -160,7 +165,7 @@ const REPLY_SNIPPETS = [
     "Appreciate your patience while we work through this.",
 ];
 
-async function seedTickets(admins, agents, customers) {
+async function seedTickets(agents, customers) {
     console.log("\nSeeding tickets...");
     const activeAgents = agents.filter((agent) => agent.isActive);
     const tickets = [];
@@ -175,9 +180,11 @@ async function seedTickets(admins, agents, customers) {
         const slaDeadline = new Date(createdAt.getTime() + SLA_HOURS[blueprint.priority] * 60 * 60 * 1000);
         const isResolvedLike = blueprint.status === "resolved" || blueprint.status === "closed";
         const resolvedAt = isResolvedLike ? hoursAgo(blueprint.ageHours - blueprint.resolvedAfterHours) : null;
+        // Closing starts the 14-day reopen window, so a closed ticket carries the moment it closed.
+        const closedAt = blueprint.status === "closed" ? hoursAgo(blueprint.ageHours - blueprint.closedAfterHours) : null;
         const slaBreached = (resolvedAt || new Date()).getTime() > slaDeadline.getTime();
 
-        const replyCount = index % 3;
+        const replyCount = blueprint.unassigned ? 0 : index % 3;
         const replies = [];
         for (let replyIndex = 0; replyIndex < replyCount; replyIndex += 1) {
             const isAgentReply = replyIndex % 2 === 0;
@@ -197,11 +204,14 @@ async function seedTickets(admins, agents, customers) {
             category: blueprint.category,
             tags: [blueprint.category, blueprint.priority],
             createdBy: customer._id,
-            assignedTo: agent._id,
+            assignedTo: blueprint.unassigned ? null : agent._id,
             slaStartedAt: createdAt,
             slaDeadline,
             slaBreached,
             resolvedAt,
+            closedAt,
+            // The admins are told about an unowned ticket once, and the seeded alert below is that one time.
+            unassignedNotifiedAt: blueprint.unassigned ? createdAt : null,
             replies,
             createdAt,
             updatedAt: createdAt,
@@ -215,6 +225,29 @@ async function seedTickets(admins, agents, customers) {
     return created;
 }
 
+// The moves a ticket must have made to reach the status it is seeded in, so the status history on
+// the ticket page reads as a real lifecycle on day one instead of a single "Opened" line.
+function lifecycleEntries(ticket, performedBy) {
+    if (ticket.status === "open") return [];
+
+    const created = new Date(ticket.createdAt).getTime();
+    const finished = ticket.resolvedAt ? new Date(ticket.resolvedAt).getTime() : Date.now();
+    const partWay = (fraction) => new Date(created + (finished - created) * fraction);
+
+    const moves = [["open", "in_progress", partWay(0.25)]];
+    if (ticket.status === "pending") moves.push(["in_progress", "pending", partWay(0.6)]);
+    if (ticket.resolvedAt) moves.push(["in_progress", "resolved", new Date(ticket.resolvedAt)]);
+    if (ticket.closedAt) moves.push(["resolved", "closed", new Date(ticket.closedAt)]);
+
+    return moves.map(([from, to, at]) => ({
+        ticketId: ticket._id,
+        action: "updated",
+        performedBy,
+        changes: { status: { from, to } },
+        createdAt: at,
+    }));
+}
+
 async function seedAuditLogs(tickets, admins, agents) {
     const agentNames = new Map(agents.map((agent) => [String(agent._id), agent.name]));
     console.log("\nSeeding audit logs...");
@@ -226,19 +259,23 @@ async function seedAuditLogs(tickets, admins, agents) {
         createdAt: ticket.createdAt,
     }));
 
-    const assignEntries = tickets.map((ticket) => ({
-        ticketId: ticket._id,
-        action: "assigned",
-        performedBy: admins[0]._id,
-        changes: { assignedTo: agentNames.get(String(ticket.assignedTo)) },
-        createdAt: ticket.createdAt,
-    }));
+    const lifecycle = tickets.flatMap((ticket) => lifecycleEntries(ticket, ticket.assignedTo || admins[0]._id));
 
-    const created = await AuditLog.insertMany([...entries, ...assignEntries]);
+    const assignEntries = tickets
+        .filter((ticket) => ticket.assignedTo)
+        .map((ticket) => ({
+            ticketId: ticket._id,
+            action: "assigned",
+            performedBy: admins[0]._id,
+            changes: { assignedTo: agentNames.get(String(ticket.assignedTo)) },
+            createdAt: ticket.createdAt,
+        }));
+
+    const created = await AuditLog.insertMany([...entries, ...assignEntries, ...lifecycle]);
     console.log(`  ${created.length} audit log entries`);
 }
 
-async function seedNotifications(tickets, agents, customers) {
+async function seedNotifications(tickets, admins) {
     console.log("\nSeeding notifications...");
     const notifications = [];
 
@@ -250,17 +287,33 @@ async function seedNotifications(tickets, agents, customers) {
             ticketId: ticket._id,
             isRead: index % 2 === 1,
         });
-        // Breach alerts go out only while a ticket is open, as the SLA sweep does.
+        // Breach alerts go out only while a ticket is open, as the SLA sweep does. Admins watch the
+        // whole board, so they get the same alert.
         if (ticket.slaBreached && !ticket.resolvedAt) {
+            for (const userId of [ticket.assignedTo, ...admins.map((admin) => admin._id)]) {
+                notifications.push({
+                    userId,
+                    type: "sla_breached",
+                    message: `SLA breached for ticket "${ticket.title}".`,
+                    ticketId: ticket._id,
+                    isRead: false,
+                });
+            }
+        }
+    });
+
+    // A ticket nobody owns is the admins' problem, exactly as the sweep reports it.
+    for (const ticket of tickets.filter((ticket) => !ticket.assignedTo)) {
+        for (const admin of admins) {
             notifications.push({
-                userId: ticket.assignedTo,
-                type: "sla_breached",
-                message: `SLA breached for ticket "${ticket.title}".`,
+                userId: admin._id,
+                type: "ticket_unassigned",
+                message: `Ticket "${ticket.title}" has no assignee and is waiting to be picked up.`,
                 ticketId: ticket._id,
                 isRead: false,
             });
         }
-    });
+    }
 
     const created = await Notification.insertMany(notifications);
     console.log(`  ${created.length} notifications`);
@@ -280,9 +333,9 @@ async function seed() {
         const { admins, agents, customers } = await seedUsers();
         await seedSettings();
         await seedCannedResponses(admins, agents);
-        const tickets = await seedTickets(admins, agents, customers);
+        const tickets = await seedTickets(agents, customers);
         await seedAuditLogs(tickets, admins, agents);
-        await seedNotifications(tickets, agents, customers);
+        await seedNotifications(tickets, admins);
 
         const [userCount, ticketCount, auditCount, cannedCount, notificationCount] = await Promise.all([
             User.countDocuments(),

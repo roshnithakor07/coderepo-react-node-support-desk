@@ -111,6 +111,7 @@ export default function App() {
 
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [auditTrail, setAuditTrail] = useState(null);
+    const [statusHistory, setStatusHistory] = useState(null);
 
     const [agents, setAgents] = useState([]);
     const [agentsLoading, setAgentsLoading] = useState(false);
@@ -333,12 +334,23 @@ export default function App() {
         loadSettings();
     }, [loadSettings]);
 
+    // The status history is part of the ticket page for every role, so it reloads with the ticket
+    // and after anything that can move the status.
+    const loadStatusHistory = useCallback((id) => {
+        if (!id) return;
+        ticketApi
+            .history(id)
+            .then(setStatusHistory)
+            .catch(() => setStatusHistory([]));
+    }, []);
+
     function loadTicketDetail(id) {
         if (!id) return;
         setSelectedTicketId(id);
         setActiveView("ticket-detail");
         setSelectedTicket(null);
         setAuditTrail(null);
+        setStatusHistory(null);
         ticketApi
             .get(id)
             .then(setSelectedTicket)
@@ -346,6 +358,7 @@ export default function App() {
                 pushToast("error", friendlyErrorMessage(error, "Couldn't open that ticket."));
                 setActiveView("tickets");
             });
+        loadStatusHistory(id);
         if (currentUser?.role === "admin") {
             ticketApi
                 .audit(id)
@@ -361,6 +374,7 @@ export default function App() {
         setSelectedTicketId(null);
         setSelectedTicket(null);
         setAuditTrail(null);
+        setStatusHistory(null);
         setActiveView("dashboard");
         setTickets([]);
         setTicketsTotal(0);
@@ -446,6 +460,7 @@ export default function App() {
         try {
             const updated = await ticketApi.update(selectedTicketId, patch);
             setSelectedTicket(updated);
+            loadStatusHistory(selectedTicketId);
             pushToast("success", "Ticket updated.");
             loadTickets();
             loadDashboard();
@@ -458,9 +473,18 @@ export default function App() {
 
     async function handleAssignTicket(agentId) {
         if (!agentId) return;
+        // An agent who hands a ticket to someone else loses access to it, so leaving them on a page
+        // they can no longer load would be misleading: they go back to their list instead.
+        const isHandOff = currentUser.role === "agent" && agentId !== currentUser.id;
         setIsUpdatingTicket(true);
         try {
             const updated = await ticketApi.assign(selectedTicketId, agentId);
+            if (isHandOff) {
+                pushToast("success", `Ticket handed to ${updated.assignedTo?.name || "another agent"}.`);
+                handleNavigate("tickets");
+                loadTickets();
+                return;
+            }
             setSelectedTicket(updated);
             pushToast("success", "Ticket reassigned.");
         } catch (error) {
@@ -475,6 +499,10 @@ export default function App() {
         try {
             const updated = await ticketApi.reply(selectedTicketId, input);
             setSelectedTicket(updated);
+            // A customer's reply can revive a waiting or resolved ticket, so both the list counts
+            // and the history can have moved.
+            loadStatusHistory(selectedTicketId);
+            loadTickets();
             pushToast("success", input.isInternal ? "Internal note added." : "Reply sent.");
             return updated;
         } catch (error) {
@@ -692,6 +720,7 @@ export default function App() {
                             agents={agents}
                             cannedResponses={cannedResponses}
                             auditTrail={auditTrail}
+                            statusHistory={statusHistory}
                             onBack={() => handleNavigate("tickets")}
                             onUpdate={handleUpdateTicket}
                             onReply={handleReply}

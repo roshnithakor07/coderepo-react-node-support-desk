@@ -99,6 +99,15 @@ export const ticketRepository = {
             status: { $nin: ["resolved", "closed"] },
         }),
 
+    // Tickets still in the working queue with nobody on them, that the admins have not been told
+    // about yet.
+    findUnassignedUnnotified: (activeStatuses) =>
+        Ticket.find({
+            assignedTo: null,
+            unassignedNotifiedAt: null,
+            status: { $in: activeStatuses },
+        }),
+
     findApproachingSla: (windowStart, windowEnd) =>
         Ticket.find({
             slaDeadline: { $gt: windowStart, $lte: windowEnd },

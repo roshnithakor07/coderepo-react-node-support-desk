@@ -9,6 +9,10 @@ export const auditLogService = {
         return auditLogRepository.findByTicket(ticketId);
     },
 
+    listStatusHistory(ticketId, actions) {
+        return auditLogRepository.findStatusHistory(ticketId, actions);
+    },
+
     async listAll({ page = 1, pageSize = 25 } = {}) {
         const skip = (page - 1) * pageSize;
         const [entries, total] = await Promise.all([auditLogRepository.findAll({ limit: pageSize, skip }), auditLogRepository.count()]);
