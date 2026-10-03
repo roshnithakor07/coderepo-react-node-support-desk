@@ -110,6 +110,15 @@ export async function assignTicket(request, response, next) {
     }
 }
 
+export async function getTicketHistory(request, response, next) {
+    try {
+        const entries = await ticketService.getStatusHistory(request.params.ticketId, request.user);
+        response.json({ data: entries });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getTicketAudit(request, response, next) {
     try {
         const entries = await ticketService.getAuditTrail(request.params.ticketId);

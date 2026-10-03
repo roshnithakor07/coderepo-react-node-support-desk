@@ -7,6 +7,7 @@ import {
     createTicket,
     getTicket,
     getTicketAudit,
+    getTicketHistory,
     getTicketStats,
     listTickets,
     updateTicket,
@@ -22,7 +23,12 @@ ticketRouter.get("/stats", getTicketStats);
 // Customers raise tickets; agents and admins work them, so the button is theirs alone.
 ticketRouter.post("/", requireRole("customer"), createTicket);
 ticketRouter.get("/:ticketId", getTicket);
-ticketRouter.put("/:ticketId", requireRole("admin", "agent"), updateTicket);
+// Open to every role: the service decides what each one may change, so a customer can close or
+// reopen their own ticket without being able to touch its priority or anyone else's ticket.
+ticketRouter.put("/:ticketId", updateTicket);
 ticketRouter.post("/:ticketId/replies", addReply);
 ticketRouter.post("/:ticketId/assign", requireRole("admin", "agent"), assignTicket);
+// The status history is part of the ticket everyone who can see it gets; the full audit trail,
+// which includes internal activity, stays with the admins.
+ticketRouter.get("/:ticketId/history", getTicketHistory);
 ticketRouter.get("/:ticketId/audit", requireRole("admin"), getTicketAudit);
