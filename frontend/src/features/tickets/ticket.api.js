@@ -12,5 +12,6 @@ export const ticketApi = {
     update: (id, patch) => request(`/tickets/${id}`, { method: "PUT", body: JSON.stringify(patch) }),
     reply: (id, reply) => request(`/tickets/${id}/replies`, { method: "POST", body: JSON.stringify(reply) }),
     assign: (id, agentId) => request(`/tickets/${id}/assign`, { method: "POST", body: JSON.stringify({ agentId }) }),
+    history: (id) => request(`/tickets/${id}/history`),
     audit: (id) => request(`/tickets/${id}/audit`),
 };

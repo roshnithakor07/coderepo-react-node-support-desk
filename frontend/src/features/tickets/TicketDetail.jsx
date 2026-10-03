@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
 import { ArrowLeftIcon, LockIcon } from "../../shared/components/Icon.jsx";
-import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber, titleCase } from "../../shared/utils/format.js";
+import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber } from "../../shared/utils/format.js";
+import { StatusHistory } from "./StatusHistory.jsx";
+import { TicketProperties } from "./TicketProperties.jsx";
 
-const STATUS_OPTIONS = ["open", "in_progress", "pending", "resolved", "closed"];
-const PRIORITY_OPTIONS = ["low", "medium", "high", "critical"];
 const COMPOSER_MAX_HEIGHT = 200;
 
 function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
@@ -30,27 +30,13 @@ function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
     );
 }
 
-function PropertyRow({ label, htmlFor, children }) {
-    return (
-        <div className="ticket-info-row">
-            {htmlFor ? (
-                <label htmlFor={htmlFor} className="ticket-info-label">
-                    {label}
-                </label>
-            ) : (
-                <span className="ticket-info-label">{label}</span>
-            )}
-            {children}
-        </div>
-    );
-}
-
 export function TicketDetail({
     ticket,
     currentUser,
     agents,
     cannedResponses,
     auditTrail,
+    statusHistory,
     onBack,
     onUpdate,
     onReply,
@@ -66,6 +52,10 @@ export function TicketDetail({
     const latestMessageRef = useRef(null);
 
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
+    const permissions = ticket.permissions || {};
+    // A closed ticket's conversation is a record of what happened, so the composer is replaced by
+    // the reason it is locked rather than left there to fail on submit.
+    const canReply = permissions.canReply !== false;
     const visibleReplies = canManage ? ticket.replies : ticket.replies.filter((reply) => !reply.isInternal);
     const sla = getSlaProgress(ticket.slaStartedAt || ticket.createdAt, ticket.slaDeadline, ticket.slaBreached);
 
@@ -79,12 +69,14 @@ export function TicketDetail({
         replyCountRef.current = visibleReplies.length;
     }, [ticket._id, visibleReplies.length]);
 
-    // The composer starts at two lines and grows with its content up to a maximum height.
+    // The composer starts at two lines and grows with its content up to a maximum height. A closed
+    // ticket has no composer at all, so there is nothing to measure.
     useLayoutEffect(() => {
         const field = replyFieldRef.current;
+        if (!field) return;
         field.style.height = "auto";
         field.style.height = `${Math.min(field.scrollHeight + 2, COMPOSER_MAX_HEIGHT)}px`;
-    }, [replyBody]);
+    }, [replyBody, canReply]);
 
     function submitReply(event) {
         event.preventDefault();
@@ -108,8 +100,8 @@ export function TicketDetail({
     }
 
     function jumpToReply() {
-        replyFieldRef.current.focus();
-        replyFieldRef.current.scrollIntoView({ block: "center" });
+        replyFieldRef.current?.focus();
+        replyFieldRef.current?.scrollIntoView({ block: "center" });
     }
 
     return (
@@ -150,9 +142,11 @@ export function TicketDetail({
                     <div className="ticket-thread">
                         <div className="ticket-thread-header">
                             <h3>Conversation</h3>
-                            <button type="button" className="link-button jump-to-reply" onClick={jumpToReply}>
-                                Jump to reply
-                            </button>
+                            {canReply && (
+                                <button type="button" className="link-button jump-to-reply" onClick={jumpToReply}>
+                                    Jump to reply
+                                </button>
+                            )}
                         </div>
                         <ol className="message-list">
                             <MessageCard
@@ -174,192 +168,119 @@ export function TicketDetail({
                         </ol>
                     </div>
 
-                    <form className="reply-form" onSubmit={submitReply} noValidate>
-                        <div className="reply-tabs" role="tablist" aria-label="Reply type">
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={!isInternal}
-                                className={!isInternal ? "active" : ""}
-                                onClick={() => setIsInternal(false)}
-                            >
-                                Public Reply
-                            </button>
-                            {canManage && (
+                    {!canReply ? (
+                        <div className="reply-form reply-form-locked" role="status">
+                            <p className="reply-locked-message">
+                                <LockIcon /> {permissions.closedReason}
+                            </p>
+                            {permissions.reopenBlockedReason ? (
+                                <p className="reply-locked-note">{permissions.reopenBlockedReason}</p>
+                            ) : (
+                                <p className="reply-locked-note">
+                                    {canManage
+                                        ? "Set the status back to Open to continue the conversation."
+                                        : "Reopen the ticket from the panel on the right to continue the conversation."}
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <form className="reply-form" onSubmit={submitReply} noValidate>
+                            <div className="reply-tabs" role="tablist" aria-label="Reply type">
                                 <button
                                     type="button"
                                     role="tab"
-                                    aria-selected={isInternal}
-                                    className={isInternal ? "active" : ""}
-                                    onClick={() => setIsInternal(true)}
+                                    aria-selected={!isInternal}
+                                    className={!isInternal ? "active" : ""}
+                                    onClick={() => setIsInternal(false)}
                                 >
-                                    Internal Note
+                                    Public Reply
                                 </button>
-                            )}
-                        </div>
-                        <label htmlFor="reply-body" className="visually-hidden">
-                            Reply
-                        </label>
-                        <textarea
-                            id="reply-body"
-                            ref={replyFieldRef}
-                            value={replyBody}
-                            onChange={(event) => {
-                                setReplyBody(event.target.value);
-                                if (replyError) setReplyError("");
-                            }}
-                            placeholder={isInternal ? "Write an internal note visible only to your team..." : "Write a reply..."}
-                            rows={2}
-                            maxLength={5000}
-                            aria-invalid={Boolean(replyError)}
-                            aria-describedby={replyError ? "reply-body-error" : undefined}
-                            className={`${replyError ? "field-invalid" : ""} ${isInternal ? "reply-body-internal" : ""}`}
-                            disabled={isReplying}
-                        />
-                        {replyError && (
-                            <span className="field-error" id="reply-body-error">
-                                {replyError}
-                            </span>
-                        )}
-                        <div className="reply-form-footer">
-                            {canManage && cannedResponses.length > 0 ? (
-                                <div className="canned-picker">
+                                {canManage && (
                                     <button
                                         type="button"
-                                        className="button-secondary button-compact"
-                                        onClick={() => setShowCanned((value) => !value)}
-                                        aria-expanded={showCanned}
-                                        aria-haspopup="true"
+                                        role="tab"
+                                        aria-selected={isInternal}
+                                        className={isInternal ? "active" : ""}
+                                        onClick={() => setIsInternal(true)}
                                     >
-                                        Insert canned response
+                                        Internal Note
                                     </button>
-                                    {showCanned && (
-                                        <ul className="canned-picker-list">
-                                            {cannedResponses.map((response) => (
-                                                <li key={response._id}>
-                                                    <button type="button" onClick={() => insertCanned(response)}>
-                                                        {response.title}
-                                                    </button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            ) : (
-                                <span />
+                                )}
+                            </div>
+                            <label htmlFor="reply-body" className="visually-hidden">
+                                Reply
+                            </label>
+                            <textarea
+                                id="reply-body"
+                                ref={replyFieldRef}
+                                value={replyBody}
+                                onChange={(event) => {
+                                    setReplyBody(event.target.value);
+                                    if (replyError) setReplyError("");
+                                }}
+                                placeholder={isInternal ? "Write an internal note visible only to your team..." : "Write a reply..."}
+                                rows={2}
+                                maxLength={5000}
+                                aria-invalid={Boolean(replyError)}
+                                aria-describedby={replyError ? "reply-body-error" : undefined}
+                                className={`${replyError ? "field-invalid" : ""} ${isInternal ? "reply-body-internal" : ""}`}
+                                disabled={isReplying}
+                            />
+                            {replyError && (
+                                <span className="field-error" id="reply-body-error">
+                                    {replyError}
+                                </span>
                             )}
-                            <button type="submit" className="button-primary button-compact" disabled={isReplying}>
-                                {isReplying && <span className="spinner" aria-hidden="true" />}
-                                {isReplying ? "Sending..." : isInternal ? "Save Note" : "Send Reply"}
-                            </button>
-                        </div>
-                    </form>
+                            <div className="reply-form-footer">
+                                {canManage && cannedResponses.length > 0 ? (
+                                    <div className="canned-picker">
+                                        <button
+                                            type="button"
+                                            className="button-secondary button-compact"
+                                            onClick={() => setShowCanned((value) => !value)}
+                                            aria-expanded={showCanned}
+                                            aria-haspopup="true"
+                                        >
+                                            Insert canned response
+                                        </button>
+                                        {showCanned && (
+                                            <ul className="canned-picker-list">
+                                                {cannedResponses.map((response) => (
+                                                    <li key={response._id}>
+                                                        <button type="button" onClick={() => insertCanned(response)}>
+                                                            {response.title}
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span />
+                                )}
+                                <button type="submit" className="button-primary button-compact" disabled={isReplying}>
+                                    {isReplying && <span className="spinner" aria-hidden="true" />}
+                                    {isReplying ? "Sending..." : isInternal ? "Save Note" : "Send Reply"}
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </div>
 
                 <aside className="ticket-detail-sidebar" aria-label="Ticket properties">
-                    <div className="properties-card">
-                        <div className="properties-card-header">
-                            <h4>Properties</h4>
-                            {isUpdating && (
-                                <span className="ticket-controls-status">
-                                    <span className="spinner" aria-hidden="true" /> Saving...
-                                </span>
-                            )}
-                        </div>
-                        <div className="ticket-info-list">
-                            <PropertyRow label="Status" htmlFor={canManage ? "ticket-status" : undefined}>
-                                {canManage ? (
-                                    <select
-                                        id="ticket-status"
-                                        value={ticket.status}
-                                        onChange={(event) => onUpdate({ status: event.target.value })}
-                                        disabled={isUpdating}
-                                    >
-                                        {STATUS_OPTIONS.map((status) => (
-                                            <option key={status} value={status}>
-                                                {titleCase(status)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <span className="ticket-info-value">{titleCase(ticket.status)}</span>
-                                )}
-                            </PropertyRow>
-                            <PropertyRow label="Priority" htmlFor={canManage ? "ticket-priority-select" : undefined}>
-                                {canManage ? (
-                                    <select
-                                        id="ticket-priority-select"
-                                        value={ticket.priority}
-                                        onChange={(event) => onUpdate({ priority: event.target.value })}
-                                        disabled={isUpdating}
-                                    >
-                                        {PRIORITY_OPTIONS.map((priority) => (
-                                            <option key={priority} value={priority}>
-                                                {titleCase(priority)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <span className="ticket-info-value">{titleCase(ticket.priority)}</span>
-                                )}
-                            </PropertyRow>
-                            <PropertyRow label="Assignee" htmlFor={canManage ? "ticket-assignee" : undefined}>
-                                {canManage ? (
-                                    <select
-                                        id="ticket-assignee"
-                                        value={ticket.assignedTo?._id || ""}
-                                        onChange={(event) => onAssign(event.target.value)}
-                                        disabled={isUpdating}
-                                    >
-                                        <option value="" disabled>
-                                            Select agent
-                                        </option>
-                                        {agents
-                                            .filter((agent) => agent.isActive || agent._id === ticket.assignedTo?._id)
-                                            .map((agent) => (
-                                                <option key={agent._id} value={agent._id} disabled={!agent.isActive}>
-                                                    {agent.isActive ? agent.name : `${agent.name} (inactive)`}
-                                                </option>
-                                            ))}
-                                    </select>
-                                ) : (
-                                    <span className="ticket-info-value">{ticket.assignedTo?.name || "Unassigned"}</span>
-                                )}
-                            </PropertyRow>
-                            <PropertyRow label="Requester">
-                                <span className="ticket-info-value">{ticket.createdBy?.name}</span>
-                            </PropertyRow>
-                            <PropertyRow label="Category">
-                                <span className="ticket-info-value">{titleCase(ticket.category || "general")}</span>
-                            </PropertyRow>
-                            <PropertyRow label="Created">
-                                <span className="ticket-info-value">{formatDateTime(ticket.createdAt)}</span>
-                            </PropertyRow>
-                            <PropertyRow label="SLA due">
-                                <span className={`ticket-info-value ${ticket.slaBreached ? "sla-breached-text" : ""}`}>
-                                    {formatDateTime(ticket.slaDeadline)}
-                                </span>
-                            </PropertyRow>
-                        </div>
+                    <TicketProperties
+                        ticket={ticket}
+                        currentUser={currentUser}
+                        agents={agents}
+                        auditTrail={auditTrail}
+                        onUpdate={onUpdate}
+                        onAssign={onAssign}
+                        isUpdating={isUpdating}
+                    />
+                </aside>
 
-                        {currentUser.role === "admin" && auditTrail && (
-                            <details className="audit-trail">
-                                <summary>Audit trail</summary>
-                                {auditTrail.length === 0 ? (
-                                    <p className="table-empty">No activity recorded yet.</p>
-                                ) : (
-                                    <ul>
-                                        {auditTrail.map((entry) => (
-                                            <li key={entry._id}>
-                                                <span className="audit-action">{titleCase(entry.action)}</span> by{" "}
-                                                {entry.performedBy?.name || "System"} &middot; {formatDateTime(entry.createdAt)}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </details>
-                        )}
-                    </div>
+                <aside className="ticket-detail-history-column" aria-label="Status history">
+                    <StatusHistory entries={statusHistory || []} isLoading={!statusHistory} />
                 </aside>
             </div>
         </section>

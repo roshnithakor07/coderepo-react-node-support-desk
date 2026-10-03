@@ -1760,20 +1760,37 @@ textarea:disabled {
     text-overflow: ellipsis;
 }
 
+/* Conversation on the left, the ticket's properties and then its status history on the right.
+   Named areas so one column at phone width puts the properties first and the history last, with no
+   ordering tricks. */
 .ticket-detail-layout {
     flex: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
+    /* The conversation spans both rows, so the first row is pinned to the properties card's own
+       height; without this the free space is split and the history drifts down the page. */
+    grid-template-rows: max-content 1fr;
+    grid-template-areas:
+        "main properties"
+        "main history";
     gap: 16px;
 }
 
 .ticket-detail-main {
+    grid-area: main;
     min-width: 0;
     display: flex;
     flex-direction: column;
 }
 
 .ticket-detail-sidebar {
+    grid-area: properties;
+    min-width: 0;
+    align-self: start;
+}
+
+.ticket-detail-history-column {
+    grid-area: history;
     min-width: 0;
     align-self: start;
 }
@@ -2089,6 +2106,190 @@ textarea:disabled {
     font-size: 13px;
 }
 
+/* A rule the viewer cannot act on explains itself on its own line under the row. */
+.ticket-info-row:has(.ticket-info-hint) {
+    flex-wrap: wrap;
+    align-items: baseline;
+    padding-bottom: 8px;
+}
+
+.ticket-info-hint {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.ticket-locked-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    background: var(--warning-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-input);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.ticket-locked-banner svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--warning);
+}
+
+/* The requester's own two moves on their ticket. */
+.ticket-lifecycle-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.ticket-lifecycle-actions button {
+    flex: 1 1 auto;
+    justify-content: center;
+}
+
+.ticket-lifecycle-note {
+    margin: 12px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+/* Status history */
+.status-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.status-history-entry {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.status-history-entry:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.status-history-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-pill);
+    color: var(--text-muted);
+}
+
+.status-history-icon svg {
+    width: 13px;
+    height: 13px;
+}
+
+.status-history-entry-breach .status-history-icon {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.status-history-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.status-history-headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-history-action {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.status-history-move {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.status-history-meta,
+.status-history-note {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+.status-history-note {
+    color: var(--text-secondary);
+}
+
+.status-history-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.status-history .table-empty {
+    margin: 8px 0 0;
+    padding: 0;
+    font-size: 12px;
+}
+
+/* A closed ticket shows why its conversation is locked instead of a composer that cannot send. */
+.reply-form-locked {
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.reply-locked-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.reply-locked-message svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.reply-locked-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
 .audit-trail {
     margin-top: 8px;
     padding-top: 8px;
@@ -2176,10 +2377,10 @@ textarea:disabled {
 
     .ticket-detail-layout {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ticket-detail-sidebar {
-        order: -1;
+        grid-template-areas:
+            "properties"
+            "main"
+            "history";
     }
 
     /* Keep the author visible: the internal-note chip and time move to a second line. */

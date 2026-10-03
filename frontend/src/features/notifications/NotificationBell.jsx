@@ -4,6 +4,7 @@ import { AlertCircleIcon, ClockIcon, InboxIcon, InfoIcon, MessageIcon, TicketIco
 
 const TYPE_ICONS = {
     ticket_assigned: TicketIcon,
+    ticket_unassigned: InboxIcon,
     ticket_reply: MessageIcon,
     sla_warning: ClockIcon,
     sla_breached: AlertCircleIcon,
