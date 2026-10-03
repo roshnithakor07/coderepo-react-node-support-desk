@@ -6,6 +6,9 @@ const replySchema = new mongoose.Schema(
         author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         isInternal: { type: Boolean, default: false },
         createdAt: { type: Date, default: Date.now },
+        // Set the first time an internal note is edited, so the conversation says so instead of
+        // quietly changing under the people who already read it.
+        editedAt: { type: Date, default: null },
     },
     { _id: true },
 );

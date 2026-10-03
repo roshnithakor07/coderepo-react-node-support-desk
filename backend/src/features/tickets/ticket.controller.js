@@ -31,11 +31,15 @@ const replySchema = z
 
 const assignSchema = z.object({ agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
 
+const replyEditSchema = z.object({ body: z.string().trim().min(1).max(5000) }).strict();
+
 const listQuerySchema = z.object({
     status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     category: z.string().optional(),
     assignedTo: z.string().optional(),
+    // "unassigned" is the team's queue of tickets nobody owns; anything else is the viewer's own list.
+    view: z.enum(["unassigned"]).optional(),
     search: z.string().max(140).optional(),
     sort: z.enum(TICKET_SORT_KEYS).optional(),
     page: z.coerce.number().int().min(1).optional(),
@@ -95,6 +99,25 @@ export async function addReply(request, response, next) {
         const input = replySchema.parse(request.body);
         const ticket = await ticketService.addReply(request.params.ticketId, request.user, input);
         response.status(201).json({ data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateReply(request, response, next) {
+    try {
+        const { body } = replyEditSchema.parse(request.body);
+        const ticket = await ticketService.updateReply(request.params.ticketId, request.params.replyId, body, request.user);
+        response.json({ data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteReply(request, response, next) {
+    try {
+        const ticket = await ticketService.deleteReply(request.params.ticketId, request.params.replyId, request.user);
+        response.json({ data: ticket });
     } catch (error) {
         next(error);
     }
