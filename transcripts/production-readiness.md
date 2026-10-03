@@ -1213,3 +1213,7 @@ My own test-harness bugs (not app bugs), fixed: the first runs loaded the app, t
 
 **Results:** API 174/174; routing unit tests 21/21; build OK; Prettier OK; dependency sections still identical to the reference.
 - Browser: sidebar 8/8, links 20/20 (both themes), ticket page 11/11 (3 sizes × long and short history), visited buttons 6/6, routing 93/93, layout rect check 304 states and 33,976 elements with 0 outside the screen.
+
+## [2026-10-03T12:21:24+00:00] `fix/ui-followups` approved and merged
+
+Approved by the user, who also decided to **keep the hover underline** on ticket titles and links (the accent color plus underline on hover and keyboard focus). It is the design I asked for, not a default, and the row highlight does not replace it. Merged with --no-ff, pushed, and the branch deleted locally and on origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Test results on main are in the log entry for this turn.
