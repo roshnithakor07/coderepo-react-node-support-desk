@@ -1178,3 +1178,38 @@ My own test-harness bugs (not app bugs), fixed: the first runs loaded the app, t
 **Results:** API 174/174; routing unit tests 21/21; build OK; dependency sections identical to the reference.
 - Browser routing check: 93/93 (every URL as each role, refresh, filters/sort/page in the URL, Back/Forward, new-tab links, sign-in return, expired session, sign-out, drawer closing and scroll reset at 375, 768 and 900), 0 console errors.
 - Layout rect check: 304 states (every page, role and width; the open drawer; dialogs; the notification panel; the no-access and not-found pages), 33,970 elements, 0 outside the screen, 0 sideways scrollers, 0 console errors.
+
+## [2026-10-03T12:18:42+00:00] Task: `fix/ui-followups` (three bugs I found in manual testing, plus one the fix caused)
+
+**Bugs I found myself while testing the merged app:**
+1. The desktop sidebar's collapsed/expanded choice survived sign-out and sign-in. I wanted it kept as a per-browser preference while signed in, but reset to expanded on sign-out, so the next person on a shared computer starts with the full sidebar. Phones already close the drawer correctly.
+2. Ticket titles in the list and dashboard (real links since hash routing) showed the browser's default link look. I asked for normal title styling (theme text color), underline or accent only on hover, a visible keyboard focus ring, and the same for every in-app link.
+3. On the ticket page the right column was sticky but taller than the screen, so Status history slid under Properties and was cut off. I asked that nothing overlap or become unreachable, checked at 1280, 1024 and 1920 with a long history.
+4. While the fix was being checked I found a fourth, caused by the fix itself: the "Go to dashboard" button on the Ticket not found page had no visible text (I sent a screenshot).
+
+**Decisions:**
+| Item | Options | Choice | Reason |
+|---|---|---|---|
+| Sidebar reset | clear on sign-out only / whenever nobody is signed in | Whenever nobody is signed in (sign-out, expired session, no valid session on load) | One rule covers every way a session ends |
+| Tall right column | scroll normally when taller than the screen (pinned only when it fits) / move Status history into the main column | Both cards in one column, pinned only while the whole column fits; taller → scrolls with the page | Keeps the properties handy when they fit, never hides anything, no second scroll area |
+| Hover underline on titles | keep / drop | Kept as I asked; I will drop it if I find it redundant with the row highlight (asked after seeing the screenshot) | I had asked for accent + underline on hover |
+
+**What changed:** the sidebar resets when nobody is signed in. Links have explicit rest, hover, visited and focus styles. The ticket page's right column is one wrapper, measured with a small hook (a ResizeObserver) so it is pinned only when it fits.
+
+**Bugs found while testing, and how they were caught:**
+- *The overlap bug reproduced first.* A check on the old code (26-entry history) showed Properties overlapping Status history at 1280, 1024 and 1920, and hiding 22–23 of the 26 entries at 1280 and 1024. The same check passes after the fix at all three sizes, and a short history is still pinned.
+- *The invisible button was a regression I caused.* I had added a default `a:visited` color for the accent. It is more specific than the primary button's white text, so a link you have already visited got accent text on an accent button. `getComputedStyle` hides visited colors on purpose, so my style checks passed. I added a pixel check on real visited links, made by clicking them with real mouse events (Chrome only styles a link as visited after a real click). On the broken CSS it shows 0 visible text pixels in all six cases (dark and light, three pages), matching the screenshot; after the fix (`a:where(:visited)`, zero specificity) all six show the text.
+- My test scripts failed at first for their own reasons (a signed-out token reused after sign-out; the mouse aimed at the blank middle of a two-line title). Fixed in the scripts, not the app.
+
+**Definition of Done:**
+- ✅ UI: applies to every role; nothing new to hide.
+- ✅ API: unchanged.
+- ✅ Data: the preference is stored per browser while signed in and cleared when nobody is; verified across refresh, sign-out, an expired session and a second user.
+- ✅ States: unchanged; the ticket page's loading, error and not-found states still work.
+- ✅ Responsive and themes: layout rect check across every page, role and width; link checks in dark and light; screenshots reviewed.
+- ✅ Old data: the ticket check used seeded tickets, one given a 26-entry history.
+- ✅ Tests: the existing 174 API and 21 routing unit tests pass. The new behavior is checked in the browser by scripts outside the repo, since this project has no browser test dependency.
+- ✅ No half-work.
+
+**Results:** API 174/174; routing unit tests 21/21; build OK; Prettier OK; dependency sections still identical to the reference.
+- Browser: sidebar 8/8, links 20/20 (both themes), ticket page 11/11 (3 sizes × long and short history), visited buttons 6/6, routing 93/93, layout rect check 304 states and 33,976 elements with 0 outside the screen.
