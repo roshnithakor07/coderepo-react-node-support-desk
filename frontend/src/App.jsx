@@ -174,6 +174,13 @@ export default function App() {
         storeSidebarCollapsed(isSidebarCollapsed);
     }, [isSidebarCollapsed]);
 
+    // The collapsed/expanded choice is a per-browser preference while someone is signed in. Once nobody
+    // is (signing out, an expired session, a visit with no valid session), the next person on a shared
+    // computer starts with the full sidebar. Phones use the drawer and are not affected.
+    useEffect(() => {
+        if (!isBootstrapping && !currentUser) setIsSidebarCollapsed(false);
+    }, [isBootstrapping, currentUser]);
+
     const isDrawerOpen = isDrawerNav && isNavOpen;
 
     // Every route change (a link, Back, Forward, a typed URL) closes the drawer and the new-ticket form,
