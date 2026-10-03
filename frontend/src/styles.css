@@ -184,8 +184,19 @@ textarea:disabled {
     cursor: default;
 }
 
-a {
+/* Links: never the browser's blue and underline, visited or not. Text links use the accent color,
+   and every link underlines on hover. Links that stand in for plain text (ticket titles, rows, the
+   sidebar) override the color below and change only on hover and focus. */
+/* :where() keeps :visited at the specificity of a plain "a", so a component's own link color (a primary
+   button's white text, say) always wins over this default, visited or not. */
+a,
+a:where(:visited) {
     color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
 }
 
 ::placeholder {
@@ -842,6 +853,10 @@ textarea:disabled {
     height: 18px;
 }
 
+.sidebar nav a:visited {
+    color: var(--text-secondary);
+}
+
 .sidebar nav a:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
@@ -1022,6 +1037,10 @@ textarea:disabled {
     font: inherit;
     cursor: pointer;
     transition: color var(--transition-fast);
+}
+
+.breadcrumb-link:visited {
+    color: var(--text-secondary);
 }
 
 .breadcrumb-link:hover {
@@ -1347,12 +1366,14 @@ textarea:disabled {
 }
 
 /* The title is a real link (Ctrl/Cmd-click opens a new tab) that reads as the row's text. */
-.ticket-title-link {
+.ticket-title-link,
+.ticket-title-link:visited {
     color: inherit;
     text-decoration: none;
 }
 
-.ticket-title-link:hover {
+.ticket-title-link:hover,
+.ticket-title-link:focus-visible {
     color: var(--accent);
     text-decoration: underline;
 }
@@ -1794,12 +1815,7 @@ textarea:disabled {
     flex: 1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
-    /* The conversation spans both rows, so the first row is pinned to the properties card's own
-       height; without this the free space is split and the history drifts down the page. */
-    grid-template-rows: max-content 1fr;
-    grid-template-areas:
-        "main properties"
-        "main history";
+    grid-template-areas: "main side";
     gap: 16px;
 }
 
@@ -1810,16 +1826,19 @@ textarea:disabled {
     flex-direction: column;
 }
 
-.ticket-detail-sidebar {
-    grid-area: properties;
+/* Properties above status history, in one column. */
+.ticket-detail-side {
+    grid-area: side;
     min-width: 0;
     align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
+.ticket-detail-sidebar,
 .ticket-detail-history-column {
-    grid-area: history;
     min-width: 0;
-    align-self: start;
 }
 
 /* Conversation */
@@ -2364,7 +2383,9 @@ textarea:disabled {
         padding-bottom: 12px;
     }
 
-    .ticket-detail-sidebar {
+    /* Pinned only while the whole column fits the screen (the page decides, see useFitsInView);
+       a taller column, such as one with a long history, scrolls with the page instead. */
+    .ticket-detail-side-pinned {
         position: sticky;
         top: calc(var(--ticket-header-height) + 8px);
     }
@@ -2408,6 +2429,19 @@ textarea:disabled {
             "properties"
             "main"
             "history";
+    }
+
+    /* One column on phones: the wrapper steps aside so properties come first and history last. */
+    .ticket-detail-side {
+        display: contents;
+    }
+
+    .ticket-detail-sidebar {
+        grid-area: properties;
+    }
+
+    .ticket-detail-history-column {
+        grid-area: history;
     }
 
     /* Keep the author visible: the internal-note chip and time move to a second line. */
@@ -2933,6 +2967,16 @@ textarea:disabled {
     transition:
         border-color var(--transition-fast),
         transform var(--transition-fast);
+}
+
+.dashboard-ticket-list a:visited {
+    color: var(--text-primary);
+}
+
+.dashboard-ticket-list a:hover .ticket-title-cell,
+.dashboard-ticket-list a:focus-visible .ticket-title-cell {
+    color: var(--accent);
+    text-decoration: underline;
 }
 
 .dashboard-ticket-list a:hover {

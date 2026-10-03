@@ -2,10 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "../../shared/components/Badge.jsx";
 import { ArrowLeftIcon, LockIcon } from "../../shared/components/Icon.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber } from "../../shared/utils/format.js";
+import { useFitsInView } from "../../shared/utils/pinning.js";
 import { StatusHistory } from "./StatusHistory.jsx";
 import { TicketProperties } from "./TicketProperties.jsx";
 
 const COMPOSER_MAX_HEIGHT = 200;
+// The pinned header (64px) plus the gaps above and below the right-hand column.
+const SIDE_COLUMN_RESERVED_HEIGHT = 64 + 8 + 12;
 
 function MessageCard({ author, body, isInternal, createdAt, innerRef }) {
     return (
@@ -44,6 +47,8 @@ export function TicketDetail({
     isReplying,
     isUpdating,
 }) {
+    const sideColumnRef = useRef(null);
+    const sideColumnFits = useFitsInView(sideColumnRef, ".app-content", SIDE_COLUMN_RESERVED_HEIGHT);
     const [replyBody, setReplyBody] = useState("");
     const [replyError, setReplyError] = useState("");
     const [isInternal, setIsInternal] = useState(false);
@@ -267,21 +272,23 @@ export function TicketDetail({
                     )}
                 </div>
 
-                <aside className="ticket-detail-sidebar" aria-label="Ticket properties">
-                    <TicketProperties
-                        ticket={ticket}
-                        currentUser={currentUser}
-                        agents={agents}
-                        auditTrail={auditTrail}
-                        onUpdate={onUpdate}
-                        onAssign={onAssign}
-                        isUpdating={isUpdating}
-                    />
-                </aside>
+                <div ref={sideColumnRef} className={`ticket-detail-side ${sideColumnFits ? "ticket-detail-side-pinned" : ""}`}>
+                    <aside className="ticket-detail-sidebar" aria-label="Ticket properties">
+                        <TicketProperties
+                            ticket={ticket}
+                            currentUser={currentUser}
+                            agents={agents}
+                            auditTrail={auditTrail}
+                            onUpdate={onUpdate}
+                            onAssign={onAssign}
+                            isUpdating={isUpdating}
+                        />
+                    </aside>
 
-                <aside className="ticket-detail-history-column" aria-label="Status history">
-                    <StatusHistory entries={statusHistory || []} isLoading={!statusHistory} />
-                </aside>
+                    <aside className="ticket-detail-history-column" aria-label="Status history">
+                        <StatusHistory entries={statusHistory || []} isLoading={!statusHistory} />
+                    </aside>
+                </div>
             </div>
         </section>
     );
