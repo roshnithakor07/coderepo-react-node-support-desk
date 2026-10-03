@@ -34,10 +34,18 @@ describe("date range", () => {
         expect(today.totalTickets).toBeGreaterThan(0);
     });
 
-    test("the last 7 days include every seeded ticket, matching all time", async () => {
+    test("a range covering every seeded ticket matches all time", async () => {
         const allTime = await dashboard();
+        const lastMonth = await dashboard(`?dateFrom=${isoDate(30)}&dateTo=${isoDate()}`);
+        expect(lastMonth.totalTickets).toBe(allTime.totalTickets);
+    });
+
+    test("a range that starts after a ticket was opened leaves it out", async () => {
+        const allTime = await dashboard();
+        // The seed includes a ticket opened three weeks ago, so a week-long range is narrower.
         const lastWeek = await dashboard(`?dateFrom=${isoDate(7)}&dateTo=${isoDate()}`);
-        expect(lastWeek.totalTickets).toBe(allTime.totalTickets);
+        expect(lastWeek.totalTickets).toBeLessThan(allTime.totalTickets);
+        expect(lastWeek.totalTickets).toBeGreaterThan(0);
     });
 
     for (const [label, query] of [
@@ -64,11 +72,17 @@ describe("cache invalidation", () => {
     test("resolving a ticket updates the resolved count immediately", async () => {
         const before = await dashboard();
         const { body } = await api("/tickets?status=open&pageSize=1", { token: admin.token });
-        const resolved = await api(`/tickets/${body.data.tickets[0]._id}`, {
-            method: "PUT",
+        const ticketId = body.data.tickets[0]._id;
+        // The lifecycle has no shortcut to resolved: a public reply starts the work, and the ticket
+        // is resolved from in progress.
+        const answered = await api(`/tickets/${ticketId}/replies`, {
+            method: "POST",
             token: admin.token,
-            body: { status: "resolved" },
+            body: { body: "Resolved for the analytics count check." },
         });
+        expect(answered.status).toBe(201);
+        expect(answered.body.data.status).toBe("in_progress");
+        const resolved = await api(`/tickets/${ticketId}`, { method: "PUT", token: admin.token, body: { status: "resolved" } });
         expect(resolved.status).toBe(200);
         const after = await dashboard();
         expect(after.resolvedCount).toBe(before.resolvedCount + 1);
