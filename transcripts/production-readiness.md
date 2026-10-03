@@ -1220,3 +1220,47 @@ Approved by the user. Merged with --no-ff (main `d0d79bc`), pushed, and the bran
 ## [2026-10-03T12:21:24+00:00] `fix/ui-followups` approved and merged
 
 Approved by the user, who also decided to **keep the hover underline** on ticket titles and links (the accent color plus underline on hover and keyboard focus). It is the design I asked for, not a default, and the row highlight does not replace it. Merged with --no-ff, pushed, and the branch deleted locally and on origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Test results on main are in the log entry for this turn.
+
+## [2026-10-03T13:10:33+00:00] `feat/agent-teams`: the second kind of access rule
+
+**Why this branch.** The independent review's rules 9-12, plus the Settings category guard. The
+PagerDuty rejection said "every account sees and changes every incident; add a second kind of access
+rule". Role alone is one dimension; an agent's **team** is the second. Everything is service-layer
+work plus small UI changes, with the rules in pure modules (`ticket-teams.js`, `ticket-notes.js`,
+next to the existing `ticket-lifecycle.js`), the DB only in repositories and the controllers thin.
+
+**Decisions, with the options I weighed and why I chose as I did:**
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| An agent with no categories | (a) covers everything, (b) covers nothing | **(b) covers nothing** | (a) silently defeats the rule for exactly the accounts nobody has set up yet. (b) is a visible, fixable state: the Agents page flags it, the admin sets it in one click, and the API says so with the category named. It is also what every pre-existing agent looks like, so it is the old-data path and is tested as one. |
+| Where the queue lives | (a) a second page, (b) a view of the ticket list with its own URL | **(b)** | The rows, filters, sort and pagination are the same list with a different scope. A URL (`#/tickets?view=unassigned`) gives a refresh, Back and a shared link for free, which is what the brief asked for. |
+| Claiming | (a) a new `POST /tickets/:id/claim`, (b) the existing assign endpoint with your own id | **(b)** | One rule, one code path, no extra route to keep reachable. The service sees that the target is the actor and records it as `claimed` rather than `assigned`, and sends no notification, because the agent who did it is looking at the ticket. |
+| An agent who cannot see an unowned ticket | (a) a flat "no access", (b) name the category | **(b)** | They are support staff looking at the shared backlog, not an outsider. Knowing it is a Billing ticket is what tells them whether to ask for the category or leave it. Same 403, nothing extra permitted. |
+| Refiling a ticket | (a) allow it, (b) auto-unassign, (c) refuse | **(c) refuse (409 `ASSIGNEE_OUTSIDE_TEAM`)** | (a) makes the team rule true at assignment and false a moment later. (b) quietly takes a ticket off somebody. (c) makes the admin reassign first, which is the decision they were going to have to make anyway. |
+| Editing a public reply | (a) allow within the window, (b) never | **(b)** | A customer has already read it. Correcting a note the team wrote to itself is housekeeping; changing an answer under the person who received it is not. |
+| Which fields a requester may edit | (a) title and description, (b) also category | **(a)** | Where a ticket is filed decides who works it, so it is the team's call. The requester fixes what they wrote. |
+| Removing a category used by finished tickets | (a) block, (b) allow | **(b)** | Closed work is history. Blocking on it would make a category unremovable forever. Agents and open tickets block. |
+
+**Bugs I found by testing, not by reading:**
+- *The lock message named the wrong cause.* A staff reply is also what moves an open ticket into
+  progress, so checking the status first reported "work has already started" when the real reason was
+  "our team has already replied". My own API test had passed because it only asserted the words
+  "already" and "reply", which both messages contain. Found by driving the real UI and reading the
+  sentence on screen. Fixed the order, and tightened the test to assert the sentence.
+- *A button inside a table row also opened the row.* The row-click handler ignored links but not
+  buttons, so clicking Claim would have opened the ticket as well. Pre-existing; the queue is the
+  first table with a button in a row, which is what surfaced it.
+- *My own check scripts were wrong twice* before the app was: a wait matched the loading skeleton's
+  rows rather than real ones, and `localStorage` was read on `about:blank`. Fixed in the scripts.
+
+**Tested on old data.** The dev database still held the seed from before teams existed. Against it:
+agents with no categories got an empty queue and a 403 `OUTSIDE_TEAM` naming the category; a new
+ticket went to the unassigned queue with every admin notified; a customer editing an old resolved
+ticket got 409 `TICKET_LOCKED`; the category usage counts and the deletion refusal were correct. The
+API suite also proves the rules on a ticket seeded 48 hours ago and on an agent whose categories are
+cleared.
+
+**Results:** API 222/222 (was 174, 48 new); routing unit tests 25/25; build OK; Prettier OK; element
+rect check over 3 roles x 7 pages x 1280/375 x dark/light: every page `scrollWidth === viewport`,
+zero elements off screen, zero console errors. No new dependencies.
