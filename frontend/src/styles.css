@@ -1,4 +1,8 @@
 :root {
+    /* Tells the browser which palette to render native controls with: the select popup, the date
+       picker, scrollbars and form widgets. Without it a dark page gets a white popup. */
+    color-scheme: dark;
+
     /* Backgrounds */
     --bg-primary: #0a0e17;
     --bg-card: #131826;
@@ -57,6 +61,7 @@
 }
 
 :root[data-theme="light"] {
+    color-scheme: light;
     --bg-primary: #f4f6fb;
     --bg-card: #ffffff;
     --bg-elevated: #ffffff;
@@ -528,6 +533,56 @@ textarea:disabled {
 .search-input input {
     width: 100%;
     padding-left: 36px;
+    padding-right: 36px;
+}
+
+/* One clear button, ours: the native search widgets are hidden so they cannot double up. */
+.search-input input::-webkit-search-cancel-button,
+.search-input input::-webkit-search-decoration {
+    appearance: none;
+    display: none;
+}
+
+.search-clear {
+    position: absolute;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--text-muted);
+    transition:
+        background var(--transition-fast),
+        color var(--transition-fast);
+}
+
+.search-clear:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.search-clear svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* A refetch keeps the previous rows readable but clearly stale, instead of blanking the screen. */
+.is-refreshing {
+    opacity: 0.55;
+    transition: opacity var(--transition-fast);
+}
+
+.panel-count {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
 }
 
 .button-primary,

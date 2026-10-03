@@ -198,6 +198,7 @@ async function seedTickets(admins, agents, customers) {
             tags: [blueprint.category, blueprint.priority],
             createdBy: customer._id,
             assignedTo: agent._id,
+            slaStartedAt: createdAt,
             slaDeadline,
             slaBreached,
             resolvedAt,

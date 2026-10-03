@@ -6,6 +6,7 @@ export const ticketApi = {
         const queryString = query.toString();
         return request(`/tickets${queryString ? `?${queryString}` : ""}`);
     },
+    stats: () => request("/tickets/stats"),
     get: (id) => request(`/tickets/${id}`),
     create: (ticket) => request("/tickets", { method: "POST", body: JSON.stringify(ticket) }),
     update: (id, patch) => request(`/tickets/${id}`, { method: "PUT", body: JSON.stringify(patch) }),

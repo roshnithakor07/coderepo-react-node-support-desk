@@ -30,6 +30,38 @@ import { friendlyErrorMessage } from "./shared/utils/validate.js";
 
 const NOTIFICATION_POLL_MS = 15000;
 
+// Mirrors the ticket layout (header, conversation, properties card) so opening a ticket does not
+// reflow once the data lands.
+function TicketDetailSkeleton() {
+    return (
+        <section className="ticket-detail" aria-busy="true">
+            <header className="ticket-detail-header">
+                <div className="ticket-detail-heading">
+                    <span className="skeleton skeleton-block" style={{ height: "22px", width: "min(420px, 70%)" }} />
+                </div>
+                <span className="skeleton skeleton-block" style={{ height: "14px", width: "240px", marginTop: "8px" }} />
+            </header>
+            <div className="ticket-detail-layout">
+                <div className="ticket-detail-main">
+                    <div className="ticket-thread">
+                        <div className="ticket-thread-header">
+                            <span className="skeleton skeleton-block" style={{ height: "18px", width: "140px" }} />
+                        </div>
+                        <span className="skeleton skeleton-block" style={{ height: "96px", marginBottom: "12px" }} />
+                        <span className="skeleton skeleton-block" style={{ height: "72px" }} />
+                    </div>
+                </div>
+                <aside className="ticket-detail-sidebar">
+                    <div className="properties-card">
+                        <span className="skeleton skeleton-block" style={{ height: "18px", width: "50%", marginBottom: "16px" }} />
+                        <span className="skeleton skeleton-block" style={{ height: "220px" }} />
+                    </div>
+                </aside>
+            </div>
+        </section>
+    );
+}
+
 const PAGE_TITLES = {
     dashboard: "Dashboard",
     tickets: "Tickets",
@@ -50,6 +82,7 @@ export default function App() {
     const [authBusy, setAuthBusy] = useState(false);
 
     const [activeView, setActiveView] = useState("dashboard");
+    const contentRef = useRef(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getStoredSidebarCollapsed);
     const isDrawerNav = useMediaQuery(DRAWER_NAV_QUERY);
     const [isNavOpen, setIsNavOpen] = useState(false);
@@ -61,21 +94,35 @@ export default function App() {
 
     const [tickets, setTickets] = useState([]);
     const [ticketsTotal, setTicketsTotal] = useState(0);
-    const [ticketFilters, setTicketFilters] = useState({ page: 1, pageSize: 20 });
+    const [ticketFilters, setTicketFilters] = useState({ page: 1, pageSize: 20, sort: "newest" });
     const [ticketsLoading, setTicketsLoading] = useState(false);
+    // "Loaded" separates the very first load (skeletons) from a refetch (keep the old rows, dimmed).
+    const [ticketsLoaded, setTicketsLoaded] = useState(false);
     const [ticketCreateError, setTicketCreateError] = useState("");
     const [isReplying, setIsReplying] = useState(false);
+
+    // The dashboard has its own data: counts over everything the viewer may see, and the newest few
+    // tickets. Sharing the list's state made the home page follow whatever filter was last applied.
+    const [dashboardStats, setDashboardStats] = useState(null);
+    const [dashboardTickets, setDashboardTickets] = useState([]);
+    const [dashboardLoaded, setDashboardLoaded] = useState(false);
+    const [dashboardLoading, setDashboardLoading] = useState(false);
+    const [dashboardError, setDashboardError] = useState("");
 
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [auditTrail, setAuditTrail] = useState(null);
 
     const [agents, setAgents] = useState([]);
     const [agentsLoading, setAgentsLoading] = useState(false);
+    const [agentsLoaded, setAgentsLoaded] = useState(false);
     const [agentError, setAgentError] = useState("");
+    const [agentsLoadError, setAgentsLoadError] = useState("");
     const [agentBusy, setAgentBusy] = useState(false);
 
     const [cannedResponses, setCannedResponses] = useState([]);
+    const [cannedLoaded, setCannedLoaded] = useState(false);
     const [cannedError, setCannedError] = useState("");
+    const [cannedLoadError, setCannedLoadError] = useState("");
     const [cannedBusy, setCannedBusy] = useState(false);
 
     const [notifications, setNotifications] = useState([]);
@@ -84,10 +131,12 @@ export default function App() {
     const [analyticsDashboard, setAnalyticsDashboard] = useState(null);
     const [analyticsFilters, setAnalyticsFilters] = useState({});
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
+    const [analyticsError, setAnalyticsError] = useState("");
 
     const [settings, setSettings] = useState(null);
     const [settingsBusy, setSettingsBusy] = useState(false);
     const [settingsError, setSettingsError] = useState("");
+    const [settingsLoadError, setSettingsLoadError] = useState("");
 
     const [toasts, setToasts] = useState([]);
     const toastIdRef = useRef(0);
@@ -111,6 +160,12 @@ export default function App() {
     }, [isSidebarCollapsed]);
 
     const isDrawerOpen = isDrawerNav && isNavOpen;
+
+    // Every page opens at its own top, so a ticket shows its header first and a list its filters,
+    // whatever the previous page was scrolled to.
+    useEffect(() => {
+        contentRef.current?.scrollTo({ top: 0 });
+    }, [activeView, selectedTicketId]);
 
     const closeNav = useCallback(() => setIsNavOpen(false), []);
 
@@ -151,6 +206,7 @@ export default function App() {
 
     useEffect(() => {
         function handleExpired() {
+            setIsNavOpen(false);
             setCurrentUser(null);
             pushToast("info", "Your session expired. Please sign in again.");
         }
@@ -168,21 +224,48 @@ export default function App() {
                 setTicketsTotal(result.total);
             })
             .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again.")))
-            .finally(() => setTicketsLoading(false));
+            .finally(() => {
+                setTicketsLoading(false);
+                setTicketsLoaded(true);
+            });
     }, [currentUser, ticketFilters, pushToast]);
 
     useEffect(() => {
-        if (currentUser && (activeView === "tickets" || activeView === "dashboard")) loadTickets();
+        if (currentUser && activeView === "tickets") loadTickets();
     }, [currentUser, activeView, loadTickets]);
+
+    const loadDashboard = useCallback(() => {
+        if (!currentUser) return;
+        setDashboardLoading(true);
+        setDashboardError("");
+        Promise.all([ticketApi.stats(), ticketApi.list({ page: 1, pageSize: 6, sort: "newest" })])
+            .then(([stats, recent]) => {
+                setDashboardStats(stats);
+                setDashboardTickets(recent.tickets);
+            })
+            .catch((error) => setDashboardError(friendlyErrorMessage(error, "Couldn't load your dashboard. Please try again.")))
+            .finally(() => {
+                setDashboardLoading(false);
+                setDashboardLoaded(true);
+            });
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (activeView === "dashboard") loadDashboard();
+    }, [activeView, loadDashboard]);
 
     const loadAgents = useCallback(() => {
         if (!currentUser || currentUser.role === "customer") return;
         setAgentsLoading(true);
+        setAgentsLoadError("");
         agentApi
             .list()
             .then(setAgents)
-            .catch((error) => setAgentError(friendlyErrorMessage(error, "Couldn't load agents. Please try again.")))
-            .finally(() => setAgentsLoading(false));
+            .catch((error) => setAgentsLoadError(friendlyErrorMessage(error, "Couldn't load agents. Please try again.")))
+            .finally(() => {
+                setAgentsLoading(false);
+                setAgentsLoaded(true);
+            });
     }, [currentUser]);
 
     useEffect(() => {
@@ -191,10 +274,12 @@ export default function App() {
 
     const loadCannedResponses = useCallback(() => {
         if (!canManage) return;
+        setCannedLoadError("");
         cannedResponseApi
             .list()
             .then(setCannedResponses)
-            .catch((error) => setCannedError(friendlyErrorMessage(error, "Couldn't load canned responses.")));
+            .catch((error) => setCannedLoadError(friendlyErrorMessage(error, "Couldn't load canned responses. Please try again.")))
+            .finally(() => setCannedLoaded(true));
     }, [canManage]);
 
     useEffect(() => {
@@ -219,20 +304,34 @@ export default function App() {
         return () => clearInterval(interval);
     }, [currentUser, loadNotifications]);
 
-    useEffect(() => {
-        if (!currentUser || currentUser.role !== "admin" || activeView !== "analytics") return;
+    const loadAnalytics = useCallback(() => {
+        if (!currentUser || currentUser.role !== "admin") return;
         setAnalyticsLoading(true);
+        setAnalyticsError("");
         analyticsApi
             .getDashboard(analyticsFilters)
             .then(setAnalyticsDashboard)
-            .catch(() => pushToast("error", "Couldn't load analytics. Please try again."))
+            .catch((error) => setAnalyticsError(friendlyErrorMessage(error, "Couldn't load analytics. Please try again.")))
             .finally(() => setAnalyticsLoading(false));
-    }, [currentUser, activeView, analyticsFilters, pushToast]);
+    }, [currentUser, analyticsFilters]);
 
     useEffect(() => {
-        if (!currentUser || activeView !== "settings") return;
-        settingsApi.get().then(setSettings);
-    }, [currentUser, activeView]);
+        if (activeView === "analytics") loadAnalytics();
+    }, [activeView, loadAnalytics]);
+
+    // Settings drive the categories in the new-ticket form, so every role loads them once.
+    const loadSettings = useCallback(() => {
+        if (!currentUser) return;
+        setSettingsLoadError("");
+        settingsApi
+            .get()
+            .then(setSettings)
+            .catch((error) => setSettingsLoadError(friendlyErrorMessage(error, "Couldn't load settings. Please try again.")));
+    }, [currentUser]);
+
+    useEffect(() => {
+        loadSettings();
+    }, [loadSettings]);
 
     function loadTicketDetail(id) {
         if (!id) return;
@@ -255,13 +354,43 @@ export default function App() {
         }
     }
 
+    // Signing in always starts on the home page with the drawer shut and nothing left over from the
+    // previous session, so a mobile sign-out / sign-in never lands back on a stale view.
+    function startSession(user) {
+        setIsNavOpen(false);
+        setSelectedTicketId(null);
+        setSelectedTicket(null);
+        setAuditTrail(null);
+        setActiveView("dashboard");
+        setTickets([]);
+        setTicketsTotal(0);
+        setDashboardStats(null);
+        setDashboardTickets([]);
+        setDashboardLoaded(false);
+        setDashboardError("");
+        setTicketFilters({ page: 1, pageSize: 20, sort: "newest" });
+        setTicketsLoaded(false);
+        setAgents([]);
+        setAgentsLoaded(false);
+        setAgentsLoadError("");
+        setCannedResponses([]);
+        setCannedLoaded(false);
+        setCannedLoadError("");
+        setNotifications([]);
+        setUnreadCount(0);
+        setAnalyticsDashboard(null);
+        setAnalyticsFilters({});
+        setSettings(null);
+        setCurrentUser(user);
+    }
+
     async function handleLogin({ email, password }) {
         setAuthBusy(true);
         setAuthError("");
         try {
             const result = await authApi.login(email, password);
             setSessionToken(result.token);
-            setCurrentUser(result.user);
+            startSession(result.user);
         } catch (error) {
             setAuthError(friendlyErrorMessage(error, "Couldn't sign in. Please try again."));
         } finally {
@@ -275,7 +404,7 @@ export default function App() {
         try {
             const result = await authApi.register({ name, email, password });
             setSessionToken(result.token);
-            setCurrentUser(result.user);
+            startSession(result.user);
             pushToast("success", `Welcome, ${result.user.name.split(" ")[0]}! Your account is ready.`);
         } catch (error) {
             setAuthError(friendlyErrorMessage(error, "Couldn't create your account. Please try again."));
@@ -291,6 +420,7 @@ export default function App() {
             // ignore network errors on logout
         }
         setSessionToken("");
+        setIsNavOpen(false);
         setCurrentUser(null);
         setActiveView("dashboard");
     }
@@ -303,6 +433,7 @@ export default function App() {
             setShowNewTicketModal(false);
             pushToast("success", "Ticket created successfully.");
             loadTickets();
+            loadDashboard();
         } catch (error) {
             setTicketCreateError(friendlyErrorMessage(error, "Failed to create ticket. Please try again."));
         } finally {
@@ -317,6 +448,7 @@ export default function App() {
             setSelectedTicket(updated);
             pushToast("success", "Ticket updated.");
             loadTickets();
+            loadDashboard();
         } catch (error) {
             pushToast("error", friendlyErrorMessage(error, "Couldn't update the ticket. Please try again."));
         } finally {
@@ -522,15 +654,20 @@ export default function App() {
                     </div>
                 </header>
 
-                <main className="app-content">
+                <main className="app-content" ref={contentRef}>
                     {activeView === "dashboard" && (
                         <Dashboard
                             currentUser={currentUser}
-                            tickets={tickets}
+                            tickets={dashboardTickets}
+                            stats={dashboardStats}
                             onSelectTicket={loadTicketDetail}
                             onNewTicket={() => setShowNewTicketModal(true)}
                             onViewAllTickets={() => handleNavigate("tickets")}
                             analyticsSummary={analyticsSummary}
+                            isLoading={!dashboardLoaded}
+                            isRefreshing={dashboardLoading && dashboardLoaded}
+                            error={dashboardError}
+                            onRetry={loadDashboard}
                         />
                     )}
 
@@ -542,7 +679,9 @@ export default function App() {
                             onFilterChange={setTicketFilters}
                             onSelectTicket={loadTicketDetail}
                             onNewTicket={() => setShowNewTicketModal(true)}
-                            isLoading={ticketsLoading}
+                            isLoading={!ticketsLoaded}
+                            isRefreshing={ticketsLoading && ticketsLoaded}
+                            role={currentUser.role}
                         />
                     )}
 
@@ -562,12 +701,7 @@ export default function App() {
                         />
                     )}
 
-                    {activeView === "ticket-detail" && !selectedTicket && (
-                        <section className="panel">
-                            <span className="skeleton skeleton-block" style={{ height: "2rem", width: "50%" }} />
-                            <span className="skeleton skeleton-block" style={{ height: "6rem" }} />
-                        </section>
-                    )}
+                    {activeView === "ticket-detail" && !selectedTicket && <TicketDetailSkeleton />}
 
                     {activeView === "agents" && (
                         <AgentsPage
@@ -576,8 +710,11 @@ export default function App() {
                             onSetActive={handleSetAgentActive}
                             isAdmin={currentUser.role === "admin"}
                             error={agentError}
+                            loadError={agentsLoadError}
+                            onRetry={loadAgents}
                             isBusy={agentBusy}
-                            isLoading={agentsLoading}
+                            isLoading={!agentsLoaded}
+                            isRefreshing={agentsLoading && agentsLoaded}
                         />
                     )}
 
@@ -588,6 +725,9 @@ export default function App() {
                             onDelete={handleDeleteCannedResponse}
                             currentUser={currentUser}
                             error={cannedError}
+                            loadError={cannedLoadError}
+                            onRetry={loadCannedResponses}
+                            isLoading={!cannedLoaded}
                             isBusy={cannedBusy}
                         />
                     )}
@@ -600,11 +740,20 @@ export default function App() {
                             filters={analyticsFilters}
                             onFilterChange={setAnalyticsFilters}
                             isLoading={analyticsLoading}
+                            error={analyticsError}
+                            onRetry={loadAnalytics}
                         />
                     )}
 
                     {activeView === "settings" && currentUser.role === "admin" && (
-                        <SettingsPage settings={settings} onSave={handleSaveSettings} isBusy={settingsBusy} error={settingsError} />
+                        <SettingsPage
+                            settings={settings}
+                            onSave={handleSaveSettings}
+                            isBusy={settingsBusy}
+                            error={settingsError}
+                            loadError={settingsLoadError}
+                            onRetry={loadSettings}
+                        />
                     )}
 
                     {activeView === "profile" && (
@@ -622,6 +771,7 @@ export default function App() {
                 <NewTicketModal
                     onClose={() => setShowNewTicketModal(false)}
                     onCreate={handleCreateTicket}
+                    categories={settings?.categories}
                     error={ticketCreateError}
                     isBusy={isCreatingTicket}
                 />

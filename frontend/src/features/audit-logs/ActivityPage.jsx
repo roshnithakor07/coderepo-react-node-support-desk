@@ -22,6 +22,7 @@ function describeChanges(entry) {
     return Object.entries(changes)
         .map(([field, change]) => {
             if (field === "title") return "Title edited";
+            if (field === "slaRestartedAt") return "SLA clock restarted";
             if (change && typeof change === "object" && "to" in change)
                 return `${titleCase(field)}: ${titleCase(String(change.from))} → ${titleCase(String(change.to))}`;
             return `${titleCase(field)} edited`;
@@ -54,8 +55,8 @@ export function ActivityPage({ onOpenTicket }) {
         <section className="panel">
             <div className="panel-header">
                 <div>
-                    <h2>Activity</h2>
-                    <p className="panel-subtitle">Every change to every ticket, newest first.{result ? ` ${result.total} entries.` : ""}</p>
+                    <p className="panel-count">{result ? `${result.total} ${result.total === 1 ? "entry" : "entries"}` : "\u00a0"}</p>
+                    <p className="panel-subtitle">Every change to every ticket, newest first.</p>
                 </div>
             </div>
 
@@ -70,7 +71,8 @@ export function ActivityPage({ onOpenTicket }) {
                 <Table
                     rowKey={(row) => row._id}
                     rows={result?.entries || []}
-                    isLoading={isLoading}
+                    isLoading={isLoading && !result}
+                    isRefreshing={isLoading && Boolean(result)}
                     onRowClick={(row) => row.ticketId?._id && onOpenTicket(row.ticketId._id)}
                     emptyTitle="No activity yet"
                     emptyDescription="Changes to tickets will show up here."

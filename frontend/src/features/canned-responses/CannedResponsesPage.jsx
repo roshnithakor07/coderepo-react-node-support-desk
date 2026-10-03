@@ -5,7 +5,7 @@ import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.j
 import { InboxIcon } from "../../shared/components/Icon.jsx";
 import { validateMaxLength, validateRequired } from "../../shared/utils/validate.js";
 
-export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser, error, isBusy }) {
+export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser, error, loadError, onRetry, isLoading, isBusy }) {
     const [showCreate, setShowCreate] = useState(false);
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
@@ -56,15 +56,38 @@ export function CannedResponsesPage({ responses, onCreate, onDelete, currentUser
         <section className="panel">
             <div className="panel-header">
                 <div>
-                    <h2>Canned responses</h2>
-                    <p className="panel-subtitle">Reusable reply templates agents can insert into any ticket.</p>
+                    <p className="panel-count">
+                        {responses.length} {responses.length === 1 ? "template" : "templates"}
+                    </p>
+                    <p className="panel-subtitle">
+                        {currentUser.role === "admin"
+                            ? "Reusable reply text. Templates you create are shared with every agent."
+                            : "Reusable reply text you can insert into any ticket. Your own templates are private to you."}
+                    </p>
                 </div>
                 <button type="button" className="button-primary" onClick={() => setShowCreate(true)}>
                     New template
                 </button>
             </div>
 
-            {responses.length === 0 ? (
+            {loadError ? (
+                <div className="form-error" role="alert">
+                    {loadError}{" "}
+                    <button type="button" className="link-button" onClick={onRetry}>
+                        Retry
+                    </button>
+                </div>
+            ) : isLoading ? (
+                <div className="canned-response-grid" aria-busy="true">
+                    {[0, 1, 2, 3].map((card) => (
+                        <article key={card} className="canned-response-card">
+                            <span className="skeleton skeleton-block" style={{ height: "18px", width: "60%" }} />
+                            <span className="skeleton skeleton-block" style={{ height: "14px", width: "30%" }} />
+                            <span className="skeleton skeleton-block" style={{ height: "56px" }} />
+                        </article>
+                    ))}
+                </div>
+            ) : responses.length === 0 ? (
                 <div className="empty-state">
                     <InboxIcon className="empty-state-icon" />
                     <p className="empty-state-title">No canned responses yet</p>
