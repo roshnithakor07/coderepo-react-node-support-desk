@@ -14,6 +14,9 @@ function toPublicUser(user) {
         role: user.role,
         avatar: user.avatar || "",
         isActive: user.isActive,
+        // An agent's team travels with the session, so every rule that asks "is this ticket in your
+        // categories?" can answer without a second lookup, and the UI can label their own queue.
+        categories: user.categories || [],
         createdAt: user.createdAt,
     };
 }
