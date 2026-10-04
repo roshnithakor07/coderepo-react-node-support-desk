@@ -28,6 +28,22 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
+**At a glance:** 105 product rules, each a row below with the test that proves it, across seven
+areas (the lifecycle, SLA integrity, agent teams, the requester's edit window, internal notes,
+multi-record actions and access), plus 11 input and resilience checks listed separately at the end.
+
+**Screens that change several records at once, or move something through a status:**
+
+| Screen | What it does | Rules |
+|---|---|---|
+| Ticket list, bulk bar | Select tickets (one by one or the whole page), then assign, set the status or set the priority of all of them at once, all or nothing | Acting on several records at once |
+| Ticket list, Unassigned queue (`#/tickets?view=unassigned`) | An agent claims a ticket nobody owns, limited to their team's categories | Agent teams |
+| Ticket detail, status control and history | Moves a ticket one step through `open -> in_progress -> pending -> resolved -> closed`, with every move on its status history | Ticket lifecycle, SLA integrity |
+| Ticket detail, merge | Folds a duplicate into the primary: the replies move, the duplicate closes, both histories record it | Acting on several records at once |
+| Ticket detail, requester actions | The customer closes, reopens or edits their own ticket within the rules | Ticket lifecycle, the requester's edit window |
+| Agents, deactivate | Deactivating an agent hands every open ticket to someone on the right team, or to the unassigned queue on the admin's explicit choice | Acting on several records at once |
+| Settings, categories | Removing a category is refused while agents or open tickets still use it, with the counts | Access |
+
 ### Ticket lifecycle
 
 The only path through the board is one step at a time:
@@ -120,6 +136,51 @@ account created before teams existed looks like until an admin sets them on the 
 | A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
 | Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
 | A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
+
+### Acting on several records at once
+
+Bulk actions are **all or nothing**. Every selected ticket is first checked against the same rules the
+single action enforces (the lifecycle, closed tickets being read-only, the team rule, the reply needed
+to resolve, who may make each move); if any one fails, nothing changes and the answer lists each failing
+ticket with its title and reason, which the ticket list shows with a way to deselect them and try again.
+Each ticket that changes gets its own audit entry, and a toast sums up the result.
+
+**How the writes are applied:** the development MongoDB that `setup.sh` starts is a single standalone
+node, which does not support transactions (checked: "Transaction numbers are only allowed on a replica
+set member or mongos"). Making it a replica set would change the setup flow the reference repository
+defines, so bulk actions, merges and deactivations **validate everything first and then apply the
+writes one after another**. A ticket changed by someone else in that short gap is re-checked by the
+single action as it is written and reported, never silently overwritten.
+
+| Rule | Endpoint | Code | Test |
+|---|---|---|---|
+| Bulk status: one illegal move refuses the whole action and nothing changes | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "one illegal move refuses the whole action, and nothing changes" |
+| The refusal lists every failing ticket with its title and the reason | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the answer lists every failing ticket with its title and the reason" |
+| Bulk moves follow the single move's lifecycle, including the reply needed to resolve | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the lifecycle rules are the single move's, including the reply needed to resolve" |
+| Each ticket that moves is saved and gets its own audit entry | `POST /tickets/bulk/status` | 200 | "every ticket moves, is saved, and is recorded on its own audit trail" |
+| A ticket already in the target state is counted as unchanged, not an error | `POST /tickets/bulk/status`, `/bulk/priority`, `/bulk/assign` | 200 | "a ticket already in that status is left alone and counted as unchanged" |
+| A ticket that does not exist is reported with the rest, never a 404 for the whole request | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "a ticket that does not exist is reported with the others" |
+| Bulk assign: one ticket outside the agent's team refuses the lot, naming the category | `POST /tickets/bulk/assign` | 422 `BULK_REJECTED` (`OUTSIDE_TEAM`) | "one ticket outside the agent's team refuses the whole action, naming the category" |
+| A closed ticket in a bulk assign or bulk priority refuses the lot | `POST /tickets/bulk/assign`, `/bulk/priority` | 422 `BULK_REJECTED` (`TICKET_CLOSED`) | "a closed ticket in the selection refuses the action", "a closed ticket is read-only, so one in the selection refuses the lot" |
+| Bulk priority gives each ticket a fresh SLA window from now; a breach stays on the record | `POST /tickets/bulk/priority` | 200 | "each ticket gets the new priority and a fresh SLA window from now", "on a breached ticket seeded hours ago, the breach stays on the record" |
+| An agent can include only tickets they can see | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` (`FORBIDDEN`) | "an agent can include only tickets they can see" |
+| Customers cannot reach the bulk actions | `POST /tickets/bulk/*` | 403 `FORBIDDEN` | "customers cannot reach either action" |
+| At most 50 tickets, each once, with well-formed ids | `POST /tickets/bulk/*` | 400 `VALIDATION_ERROR` | "nothing selected, too many, the same ticket twice and a malformed id are all 400" |
+| Deactivating an agent hands each open ticket to the least-loaded active agent covering its category | `PATCH /agents/:id/status` | 200 | "each goes to an active agent whose team covers its category, and finished tickets stay put" |
+| Every handed-on ticket is on its audit trail, and its new holder is told | `PATCH /agents/:id/status` | 200 | "every move is on the ticket's audit trail and the new holder is told" |
+| The confirmation shows the count and where each ticket goes before anything changes | `GET /agents/:id/deactivation-preview` | 200 | "it counts the open tickets and where each would go" |
+| The last active cover for a category with open work cannot be deactivated | `PATCH /agents/:id/status` | 409 `AGENT_LAST_COVER` | "the refusal names the category and the open tickets, and nothing moves" |
+| ...unless the admin explicitly sends that work to the unassigned queue, where every admin is told | `PATCH /agents/:id/status` | 200 | "with that choice the deactivation goes through, and the work waits in the queue with the admins told" |
+| Work nobody covers (an agent from before teams) goes to the unassigned queue, never outside the team | `PATCH /agents/:id/status` | 200 | "an agent from before teams existed, deactivated with a ticket nobody covers" |
+| Reactivating an agent moves nothing back | `PATCH /agents/:id/status` | 200 | "reactivating moves nothing back" |
+| Merge moves every reply into the primary in the order written, the duplicate's opening message with them | `POST /tickets/:id/merge` | 200 | "the replies move over in the order they were written" |
+| The duplicate is closed with a link to the primary, and both histories record the merge | `POST /tickets/:id/merge` | 200 | "the duplicate is closed with a link to the primary", "both histories record it" |
+| A merged duplicate cannot be reopened | `PUT /tickets/:id` | 409 `TICKET_MERGED` | "the duplicate cannot be reopened, because its conversation lives elsewhere" |
+| A ticket cannot be merged into itself | `POST /tickets/:id/merge` | 422 `MERGE_INTO_ITSELF` | "a ticket into itself" |
+| Two customers' tickets cannot be merged | `POST /tickets/:id/merge` | 422 `MERGE_DIFFERENT_CUSTOMERS` | "two different customers' tickets" |
+| A closed ticket on either side cannot be merged | `POST /tickets/:id/merge` | 409 `TICKET_CLOSED` | "a closed ticket on either side" |
+| Only staff merge, and only tickets they can see; the page offers only valid targets | `POST /tickets/:id/merge`, `GET /tickets/:id/merge-candidates` | 403 `FORBIDDEN` | "only the support team can merge", "the same customer's other tickets still in play" |
+| Merging seeded tickets leaves the primary's clock, status, priority and assignee alone | `POST /tickets/:id/merge` | 200 | "the primary keeps its own clock, status, priority and assignee" |
 
 ### Access
 
@@ -250,6 +311,8 @@ All seeded accounts share one password: **`SupportDesk@2026`**
 
 Two seeded tickets are left unassigned, one Billing and one General, so each agent's **Unassigned**
 queue (`#/tickets?view=unassigned`) shows only its own and the claim can be tried from either side.
+Grace Kim's "Login code never arrives by text" duplicates her "Two-factor authentication not working"
+a day later, so a merge can be tried from the duplicate's page straight away.
 
 New accounts created through the "Create account" tab on the sign-in screen are always customers; agent and admin access is provisioned by an admin from the **Agents** page.
 
