@@ -1368,3 +1368,10 @@ dependencies identical to the reference. Element-rect check: 198 page/state x si
 combinations (1280, 768, 375; both themes; every page and role, dialogs, drawer, notification panel),
 0 off screen, 0 console errors. Fresh clone: exact install and start, build, 273 + 25 tests, clean
 tree. skills/validate: 0 FAIL, 0 MANUAL, 4 warnings (report in `../validation-report-fix-ui-polish.md`).
+
+## [2026-10-04T09:43:34+00:00] `fix/ui-polish` approved and merged
+
+Approved by the user as built. Merged with --no-ff, pushed, and the branch deleted locally and on
+origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Per the
+standing rule, work stops here until the user's next prompt. Test results on main are in the log entry
+for this turn.
