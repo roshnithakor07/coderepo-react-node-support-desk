@@ -1460,3 +1460,35 @@ Approved by the user as built, after the two follow-up fixes. Merged with --no-f
 branch deleted locally and on origin. This note is the branch's last commit, so main needs no
 docs-only follow-up branch. Per the standing rule, work stops here until the user's next prompt. Test
 results on main are in the log entry for this turn.
+
+## [2026-10-04] `fix/final-review`: the brand names in the README, and `.prettierignore`
+
+**What the user asked:** (1) the README row about the removed branding still named the two products it
+had removed; reword it and prove the repo has 0 hits; (2) make `.prettierignore` byte-identical to the
+reference, run the validator and the Prettier check as it does, and report any failure without working
+around it.
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| The proposal-table row | (a) keep the quote of what was removed, (b) say only that a reference to real help-desk products was removed | **(b)**, with the user's exact wording | The row recorded the removal by naming the brands, which put them back (`GUIDELINES.md:146`). |
+| The two extra `.prettierignore` lines | (a) keep them, (b) copy the reference | **(b)**, as asked | They hid `database.js` and `vite.config.js` from the formatting check; the reference does not. `cmp` now reports identical. |
+| A Prettier failure after that | (a) re-add an ignore, reformat read-only files, or pass `--no-use-tabs`, (b) report it | **(b)**, as asked | Nothing was worked around. |
+
+**Result of the Prettier check (reported, not fixed).** The validator names no exact command: S16 says
+"run existing formatting checks where available" and forbids adding a formatting dependency. Run as
+`prettier --check .` with the repo's own `.prettierrc` (tabs) and the reference `.prettierignore`:
+**152 files fail**, none of them new in this branch. 133 are `.js`/`.jsx` in `backend/src`,
+`frontend/src`, `backend/tests` and `frontend/tests`, written with spaces on the earlier decision to
+format touched files with `--no-use-tabs` (the `.editorconfig` and the reference code); the rest are
+markdown, JSON, one HTML, one YAML and one CSS file. Two things worth knowing: **the reference itself
+fails the same check on 87 files**, so a repo-wide pass cannot be what the starter is held to; and of
+the two files the removed lines used to hide, `database.js` passes while **`frontend/vite.config.js`
+now fails, and it cannot be fixed**: it is byte-identical to the reference and read-only in
+`hackerrank.yml`. Whether to reformat the whole repo to tabs (a 150-file formatting-only change) or
+leave it is the user's call.
+
+**Other checks:** grep for zendesk|freshdesk outside `transcripts/`, `GUIDELINES.md`, `AGENTS.md` and
+`skills/`: 0 hits, in the working tree and in tracked files. API 307/307 and unit 38/38, three runs;
+build OK. Fresh clone of the branch: install, build, 307 + 38 tests, `bun start` on 3000/8000, health
+connected, auth, the feature and error-path calls, restart reset, clean tree; dependency sections
+identical to the reference; archive 1.2 MB.
