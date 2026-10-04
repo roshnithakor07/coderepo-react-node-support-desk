@@ -1329,3 +1329,42 @@ origin. This note is the branch's last commit, so main needs no docs-only follow
 new standing rule, work stops here until the user's next prompt; `fix/ui-polish` is next in the order
 they set (SLA hours input and Analytics filter row must be fixed; page spacing and the SLA-breached tile
 only as small safe changes). Test results on main are in the log entry for this turn.
+
+## [2026-10-04T09:39:47+00:00] `fix/ui-polish`: ten polish items, two added mid-task, and what checking them uncovered
+
+**Why this branch.** The user's queued UI notes (page spacing, the SLA hours input, the Analytics
+filter row, the SLA-breached tile), keyboard-only checkbox focus, no hover underline in lists, an
+honest sign-in answer for a deactivated account, an honest README rule count, read-only file parity,
+and the submission-gate skill. Mid-task the user added item 11 (select-all in the table header),
+replaced item 12 twice (the dashboard tiles, finally "the same tiles as Analytics"), clarified item 1
+(the gutters with the sidebar collapsed), and reported the missing SLA compliance tile.
+
+**Decisions, with the options and why:**
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| Item 1: gutters with the sidebar collapsed | (a) drop the 1100 px cap, (b) widen the cap by exactly the width the sidebar gives up | **(b)** | The user asked for the same gutters as with the sidebar open. Measured: 20/50/290 px both ways at 1280/1440/1920. |
+| Item 2: SLA input width | (a) a bigger fixed width, (b) sized from the font (3ch + padding + spin buttons) | **(b)** | It follows the font; 720 (the maximum) fits at every width. |
+| Item 3: Analytics filters | (a) bottom-align controls with labels above, (b) labels beside the inputs, one centre line | **(b)** | Everything at the 38 px control height on one line; phones get one date per row. |
+| Item 5: checkbox focus | (a) per-component rules, (b) one global checkbox rule | **(b)** | Every checkbox behaves the same; the stacked category picker was fixed on the way. |
+| The SLA compliance tile | (a) load Analytics on the dashboard, (b) compute it in `/tickets/stats` | **(b)** | Root cause: the tile borrowed the Analytics page's data, which loads only when an admin opens Analytics, so it was missing on a fresh load and showed the Analytics date range. (b) is always there, all time, for every role; the formula is shared (`ticket-sla.js`). |
+| Item 12: the tiles | (a) restyle the dashboard markup, (b) one `StatTile` component for both pages | **(b)** | The user asked for the Analytics tiles exactly; one component cannot drift. |
+| Item 7: unknown email | (a) skip bcrypt when no account matches, (b) compare against a dummy hash | **(b)** | Equal work in every case, so timing cannot reveal which emails exist; 403 is said only with the right password. |
+| Item 8: what counts as a rule | (a) every error case, (b) each distinct rule, cases under it | **(b)**, as asked | 36 rules, 106 cases, each with its test; all 132 quoted test names checked. |
+| Item 11: the table at 768 px | (a) trim padding, (b) cards by available width (container query) | **(b)** | Measured: the ticket table needs ~820 px and scrolled sideways at 721-1140 px with the sidebar open, not only at 768. Trimming could not cover 1000-1023 px (678 px available). Modals are native dialogs (top layer), so panel containment cannot affect them. |
+
+**Bugs and surprises found by checking rather than reading:**
+- The README already claimed a 403 for a deactivated sign-in; the code returned 401. Fixed with item 7.
+- The ticket table scrolled sideways between 721 and 1140 px; earlier layout checks ran only at 1280 and 375.
+- The "Select all" label and the Agents category boxes stacked under their checkboxes (the global
+  label rule is a column).
+- My own snags: a test script's bell selector missed (18 states rerun, all clean); my curl loop hit the
+  login rate limit (the limit doing its job); a shot taken before paint showed no focus ring.
+
+**Item 9:** both read-only files were already byte-identical (restored in f670765); no commit.
+
+**Results:** API 273/273 and unit 25/25, three runs in a row; build OK; Prettier clean on changed files;
+dependencies identical to the reference. Element-rect check: 198 page/state x size x theme
+combinations (1280, 768, 375; both themes; every page and role, dialogs, drawer, notification panel),
+0 off screen, 0 console errors. Fresh clone: exact install and start, build, 273 + 25 tests, clean
+tree. skills/validate: 0 FAIL, 0 MANUAL, 4 warnings (report in `../validation-report-fix-ui-polish.md`).
