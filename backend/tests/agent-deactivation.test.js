@@ -288,3 +288,54 @@ describe("work nobody covers goes to the unassigned queue, not to an agent outsi
         expect((await api("/settings", { method: "PUT", token: admin.token, body: { categories: original } })).status).toBe(200);
     });
 });
+
+describe("the admin can explicitly send the last cover's work to the unassigned queue", () => {
+    test("with that choice the deactivation goes through, and the work waits in the queue with the admins told", async () => {
+        const noah = await userByEmail("agent4@example.com");
+        // Put the board back as the seed had it: Noah active and the only cover for general.
+        await User.updateOne({ email: "agent1@example.com" }, { $set: { categories: userSnapshots.get("agent1@example.com").categories } });
+        await User.updateOne({ _id: noah._id }, { $set: { isActive: true } });
+        for (const [id, snapshot] of ticketSnapshots) await Ticket.updateOne({ _id: id }, { $set: snapshot });
+
+        const open = await Ticket.find({ assignedTo: noah._id, status: { $in: OPEN } }).lean();
+        expect(open.length).toBeGreaterThan(0);
+        expect((await deactivate(noah)).status).toBe(409);
+
+        const sentAt = new Date();
+        const { status, body } = await api(`/agents/${noah._id}/status`, {
+            method: "PATCH",
+            token: admin.token,
+            body: { isActive: false, sendBlockedToQueue: true },
+        });
+        expect(status).toBe(200);
+        expect(body.data.isActive).toBe(false);
+        expect(body.data.reassigned).toEqual({ moved: 0, queued: open.length });
+
+        const admins = await User.find({ role: "admin", isActive: true }).lean();
+        for (const ticket of open) {
+            const stored = await Ticket.findById(ticket._id).lean();
+            expect(stored.assignedTo).toBeNull();
+            for (const person of admins) {
+                expect(
+                    await Notification.countDocuments({
+                        userId: person._id,
+                        ticketId: ticket._id,
+                        type: "ticket_unassigned",
+                        createdAt: { $gte: sentAt },
+                    }),
+                ).toBe(1);
+            }
+            expect(await AuditLog.countDocuments({ ticketId: ticket._id, action: "unassigned", createdAt: { $gte: sentAt } })).toBe(1);
+        }
+    });
+
+    test("the choice is a boolean, so anything else is a validation error rather than a quiet yes", async () => {
+        const diego = await userByEmail("agent2@example.com");
+        const { status } = await api(`/agents/${diego._id}/status`, {
+            method: "PATCH",
+            token: admin.token,
+            body: { isActive: false, sendBlockedToQueue: "yes" },
+        });
+        expect(status).toBe(400);
+    });
+});

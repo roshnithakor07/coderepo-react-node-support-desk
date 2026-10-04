@@ -21,6 +21,10 @@ function bulkStatus(ticketIds, status, token = admin.token) {
     return api("/tickets/bulk/status", { method: "POST", token, body: { ticketIds, status } });
 }
 
+function bulkPriority(ticketIds, priority, token = admin.token) {
+    return api("/tickets/bulk/priority", { method: "POST", token, body: { ticketIds, priority } });
+}
+
 function bulkAssign(ticketIds, agentId, token = admin.token) {
     return api("/tickets/bulk/assign", { method: "POST", token, body: { ticketIds, agentId } });
 }
@@ -66,7 +70,19 @@ beforeAll(async () => {
 
 afterAll(async () => {
     for (const ticket of restore.values()) {
-        await Ticket.updateOne({ _id: ticket._id }, { $set: { assignedTo: ticket.assignedTo, status: ticket.status } });
+        await Ticket.updateOne(
+            { _id: ticket._id },
+            {
+                $set: {
+                    assignedTo: ticket.assignedTo,
+                    status: ticket.status,
+                    priority: ticket.priority,
+                    slaStartedAt: ticket.slaStartedAt,
+                    slaDeadline: ticket.slaDeadline,
+                    slaBreached: ticket.slaBreached,
+                },
+            },
+        );
     }
     await Promise.all([
         AuditLog.deleteMany({
@@ -266,6 +282,63 @@ describe("bulk assign gives several tickets to one agent", () => {
 
         const customerAccount = await User.findOne({ email: "customer2@example.com" }).lean();
         expect((await bulkAssign([ticket._id], String(customerAccount._id))).status).toBe(400);
+    });
+});
+
+describe("bulk priority changes several tickets' urgency in one action", () => {
+    test("each ticket gets the new priority and a fresh SLA window from now, on its own audit trail", async () => {
+        const tickets = [await newTicket("Bulk priority A"), await newTicket("Bulk priority B")];
+        const ids = tickets.map((ticket) => ticket._id);
+        const before = Date.now();
+
+        const { status, body } = await bulkPriority(ids, "high");
+        expect(status).toBe(200);
+        expect(body.data).toEqual({ requested: 2, updated: 2, unchanged: 0 });
+
+        for (const id of ids) {
+            const stored = await Ticket.findById(id).lean();
+            expect(stored.priority).toBe("high");
+            // High is four hours in the seeded settings, measured from the change, not from creation.
+            const window = new Date(stored.slaDeadline).getTime() - before;
+            expect(window).toBeGreaterThanOrEqual(4 * 60 * 60 * 1000 - 1000);
+            expect(window).toBeLessThanOrEqual(4 * 60 * 60 * 1000 + 60 * 1000);
+        }
+        const trail = await AuditLog.find({ ticketId: { $in: ids }, action: "updated", "changes.priority.to": "high" }).lean();
+        expect(trail).toHaveLength(2);
+    });
+
+    test("a closed ticket is read-only, so one in the selection refuses the lot", async () => {
+        const open = await newTicket("Bulk priority beside a closed one");
+        const closed = await Ticket.findOne({ status: "closed" }).lean();
+        const { status, body } = await bulkPriority([open._id, closed._id], "critical");
+        expect(status).toBe(422);
+        expect(body.error.details.rejections).toEqual([expect.objectContaining({ ticketId: String(closed._id), code: "TICKET_CLOSED" })]);
+        expect((await Ticket.findById(open._id).lean()).priority).toBe("low");
+    });
+
+    test("a ticket already at that priority is unchanged", async () => {
+        const ticket = await newTicket("Bulk priority already low");
+        const { body } = await bulkPriority([ticket._id], "low");
+        expect(body.data).toEqual({ requested: 1, updated: 0, unchanged: 1 });
+    });
+
+    test("on a breached ticket seeded hours ago, the breach stays on the record", async () => {
+        const old = await seeded("Search results are inaccurate");
+        expect(old.slaBreached).toBe(true);
+
+        const { status } = await bulkPriority([old._id], "critical");
+        expect(status).toBe(200);
+        const stored = await Ticket.findById(old._id).lean();
+        expect(stored.priority).toBe("critical");
+        expect(stored.slaBreached).toBe(true);
+        expect(new Date(stored.slaDeadline).getTime()).toBeGreaterThan(Date.now());
+    });
+
+    test("customers cannot reach it, and the limits are the other bulk actions'", async () => {
+        const ticket = await newTicket("Bulk priority limits");
+        expect((await bulkPriority([ticket._id], "high", customer.token)).status).toBe(403);
+        expect((await bulkPriority([ticket._id, ticket._id], "high")).status).toBe(400);
+        expect((await bulkPriority([ticket._id], "urgent")).status).toBe(400);
     });
 });
 
