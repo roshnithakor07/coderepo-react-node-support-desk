@@ -104,7 +104,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading, e
                     </p>
                     <p className="panel-subtitle">Ticket trends, SLA health, and agent performance at a glance.</p>
                 </div>
-                <div className="filter-bar">
+                <div className="filter-bar filter-bar-dates">
                     <div className="preset-group" role="group" aria-label="Date range presets">
                         <button type="button" className={isAllTimeActive ? "active" : ""} onClick={() => onFilterChange({})}>
                             All time
