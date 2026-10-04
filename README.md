@@ -297,7 +297,7 @@ disagreed, the guidelines won. Each change below is a deliberate decision, with 
 | WebSockets for live ticket and notification updates | Notifications and counts are polled every 15 seconds | `GUIDELINES.md:186`: "The core product must not depend on capabilities unavailable in the HackerRank environment, such as outbound email, WebSockets, server-side file uploads, external hosted services". |
 | Inbound email webhook that turns mail into tickets | Removed, along with its route and secret | `GUIDELINES.md:186`, same line: it needs an external sender and outbound mail to be useful, and it left a route with no screen behind it. Tickets are raised in the app instead. |
 | Cursor pagination on the ticket list | Page-number pagination (`page` and `pageSize`) with the sort applied in MongoDB, so the order holds across pages | The list is filtered, sorted and counted server-side and the UI shows "Page N of M", which needs a total. Cursor pagination cannot produce that count, and the volume here does not need it. |
-| "Inspired by Zendesk/Freshdesk" in the README | Removed; the product is described in its own words, and the seeded data uses `@example.com` addresses | `GUIDELINES.md:146`: "Do not use copyrighted assets, external brands, logos, or trademarked product content". |
+| A reference to real help-desk products in the README | Removed; the product is described in its own words, and the seeded data uses `@example.com` addresses | `GUIDELINES.md:146` |
 
 ## Project Structure
 
@@ -356,6 +356,10 @@ bun start              # runs backend (:8000) and frontend (:3000) together
 Visit `http://localhost:3000`. The frontend proxies `/api/*` to the backend automatically in development.
 
 MongoDB behavior: `setup.sh` checks `127.0.0.1:27017` and starts a local `mongod` (via `.mongodb/`) if nothing is listening. The seed script always clears every collection and re-inserts a deterministic baseline, so re-running `bun run seed` (or restarting via `bun start`, which reseeds on every `prestart`) restores a known-good state.
+
+### Formatting
+
+Source files use 4-space indentation, the same as the reference starter's code. The starter's `.prettierrc` sets `useTabs: true`, which its own source doesn't follow either, so `prettier --check` reports the same style difference on the unmodified starter files; `.prettierignore` is kept identical to the starter's.
 
 ### Seeded login credentials
 
