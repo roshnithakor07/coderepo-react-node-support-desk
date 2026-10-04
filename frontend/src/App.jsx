@@ -785,8 +785,29 @@ export default function App() {
             .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't delete this template. Please try again.")));
     }
 
-    function handleMarkNotificationsRead() {
-        notificationApi.markRead().then(loadNotifications);
+    // The answer carries the list as it now stands, so the rows and the badge settle at once; a failure
+    // leaves them as they were and says so.
+    function handleMarkAllNotificationsRead() {
+        notificationApi
+            .markAllRead()
+            .then((result) => {
+                setNotifications(result.items);
+                setUnreadCount(result.unreadCount);
+            })
+            .catch(() => pushToast("error", "Couldn't mark your notifications as read. Please try again."));
+    }
+
+    // Opening a notification is what reads it: the one row, never the rest of the panel.
+    function handleOpenNotification(notification) {
+        openTicket(notification.ticketId?._id || notification.ticketId);
+        if (notification.isRead) return;
+        notificationApi
+            .markOneRead(notification._id)
+            .then((result) => {
+                setNotifications(result.items);
+                setUnreadCount(result.unreadCount);
+            })
+            .catch(() => loadNotifications());
     }
 
     function handleClearNotifications() {
@@ -896,9 +917,9 @@ export default function App() {
                         <NotificationBell
                             notifications={notifications}
                             unreadCount={unreadCount}
-                            onMarkRead={handleMarkNotificationsRead}
+                            onMarkAllRead={handleMarkAllNotificationsRead}
                             onClear={handleClearNotifications}
-                            onOpenTicket={openTicket}
+                            onOpenNotification={handleOpenNotification}
                         />
                         <button type="button" className="topbar-profile-chip" onClick={() => navigate(toHash("/profile"))}>
                             <span className="topbar-profile-avatar">{initials(currentUser.name)}</span>

@@ -12,14 +12,14 @@ const TYPE_ICONS = {
     ticket_merged: TicketIcon,
 };
 
-export function NotificationBell({ notifications, unreadCount, onMarkRead, onClear, onOpenTicket }) {
+export function NotificationBell({ notifications, unreadCount, onMarkAllRead, onClear, onOpenNotification }) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
 
+    // Opening the panel marks nothing: a glance at the bell is not having read anything, and a row that
+    // is still unread is the only way back to what has not been dealt with.
     function toggle() {
-        const next = !isOpen;
-        setIsOpen(next);
-        if (next && unreadCount > 0) onMarkRead();
+        setIsOpen((open) => !open);
     }
 
     useEffect(() => {
@@ -57,7 +57,7 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                         <span>Notifications</span>
                         <div className="notification-panel-actions">
                             {unreadCount > 0 && (
-                                <button type="button" className="link-button" onClick={onMarkRead}>
+                                <button type="button" className="link-button" onClick={onMarkAllRead}>
                                     Mark all as read
                                 </button>
                             )}
@@ -82,9 +82,10 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                                     type="button"
                                     key={notification._id}
                                     className={`notification-item ${notification.isRead ? "" : "unread"}`}
+                                    aria-label={`${notification.isRead ? "" : "Unread: "}${notification.message}`}
                                     onClick={() => {
                                         setIsOpen(false);
-                                        onOpenTicket(notification.ticketId?._id || notification.ticketId);
+                                        onOpenNotification(notification);
                                     }}
                                 >
                                     <span className="notification-item-icon">
@@ -94,6 +95,7 @@ export function NotificationBell({ notifications, unreadCount, onMarkRead, onCle
                                         <span className="notification-message">{notification.message}</span>
                                         <span className="notification-time">{formatRelativeTime(notification.createdAt)}</span>
                                     </span>
+                                    {!notification.isRead && <span className="notification-unread-dot" aria-hidden="true" />}
                                 </button>
                             );
                         })}

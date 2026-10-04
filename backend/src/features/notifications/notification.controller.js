@@ -1,11 +1,4 @@
-import { z } from "zod";
 import { notificationService } from "./notification.service.js";
-
-const markReadSchema = z
-    .object({
-        ids: z.array(z.string()).optional(),
-    })
-    .strict();
 
 export async function listNotifications(request, response, next) {
     try {
@@ -16,11 +9,21 @@ export async function listNotifications(request, response, next) {
     }
 }
 
-export async function markNotificationsRead(request, response, next) {
+// Both marks answer with the list as it now stands, so the badge and the rows are right straight away
+// instead of waiting for the next poll.
+export async function markOneRead(request, response, next) {
     try {
-        const { ids } = markReadSchema.parse(request.body ?? {});
-        await notificationService.markRead(request.user.id, ids);
-        response.json({ data: { success: true } });
+        const result = await notificationService.markOneRead(request.user.id, request.params.notificationId);
+        response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function markAllRead(request, response, next) {
+    try {
+        const result = await notificationService.markAllRead(request.user.id);
+        response.json({ data: result });
     } catch (error) {
         next(error);
     }

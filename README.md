@@ -28,9 +28,10 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
-**At a glance:** 38 distinct product rules across eight areas (the lifecycle, SLA integrity, agent
-teams, the requester's edit window, internal notes, the size of a conversation, multi-record actions
-and access). Each rule is numbered once, with the cases that prove it listed under it, 124 in all,
+**At a glance:** 40 distinct product rules across nine areas (the lifecycle, SLA integrity, agent
+teams, the requester's edit window, internal notes, the size of a conversation, notifications,
+multi-record actions and access). Each rule is numbered once, with the cases that prove it listed
+under it, 131 in all,
 each with its test. The 11 input and resilience checks at the end are listed separately and not
 counted as rules.
 
@@ -46,6 +47,7 @@ counted as rules.
 | Ticket detail, requester actions | The customer closes, reopens or edits their own ticket within the rules | Ticket lifecycle, the requester's edit window |
 | Agents, deactivate | Deactivating an agent hands every open ticket to someone on the right team, or to the unassigned queue on the admin's explicit choice | Acting on several records at once |
 | Settings, categories | Removing a category is refused while agents or open tickets still use it, with the counts | Access |
+| Notification panel (bell, every role) | Opening it reads nothing; a row reads itself and opens its ticket; "Mark all as read" marks every unread one at once | Notifications |
 
 ### Ticket lifecycle
 
@@ -175,6 +177,23 @@ when a page is added above them.
 |  | A customer cannot page another customer's conversation, and hears exactly what they hear of the ticket | `GET /tickets/:id/replies` | 403 `FORBIDDEN` | "a customer cannot page the replies of someone else's ticket, and hears what they hear of it" |
 |  | A page is at most 50; a malformed cursor is a 400 and one that is not on the ticket a 404 | `GET /tickets/:id/replies` | 400 `VALIDATION_ERROR` / 404 `REPLY_NOT_FOUND` | "the page size is capped, and a malformed or unknown cursor is a 400 or a 404" |
 |  | Resolving still needs an answer the customer can read, even when it is pages behind the latest 50 | `GET /tickets/:id` | 200 | "resolving still needs a staff reply the customer can read, even when it is pages back" |
+
+### Notifications
+
+A notification is read by being opened, not by the panel being glanced at: the bell's count is what has
+not been dealt with, so it survives opening the panel and goes down one row at a time. Both marks answer
+with the list as it then stands, so the badge and the rows settle without waiting for the next poll
+(notifications are polled every 15 seconds; there are no WebSockets, per `GUIDELINES.md:186`).
+
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **39.** A notification is read by being opened, one at a time, and only by the person it belongs to | Listing the panel marks nothing: the unread count is the same before and after | `GET /notifications` | 200 | "listing the panel changes nothing: the count is the same before and after" |
+|  | Opening one row marks that one and leaves the rest unread; re-reading it changes nothing | `PATCH /notifications/:id/read` | 200 | "opening one marks that one, and leaves the rest unread" |
+|  | "Mark all as read" clears the count in one request | `PATCH /notifications/read-all` | 200 | "mark all as read clears the count in one request" |
+|  | Somebody else's notification cannot be marked, and is not even said to exist | `PATCH /notifications/:id/read` | 404 `NOTIFICATION_NOT_FOUND` | "nobody can mark somebody else's notification, and it is not even said to exist" |
+|  | A malformed id is a 400, an unknown one a 404, and both marks need a session | `PATCH /notifications/:id/read`, `/read-all` | 400 `INVALID_ID` / 404 / 401 | "a malformed notification id is a 400, and an unknown one a 404", "both marks need a session" |
+| **40.** A reply notification names who replied; an internal note notifies nobody | A public reply reaches the requester (or the agent it is with) and names its author | `POST /tickets/:id/replies` | 201 | "a staff reply reaches the requester and says who replied" |
+|  | An internal note notifies nobody at all, least of all the customer who must not know it exists | `POST /tickets/:id/replies` | 201 | "an internal note notifies nobody, least of all the customer" |
 
 ### Acting on several records at once
 

@@ -765,11 +765,15 @@ export const ticketService = {
             await auditLogService.record(ticket._id, reopened ? "reopened" : "updated", actor.id, { ...changes, trigger: "reply" });
         }
 
+        // Only a public reply is announced, and it says who wrote it: a notification that names the
+        // person is worth opening. An internal note tells nobody, least of all the customer, who must
+        // never learn it exists.
         if (!internal) {
+            const announcement = `${actor.name} replied on "${ticket.title}".`;
             if (actor.role === "customer" && ticket.assignedTo) {
-                await notificationService.notify(ticket.assignedTo, "ticket_reply", `New reply on ticket "${ticket.title}".`, ticket._id);
+                await notificationService.notify(ticket.assignedTo, "ticket_reply", announcement, ticket._id);
             } else if (actor.role !== "customer" && String(ticket.createdBy) !== actor.id) {
-                await notificationService.notify(ticket.createdBy, "ticket_reply", `New reply on ticket "${ticket.title}".`, ticket._id);
+                await notificationService.notify(ticket.createdBy, "ticket_reply", announcement, ticket._id);
             }
         }
 
