@@ -499,6 +499,33 @@ textarea:disabled {
     cursor: not-allowed;
 }
 
+/* Checkboxes are not text fields: no field height, padding or focus glow. Keyboard focus gets a
+   small ring hugging the box; a mouse click shows none. */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+input[type="checkbox"]:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+}
+
 .field-invalid {
     border-color: var(--danger) !important;
 }
@@ -3166,16 +3193,12 @@ textarea:disabled {
 
 .category-picker-option {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 6px;
     margin: 0;
     font-size: 14px;
     cursor: pointer;
-}
-
-.category-picker-option input {
-    width: auto;
-    margin: 0;
 }
 
 .category-cell {
@@ -3216,16 +3239,6 @@ textarea:disabled {
     color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
-}
-
-.bulk-select-all input,
-.row-select {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    flex-shrink: 0;
-    accent-color: var(--accent);
-    cursor: pointer;
 }
 
 .title-with-select {
