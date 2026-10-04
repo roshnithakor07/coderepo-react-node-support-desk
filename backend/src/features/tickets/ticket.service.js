@@ -16,6 +16,7 @@ import {
     statusAfterStaffReply,
 } from "./ticket-lifecycle.js";
 import { BULK_LIMIT, bulkRejectedError, hasDuplicates, toRejection } from "./ticket-bulk.js";
+import { assertMergeAllowed, mergeBlock, mergedReplies, ticketNumber } from "./ticket-merge.js";
 import { assertNoteEditable, canEditNote, noteEditBlockedReason } from "./ticket-notes.js";
 import { lastCoverBlock, lastCoverMessage, planReassignments } from "./ticket-reassign.js";
 import {
@@ -43,7 +44,7 @@ const SORT_ORDERS = {
 export const TICKET_SORT_KEYS = Object.keys(SORT_ORDERS);
 
 // Audit actions that belong on the status history the ticket page shows.
-const HISTORY_ACTIONS = ["created", "reopened", "sla_breached"];
+const HISTORY_ACTIONS = ["created", "reopened", "sla_breached", "merged"];
 
 async function computeSlaDeadline(priority, fromDate = new Date()) {
     const hours = await settingsService.getSlaHours(priority);
@@ -107,6 +108,15 @@ function assertCanView(ticket, actor) {
     throw new AppError(403, "FORBIDDEN", "You do not have access to this ticket.");
 }
 
+function canSee(ticket, actor) {
+    try {
+        assertCanView(ticket, actor);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // Customers never receive internal notes, whichever endpoint returns the ticket.
 function presentTicket(ticket, actor) {
     if (!ticket || actor.role !== "customer") return ticket;
@@ -136,6 +146,8 @@ function presentTicketDetail(ticket, actor) {
         permissions: {
             ...permissionsFor(ticket, actor, now),
             canClaim: isClaimableByTeam(ticket, actor),
+            // Staff can fold a duplicate into another ticket while it is still in play.
+            canMerge: actor.role !== "customer" && ticket.status !== "closed" && !ticket.mergedInto,
         },
     };
 }
@@ -241,6 +253,9 @@ function toHistoryEntry(entry) {
         from: status?.from || null,
         to: entry.action === "created" ? "open" : status?.to || null,
         slaRestartedAt: entry.changes?.slaRestartedAt || null,
+        // A merge is on both tickets' histories, each saying which way it went.
+        mergedInto: entry.changes?.mergedInto || null,
+        mergedFrom: entry.changes?.mergedFrom || null,
         performedBy: entry.performedBy ? { name: entry.performedBy.name, role: entry.performedBy.role } : null,
         createdAt: entry.createdAt,
     };
@@ -465,6 +480,84 @@ export const ticketService = {
 
         for (const id of changing) await this.update(id, { status }, actor);
         return { requested: ids.length, updated: changing.length, unchanged: ids.length - changing.length };
+    },
+
+    // Several tickets to one priority, all or nothing. A closed ticket is read-only, as it is for one
+    // ticket, and each change recomputes that ticket's SLA window from now exactly as the single edit
+    // does. A ticket already at that priority is left alone and counted as unchanged.
+    async bulkPriority(ids, priority, actor) {
+        assertBulkSize(ids);
+        const { rejections, changing } = await collectRejections(ids, (ticket) => {
+            assertCanView(ticket, actor);
+            assertNotClosed(ticket);
+            return ticket.priority !== priority;
+        });
+        if (rejections.length > 0) throw bulkRejectedError(rejections, ids.length);
+
+        for (const id of changing) await this.update(id, { priority }, actor);
+        return { requested: ids.length, updated: changing.length, unchanged: ids.length - changing.length };
+    },
+
+    // The tickets this one could be merged into: the same customer's other tickets that are still in
+    // play and that this person may see. The page offers exactly these, so it never offers a merge the
+    // API would refuse.
+    async getMergeCandidates(id, actor) {
+        const ticket = await ticketRepository.findByIdLean(id);
+        if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+        assertCanView(ticket, actor);
+        const candidates = await ticketRepository.findMergeCandidates(ticket.createdBy._id, ticket._id);
+        return candidates
+            .filter((candidate) => canSee(candidate, actor) && !mergeBlock(ticket, candidate))
+            .map((candidate) => ({
+                _id: candidate._id,
+                title: candidate.title,
+                status: candidate.status,
+                priority: candidate.priority,
+                createdAt: candidate.createdAt,
+                replyCount: candidate.replies.length,
+            }));
+    },
+
+    // Folds a duplicate into the ticket the conversation should continue on: every reply moves over in
+    // the order it was written (the duplicate's opening message with them), the duplicate is closed for
+    // good with a link to the other ticket, both histories record it, and the customer is told where to
+    // look. The primary keeps its own SLA clock, status and assignee.
+    async merge(duplicateId, primaryId, actor) {
+        const [duplicate, primary] = await Promise.all([ticketRepository.findById(duplicateId), ticketRepository.findById(primaryId)]);
+        if (!duplicate) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+        if (!primary) throw new AppError(404, "TICKET_NOT_FOUND", "The ticket to merge into was not found.");
+        assertCanView(duplicate, actor);
+        assertCanView(primary, actor);
+        assertMergeAllowed(duplicate, primary);
+
+        const now = new Date();
+        const moved = duplicate.replies.length;
+        const previousStatus = duplicate.status;
+        primary.replies = mergedReplies(primary, duplicate);
+        duplicate.replies = [];
+        duplicate.status = "closed";
+        duplicate.closedAt = now;
+        duplicate.mergedInto = primary._id;
+
+        await ticketRepository.save(primary);
+        await ticketRepository.save(duplicate);
+        await auditLogService.record(duplicate._id, "merged", actor.id, {
+            mergedInto: { id: String(primary._id), number: ticketNumber(primary), title: primary.title },
+            status: { from: previousStatus, to: "closed" },
+            repliesMoved: moved,
+        });
+        await auditLogService.record(primary._id, "merged", actor.id, {
+            mergedFrom: { id: String(duplicate._id), number: ticketNumber(duplicate), title: duplicate.title },
+            repliesMoved: moved,
+        });
+        await notificationService.notify(
+            primary.createdBy?._id || primary.createdBy,
+            "ticket_merged",
+            `Your ticket "${duplicate.title}" was merged into "${primary.title}". The conversation continues there.`,
+            primary._id,
+        );
+
+        return presentTicketDetail(await ticketRepository.findByIdLean(primary._id), actor);
     },
 
     // What deactivating this agent would do, for the confirmation to say before anything happens: how

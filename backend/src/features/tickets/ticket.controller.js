@@ -40,6 +40,10 @@ const bulkAssignSchema = z.object({ ticketIds, agentId: z.string().regex(/^[a-f\
 
 const bulkStatusSchema = z.object({ ticketIds, status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]) }).strict();
 
+const bulkPrioritySchema = z.object({ ticketIds, priority: z.enum(["low", "medium", "high", "critical"]) }).strict();
+
+const mergeSchema = z.object({ primaryId: z.string().regex(/^[a-f\d]{24}$/i, "Choose the ticket to merge into.") }).strict();
+
 const replyEditSchema = z.object({ body: z.string().trim().min(1).max(5000) }).strict();
 
 const listQuerySchema = z.object({
@@ -147,6 +151,35 @@ export async function bulkStatus(request, response, next) {
         const { ticketIds: ids, status } = bulkStatusSchema.parse(request.body);
         const result = await ticketService.bulkStatus(ids, status, request.user);
         response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function bulkPriority(request, response, next) {
+    try {
+        const { ticketIds: ids, priority } = bulkPrioritySchema.parse(request.body);
+        const result = await ticketService.bulkPriority(ids, priority, request.user);
+        response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getMergeCandidates(request, response, next) {
+    try {
+        const candidates = await ticketService.getMergeCandidates(request.params.ticketId, request.user);
+        response.json({ data: candidates });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function mergeTicket(request, response, next) {
+    try {
+        const { primaryId } = mergeSchema.parse(request.body);
+        const ticket = await ticketService.merge(request.params.ticketId, primaryId, request.user);
+        response.json({ data: ticket });
     } catch (error) {
         next(error);
     }

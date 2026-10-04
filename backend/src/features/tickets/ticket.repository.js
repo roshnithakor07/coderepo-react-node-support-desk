@@ -6,6 +6,8 @@ const populateFields = [
     { path: "createdBy", select: "name email role avatar" },
     { path: "assignedTo", select: "name email role avatar categories" },
     { path: "replies.author", select: "name email role avatar" },
+    // A merged duplicate links to the ticket its conversation moved to.
+    { path: "mergedInto", select: "title status" },
 ];
 
 const listPopulateFields = [
@@ -110,6 +112,12 @@ export const ticketRepository = {
         ]);
         return Object.fromEntries(rows.map((row) => [row._id, row.count]));
     },
+
+    // The customer's other tickets still in play: the only ones a duplicate can be merged into.
+    findMergeCandidates: (createdBy, excludeId) =>
+        Ticket.find({ createdBy, _id: { $ne: excludeId }, status: { $ne: "closed" } })
+            .sort({ createdAt: -1 })
+            .populate(populateFields),
 
     create: (input) => Ticket.create(input),
 

@@ -80,6 +80,11 @@ export function reopenWindowEndsAt(ticket) {
 // the customer may not agree is finished.
 export function reopenBlockedReason(ticket, now = new Date()) {
     if (ticket.status !== "closed") return null;
+    // A merged duplicate has no conversation of its own left to come back to.
+    if (ticket.mergedInto) {
+        const into = ticket.mergedInto._id || ticket.mergedInto;
+        return `This ticket was merged into #${String(into).slice(-6)}, where its conversation now continues. Reply there instead.`;
+    }
     const windowEnd = reopenWindowEndsAt(ticket);
     if (!windowEnd || windowEnd.getTime() >= now.getTime()) return null;
     return `This ticket was closed more than ${REOPEN_WINDOW_DAYS} days ago and can no longer be reopened. Please open a new ticket and reference this one.`;
@@ -142,6 +147,11 @@ export function assertTransitionAllowed(ticket, next, actor, now = new Date()) {
             "INVALID_TRANSITION",
             `A ${STATUS_LABELS[current]} ticket cannot move straight to ${STATUS_LABELS[next]}. From here it can only move to ${options}.`,
         );
+    }
+
+    // A merged duplicate's conversation lives on another ticket now, which is a state, not a window.
+    if (isReopen(current, next) && ticket.mergedInto) {
+        throw new AppError(409, "TICKET_MERGED", reopenBlockedReason(ticket, now));
     }
 
     // The reopen window is a business rule on a legal move, not a conflicting state, so it is 422.
