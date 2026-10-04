@@ -1113,17 +1113,27 @@ textarea:disabled {
     min-height: 0;
     overflow-y: auto;
     position: relative;
-    padding: 24px;
+    padding: 20px;
 }
 
 .panel {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
-    padding: 24px;
+    padding: 20px;
     max-width: 1100px;
     margin: 0 auto;
     box-shadow: var(--shadow-sm);
+}
+
+/* A collapsed sidebar gives its width to the page rather than to empty side gutters, so the gutters
+   match the expanded layout at every width. */
+.app-shell.sidebar-collapsed .panel {
+    max-width: calc(1100px + var(--sidebar-width) - var(--sidebar-width-collapsed));
+}
+
+.app-shell.sidebar-collapsed .ticket-detail {
+    max-width: calc(1360px + var(--sidebar-width) - var(--sidebar-width-collapsed));
 }
 
 .panel-header {
@@ -3728,11 +3738,11 @@ textarea:disabled {
     }
 
     .app-content {
-        padding: 16px;
+        padding: 12px;
     }
 
     .panel {
-        padding: 20px;
+        padding: 16px;
     }
 }
 
