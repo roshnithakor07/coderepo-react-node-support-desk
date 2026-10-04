@@ -1375,3 +1375,61 @@ Approved by the user as built. Merged with --no-ff, pushed, and the branch delet
 origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Per the
 standing rule, work stops here until the user's next prompt. Test results on main are in the log entry
 for this turn.
+
+## [2026-10-04] `fix/reply-limit`: a capped conversation, reply paging, an assignee filter, and notifications that are read by being opened
+
+**The problem I was given:** replies are embedded in the ticket document with no limit, so a long
+ticket could pass MongoDB's 16 MB document limit and the next reply would fail with a 500. Three
+further items arrived during the branch: an "Assigned to" filter on the ticket list, and the
+notification panel's read behavior.
+
+**Decisions, with the options and why:**
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| Enforcing the 500-reply cap | (a) count the replies, then push, (b) one atomic push that matches only while the array is under 500 | **(b)**, as asked | This MongoDB is a single node, so there is no transaction to wrap (a) in; `replies.499: {$exists: false}` in the filter makes the database itself the gate. Proven by two simultaneous replies at 499 leaving exactly 500. |
+| How the reply is written | (a) push onto the loaded document and `save()`, (b) atomic `$push`, then `save()` for the status only | **(b)** | (a) would write a stale `replies` array back over the atomic push. The document's own `replies` is never touched, so `save()` sends only the status and the clock. |
+| Where the status decision happens | (a) after the reply is stored, (b) before the push | **(b)** | A reply the ticket has no room for must leave the status and the SLA clock exactly as they were; verified by a test. |
+| The reply the resolve rule looks for | (a) read the windowed replies, (b) carry a count of public staff replies on the ticket | **(b)** | With only the latest 50 replies on the page, an answer older than that would have looked absent and "Send a public reply before resolving" would have come back on an answered ticket. A test puts the only staff reply 80 replies back. |
+| Counts sent to the page | (a) one count, (b) `replyCount` (what the rule counts) plus `visibleReplyCount` (what this viewer may read) | **(b)** | Internal notes are hidden from customers, so one count would make either the "N of 500" notice or the "(N more)" button lie to them. |
+| Keeping the thread whole | (a) render the window plus the loaded pages, (b) keep every reply shown and fold each new window in | **(b)** | Sending a reply moves the latest page on by one, and (a) silently dropped the message that fell off its start. The page in hand stays authoritative for its own stretch, so a deleted note still disappears. Checked in the browser: 101 rows -> 102 after a reply, nothing lost. |
+| Merging into a long ticket | (a) leave merge alone, (b) refuse a merge that would carry the primary past 500 | **(b)** | A cap enforced on one path only is not a rule. The merge picker already hides what `mergeBlock` refuses, so the UI follows automatically. |
+| The follow-up button | (a) show it to everyone, (b) only to the requester, with the reason for staff | **(b)** | Only customers raise tickets, so for staff (a) is a button the API would refuse. |
+| "Unassigned" in the new filter | (a) `assignedTo: null` on the viewer's own list, (b) the Unassigned queue's own scope | **(b)** | (a) would have shown an agent unowned tickets in finished statuses that `assertCanView` refuses them, i.e. rows they cannot open. (b) can never show more than the queue does. |
+| An agent filtering by another agent | (a) refuse it, (b) match nothing | **(b)** | The filter writes over the scope that limits an agent's list to their own tickets; matching nothing keeps the rule while leaving the control uniform. **Uncertain:** the option is in the list because the brief asked for it, but for an agent a teammate's name can only ever show an empty list. |
+| The `assignedTo` query parameter it replaces | (a) keep both, (b) replace it with `assignee` | **(b)** | `assignedTo` had no UI consumer at all (a dead parameter the validator looks for), and the new one also takes "unassigned". |
+| Reading notifications | (a) keep marking all read on open, (b) read one by opening it, plus an explicit "Mark all as read" | **(b)**, as asked | The badge is meant to count what has not been dealt with; one glance at the panel used to erase that. |
+| What the mark endpoints answer with | (a) `{ success: true }` and a refetch, (b) the list as it then stands | **(b)** | The badge and the rows settle in one request instead of waiting for the 15-second poll. |
+| Another user's notification | (a) 403, (b) 404 | **(b)** | A 403 would confirm that somebody else's notification exists. The query is scoped to the owner, so it simply matches nothing. |
+
+**Bugs and surprises found by checking rather than reading:**
+- My own bug, caught by a test: `presentTicketDetail` deleted the raw counts from the ticket object
+  *before* the lifecycle rules read them, so a ticket whose answer was pages back reported
+  "Send a public reply to the customer before resolving this ticket." Fixed by destructuring instead
+  of mutating; the test ("resolving still needs a staff reply... even when it is pages back") was
+  written first and failed on the broken code.
+- `GET /tickets` still loads every reply of every row (the list does not use them). Left alone as
+  outside this branch, and reported.
+- The seeded tickets used for the limit tests are filed under "general", which agent1 does not cover,
+  so the first run of the new tests failed with 403s until the staff replies came from an admin. The
+  team rule doing its job.
+- An agent's `assignee=unassigned` test originally compared two lists that could both have been
+  empty; strengthened to assert the queue is not empty first.
+
+**Checks:** API 303/303 and unit 36/36, three runs in a row; build OK; Prettier clean on changed
+files; dependency sections of all three manifests identical to the reference. Element-rect checks
+(throwaway CDP scripts outside the repo, no package): ticket detail with 120/460/500 replies, 75
+page/state x size x theme combinations (1280/768/375, both themes, three roles: first page, after
+"Show earlier replies", the 450+ notice, the full state, the follow-up form) - 0 off screen, 0 console
+errors, scroll drift 0 px; the ticket list and its new filter, 54 combinations - 0 offenders, the
+select matching the priority control exactly (38 px, 14 px, 8 px radius, same centre line); the open
+notification panel, 58 combinations - 0 offenders, badge unchanged by opening and reopening, one row
+read on click, the lot read from the header. Fresh clone of the branch: exact install, build,
+303 + 36 tests, `bun start` on 3000/8000, health with MongoDB connected, the seeded 24 tickets, every
+feature endpoint, persistence, the error paths (400/404/403), restart reset, clean tree.
+
+**Dev database:** the three long conversations and the notification fixtures were only ever in
+`support_desk_db` for the browser checks, never in the seed or the repo, and were removed afterwards
+along with the audit entries and notifications they left. The fresh-clone run used its own database
+(`support_desk_fresh`, dropped afterwards) and the dev app was restarted without reseeding, so the
+ticket the user raised by hand ("im not able to login") is still there.
