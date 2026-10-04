@@ -52,6 +52,17 @@ export const ticketRepository = {
 
     exists: (id) => Ticket.exists({ _id: id }),
 
+    // Documents rather than plain objects, because a bulk action checks the same rules the single
+    // action does, and those read the ticket the way a saved document presents it.
+    findManyByIds: (ids) => Ticket.find({ _id: { $in: ids } }).populate(populateFields),
+
+    // What an agent is working right now: the tickets that move when they are deactivated. Oldest
+    // first, so the plan is the same every time it is made.
+    findOpenAssignedTo: (agentId, activeStatuses) =>
+        Ticket.find({ assignedTo: agentId, status: { $in: activeStatuses } })
+            .sort({ createdAt: 1, _id: 1 })
+            .populate(populateFields),
+
     // Sorting runs in the database so it holds across pages, not only inside the page on screen.
     async findMany(filter, { skip = 0, limit = 25, sort = { createdAt: -1 } } = {}) {
         // An aggregation gets the filter exactly as written, with none of the casting a query does,

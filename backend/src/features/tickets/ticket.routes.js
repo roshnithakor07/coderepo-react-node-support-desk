@@ -4,6 +4,8 @@ import { validateObjectIdParam } from "../../shared/middleware/validate-object-i
 import {
     addReply,
     assignTicket,
+    bulkAssign,
+    bulkStatus,
     createTicket,
     deleteReply,
     getTicket,
@@ -25,6 +27,10 @@ ticketRouter.get("/", listTickets);
 ticketRouter.get("/stats", getTicketStats);
 // Customers raise tickets; agents and admins work them, so the button is theirs alone.
 ticketRouter.post("/", requireRole("customer"), createTicket);
+// Acting on several tickets at once belongs to the support team, and is registered before
+// "/:ticketId" so "bulk" is never read as an id.
+ticketRouter.post("/bulk/assign", requireRole("admin", "agent"), bulkAssign);
+ticketRouter.post("/bulk/status", requireRole("admin", "agent"), bulkStatus);
 ticketRouter.get("/:ticketId", getTicket);
 // Open to every role: the service decides what each one may change, so a customer can close or
 // reopen their own ticket without being able to touch its priority or anyone else's ticket.

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "./user.model.js";
 
 export const authRepository = {
@@ -10,6 +11,25 @@ export const authRepository = {
     countAgentsByCategories: async (categories) => {
         const rows = await User.aggregate([
             { $match: { role: "agent", categories: { $in: categories } } },
+            { $unwind: "$categories" },
+            { $match: { categories: { $in: categories } } },
+            { $group: { _id: "$categories", count: { $sum: 1 } } },
+        ]);
+        return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+    },
+
+    // How many OTHER active agents cover each of these categories. An agent is the last cover for a
+    // category when this is zero for it.
+    countActiveCoverByCategories: async (categories, excludeId) => {
+        const rows = await User.aggregate([
+            {
+                $match: {
+                    role: "agent",
+                    isActive: true,
+                    _id: { $ne: new mongoose.Types.ObjectId(String(excludeId)) },
+                    categories: { $in: categories },
+                },
+            },
             { $unwind: "$categories" },
             { $match: { categories: { $in: categories } } },
             { $group: { _id: "$categories", count: { $sum: 1 } } },
