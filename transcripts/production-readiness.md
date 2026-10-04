@@ -1433,3 +1433,23 @@ feature endpoint, persistence, the error paths (400/404/403), restart reset, cle
 along with the audit entries and notifications they left. The fresh-clone run used its own database
 (`support_desk_fresh`, dropped afterwards) and the dev app was restarted without reseeding, so the
 ticket the user raised by hand ("im not able to login") is still there.
+
+## [2026-10-04] `fix/reply-limit`: two follow-up fixes before approval
+
+**What the user asked:** (1) the "Assigned to" filter should offer agents only "Anyone", "Unassigned"
+and "Me", with admins keeping the full list; (2) the ticket list should leave the replies out of its
+query and return `replyCount` instead, with proof that no list, dashboard or bulk screen used them.
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| Where the option sets live | (a) inline in `TicketList.jsx`, (b) one pure `assigneeChoices(role, agents, userId)` | **(b)** | The component is not unit-testable without a browser; the pure function is, and both role sets are now pinned by tests. |
+| An agent's URL naming another agent | (a) drop it, (b) keep it, show "Another agent", match nothing | **(b)** | The API already answers it safely (nothing, never that agent's tickets). Dropping it would need the user id in the URL parser; the select stays honest about what it is set to. |
+| `replyCount` for a customer | (a) all replies, (b) public replies only | **(b)** | A count that includes internal notes tells a customer how many exist. Same reason `visibleReplyCount` exists on the detail. |
+| Where the counts are computed | (a) before sorting, (b) after the page is cut | **(b)** | Only the rows on screen are measured. |
+| Proof nothing used the replies | (a) trust the grep, (b) grep, then test the shapes, then drive every list screen | **all three** | `grep` found no reader outside the detail page; the new tests fail on the old code (4 of 4, checked by stashing the source) and pass on the new; the browser check covered Tickets, the queue, a sort, the bulk bar and the dashboard. |
+
+**Checks:** API 307/307 and unit 38/38, three runs in a row; build OK; Prettier clean. Element-rect
+check, 34 states (Tickets at 1280 and 375, both themes, three roles, plus the unassigned queue with a
+sort, the admin bulk bar with the whole page selected, and the dashboard): 0 off screen, 0 console
+errors. Agents' select shows `["Anyone","Unassigned","Me"]`, admins' shows every agent A-Z, customers
+have none.
