@@ -3069,7 +3069,8 @@ textarea:disabled {
 }
 
 .sla-row-input input {
-    width: 52px;
+    /* Room for three digits (the maximum is 720) plus the padding and the browser's spin buttons. */
+    width: calc(3ch + 48px);
     height: 38px;
     padding: 0 8px;
     font-size: 16px;
