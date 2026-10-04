@@ -24,7 +24,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await setActive("agent4@example.com", true);
     await setActive("agent5@example.com", false);
 });
 
@@ -43,13 +42,31 @@ describe("agents list", () => {
     });
 
     test("a deactivated agent stays in the list and can be reactivated", async () => {
-        expect((await setActive("agent4@example.com", false)).status).toBe(200);
-        expect((await listAgents()).find((entry) => entry.email === "agent4@example.com").isActive).toBe(false);
+        // A fresh agent with nothing open, so deactivating them has no tickets to hand on. Deactivating
+        // someone with work is its own rule, with its own tests.
+        const created = await api("/agents", {
+            method: "POST",
+            token: admin.token,
+            body: {
+                name: "Reactivation Test",
+                email: "reactivation.test@example.com",
+                password: "SupportDesk@2026",
+                categories: ["billing"],
+            },
+        });
+        expect(created.status).toBe(201);
+        idsByEmail["reactivation.test@example.com"] = created.body.data.id;
+        const email = "reactivation.test@example.com";
 
-        const reactivated = await setActive("agent4@example.com", true);
+        expect((await setActive(email, false)).status).toBe(200);
+        expect((await listAgents()).find((entry) => entry.email === email).isActive).toBe(false);
+
+        const reactivated = await setActive(email, true);
         expect(reactivated.status).toBe(200);
         expect(reactivated.body.data.isActive).toBe(true);
-        expect((await listAgents()).find((entry) => entry.email === "agent4@example.com").isActive).toBe(true);
+        expect((await listAgents()).find((entry) => entry.email === email).isActive).toBe(true);
+
+        await User.deleteOne({ email });
     });
 
     test("the seeded inactive agent can be activated from the list", async () => {
