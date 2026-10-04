@@ -1274,3 +1274,50 @@ alarming) were deliberately kept out of this branch and queued. The user set the
 row must be fixed, while the page spacing and the SLA-breached tile are only to be touched as small
 safe changes. Merged with --no-ff, pushed, and the branch deleted locally and on origin. Test results
 on main are in the log entry for this turn.
+
+## [2026-10-04T07:40:54+00:00] `feat/bulk-actions`: rules 13-15, records that change together
+
+**Why this branch.** The rejections asked for six or more screens that change several records or move
+something through a status, and for rules that hold across them. This branch adds three: bulk actions
+on the ticket list, deactivating an agent with their work handed on, and ticket merge. Rules sit in pure
+modules (`ticket-bulk.js`, `ticket-reassign.js`, `ticket-merge.js`), the DB in repositories, the
+controllers thin. The work started in an earlier session that I stopped part-way; this session picked it
+up and extended it to the fuller brief (bulk priority, the explicit queue override, and merge).
+
+**Decisions, with the options and why:**
+
+| Decision | Options | Chosen | Reason |
+|---|---|---|---|
+| Atomicity | (a) a MongoDB transaction, (b) validate everything, then apply | **(b)** | Checked, not assumed: the dev MongoDB is a standalone node and refuses transactions. A replica set would change `setup.sh`, whose flow must match the reference. The README says so. A ticket changed by someone else in the gap is re-checked by the single action as it is written. |
+| Where bulk rules come from | (a) a bulk-specific rule set, (b) the single action's own checks | **(b)** | One set of rules cannot drift. The assignment checks were pulled into one function the single and bulk paths both call. |
+| A ticket already in the target state | (a) reject it, (b) count it as unchanged | **(b)** | Re-sending a status to one ticket is accepted and changes nothing; rejecting it in bulk would refuse a whole selection over a no-op. |
+| A missing ticket id in a bulk request | (a) 404 the request, (b) report it with the others | **(b)** | One stale row should not hide the reasons for the rest. |
+| One picker or three buttons for bulk | (a) separate controls per action, (b) one grouped picker | **(b)** | Stays one row on a 375 px phone; the confirmation names the action and the count. |
+| The last cover for a category | (a) always refuse, (b) refuse unless the admin explicitly chooses the queue | **(b)**, as briefed | The default protects the work; the explicit choice covers a real need (someone leaving) without a workaround. The dialog states the consequence before the button. |
+| What happens to the duplicate's opening message on merge | (a) drop it, (b) carry it over as a reply | **(b)** | It is what the customer wrote. It moves as a reply from them, dated when it was sent, so the thread still reads in time order. |
+| Reopening a merged duplicate | (a) allowed in the 14-day window, (b) refused | **(b) 409 `TICKET_MERGED`** | Its replies now live on the primary; a reopened, empty duplicate would split the conversation again. |
+
+**Bugs and surprises found while building:**
+- *The notification would have failed silently.* The merge's "your tickets were merged" notification
+  used a new type the notification model's enum did not allow. Caught by reading the model before the
+  first test run.
+- *A flaky test, mitigated rather than explained.* One audit-count assertion failed in 2 of the early
+  full-suite runs and never again in 14 later runs. It counted entries in a time window; it now matches
+  on the data (an "assigned" entry naming the new agent), which no timing can affect. I could not
+  reproduce the original failure to find its root cause, and I say so here rather than claim a fix.
+- *My own test bugs:* a default parameter turned a "no token" call into an admin call, and the seed
+  happens to give every seeded Billing ticket to Lena, so a test assigning them to Lena changed nothing.
+  Both fixed in the tests.
+
+**Tested on old data:** bulk status, assign and priority on tickets seeded hours to days ago (a breach
+stays on the record), deactivation handing on Diego's seeded tickets without touching their clocks, the
+pre-teams-shaped agent whose uncovered ticket goes to the queue, and a merge of the seeded duplicate a
+day older than its primary, which keeps its clock, status, priority and assignee.
+
+**Results:** API 267/267, run twice back to back; routing unit tests 25/25; build OK; Prettier clean;
+no dependency change. Browser, driven through the real app: bulk refusal panel (17 of 20 refused,
+nothing changed, deselect worked), bulk priority, both deactivation dialogs, and a merge end to end.
+Element-rect check at 1280 and 375 in both themes over every page and role, plus the selection bar,
+the refusal panel, the last-cover dialog and the merge modal: every state scrollWidth equal to the
+viewport, with no element off screen. The only console entries were Chrome's network log lines for the
+four deliberate 422 refusals.
