@@ -28,9 +28,10 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
-**At a glance:** 105 product rules, each a row below with the test that proves it, across seven
-areas (the lifecycle, SLA integrity, agent teams, the requester's edit window, internal notes,
-multi-record actions and access), plus 11 input and resilience checks listed separately at the end.
+**At a glance:** 36 distinct product rules across seven areas (the lifecycle, SLA integrity, agent
+teams, the requester's edit window, internal notes, multi-record actions and access). Each rule is
+numbered once, with the cases that prove it listed under it, 106 in all, each with its test. The 11
+input and resilience checks at the end are listed separately and not counted as rules.
 
 **Screens that change several records at once, or move something through a status:**
 
@@ -54,39 +55,39 @@ open -> in_progress -> pending <-> in_progress -> resolved -> closed
                                                      +-> open <--+   (reopen, 14 days)
 ```
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| Nothing skips a step: an open ticket cannot jump to closed | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "an open ticket cannot jump to closed" |
-| An open ticket cannot be resolved without passing through in progress | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "an open ticket cannot be resolved without going through in progress" |
-| A pending ticket goes back to in progress before it can be resolved | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "a pending ticket cannot be resolved until it is back in progress" |
-| Nothing runs backwards except the reopen | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "nothing runs backwards except the reopen" |
-| Only a resolved or closed ticket can be reopened, and only to open | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "only a finished ticket can be reopened" |
-| A ticket closed more than 14 days ago cannot be reopened; the message says to open a new one | `PUT /tickets/:id` | 422 `REOPEN_WINDOW_EXPIRED` | "a ticket closed over fourteen days ago cannot be reopened, and says to open a new one" |
-| Records written before the close stamp existed measure the window from their resolve stamp | `PUT /tickets/:id` | 422 `REOPEN_WINDOW_EXPIRED` | "a ticket closed before the close stamp existed measures the window from its resolve stamp" |
-| A reopen restarts the SLA from the reopen moment, clears the breach, warning and resolve stamp, and is logged as `reopened` | `PUT /tickets/:id` | 200 | "a ticket resolved 46 hours ago comes back with a fresh window and is not breached by the next sweep" |
-| Resolving requires at least one public staff reply | `PUT /tickets/:id` | 422 `RESOLUTION_REQUIRES_REPLY` | "an in-progress ticket with nothing the customer can read cannot be resolved" |
-| An internal note does not count as that reply | `PUT /tickets/:id` | 422 `RESOLUTION_REQUIRES_REPLY` | "an internal note does not count as an answer" |
-| A closed ticket takes no replies | `POST /tickets/:id/replies` | 409 `TICKET_CLOSED` | "no reply can be added" |
-| A closed ticket's fields and priority are read-only | `PUT /tickets/:id` | 409 `TICKET_CLOSED` | "no field can be edited", "the priority cannot be changed either" |
-| A closed ticket cannot be reassigned | `POST /tickets/:id/assign` | 409 `TICKET_CLOSED` | "it cannot be reassigned" |
-| A customer's reply on a pending ticket hands it back to the team; the SLA clock and any breach carry on unchanged, because only a reopen starts a fresh period | `POST /tickets/:id/replies` | 201 | "a reply on a pending ticket hands it back to the team and keeps the breach and the clock" |
-| A customer's reply on a resolved ticket reopens it, with a fresh SLA period and a `reopened` entry | `POST /tickets/:id/replies` | 201 | "a reply on a resolved ticket reopens it" |
-| Only a public staff reply moves an open ticket to in progress; an internal note never moves it | `POST /tickets/:id/replies` | 201 | "a staff reply on an open ticket starts work, and an internal note never moves it" |
-| A staff reply leaves the SLA clock alone | `POST /tickets/:id/replies` | 201 | "the SLA clock is untouched by a staff reply" |
-| Re-sending the status a ticket already has changes nothing | `PUT /tickets/:id` | 200 | "re-sending the status a ticket already has is accepted and changes nothing" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **1.** A ticket moves one step at a time, forward, and only a finished ticket goes back to open | Nothing skips a step: an open ticket cannot jump to closed | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "an open ticket cannot jump to closed" |
+|  | An open ticket cannot be resolved without passing through in progress | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "an open ticket cannot be resolved without going through in progress" |
+|  | A pending ticket goes back to in progress before it can be resolved | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "a pending ticket cannot be resolved until it is back in progress" |
+|  | Nothing runs backwards except the reopen | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "nothing runs backwards except the reopen" |
+|  | Only a resolved or closed ticket can be reopened, and only to open | `PUT /tickets/:id` | 409 `INVALID_TRANSITION` | "only a finished ticket can be reopened" |
+|  | Re-sending the status a ticket already has changes nothing | `PUT /tickets/:id` | 200 | "re-sending the status a ticket already has is accepted and changes nothing" |
+| **2.** A finished ticket can be reopened for 14 days | A ticket closed more than 14 days ago cannot be reopened; the message says to open a new one | `PUT /tickets/:id` | 422 `REOPEN_WINDOW_EXPIRED` | "a ticket closed over fourteen days ago cannot be reopened, and says to open a new one" |
+|  | Records written before the close stamp existed measure the window from their resolve stamp | `PUT /tickets/:id` | 422 `REOPEN_WINDOW_EXPIRED` | "a ticket closed before the close stamp existed measures the window from its resolve stamp" |
+| **3.** Resolving needs a public reply from the support team | Resolving requires at least one public staff reply | `PUT /tickets/:id` | 422 `RESOLUTION_REQUIRES_REPLY` | "an in-progress ticket with nothing the customer can read cannot be resolved" |
+|  | An internal note does not count as that reply | `PUT /tickets/:id` | 422 `RESOLUTION_REQUIRES_REPLY` | "an internal note does not count as an answer" |
+| **4.** A closed ticket is read-only | A closed ticket takes no replies | `POST /tickets/:id/replies` | 409 `TICKET_CLOSED` | "no reply can be added" |
+|  | A closed ticket's fields and priority are read-only | `PUT /tickets/:id` | 409 `TICKET_CLOSED` | "no field can be edited", "the priority cannot be changed either" |
+|  | A closed ticket cannot be reassigned | `POST /tickets/:id/assign` | 409 `TICKET_CLOSED` | "it cannot be reassigned" |
+| **5.** A reply moves the ticket on: the customer's hands it back or reopens it, the team's starts work | A customer's reply on a pending ticket hands it back to the team; the SLA clock and any breach carry on unchanged, because only a reopen starts a fresh period | `POST /tickets/:id/replies` | 201 | "a reply on a pending ticket hands it back to the team and keeps the breach and the clock" |
+|  | A customer's reply on a resolved ticket reopens it, with a fresh SLA period and a `reopened` entry | `POST /tickets/:id/replies` | 201 | "a reply on a resolved ticket reopens it" |
+|  | Only a public staff reply moves an open ticket to in progress; an internal note never moves it | `POST /tickets/:id/replies` | 201 | "a staff reply on an open ticket starts work, and an internal note never moves it" |
 
 ### SLA integrity
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| A breach is permanent: changing the priority never clears it | `PUT /tickets/:id` | 200 | "changing the priority never clears the breach, and the new window runs from the change" |
-| A priority change on a live ticket recomputes the deadline from the change moment, not from creation | `PUT /tickets/:id` | 200 | "changing the priority never clears the breach, and the new window runs from the change" |
-| The audit entry for a priority change records the old and the new deadline | `GET /tickets/:id/audit` | 200 | "the audit entry records the old and the new deadline" |
-| A finished ticket's deadline is left where it was | `PUT /tickets/:id` | 200 | "a resolved ticket's deadline is left where it was when its priority changes" |
-| A move between two live statuses leaves the clock alone | `PUT /tickets/:id` | 200 | "a move between two active statuses leaves the clock alone" |
-| The sweep flags an overdue ticket as the system, never as a person | background sweep | - | "flags an overdue ticket and records the breach as the system, not the customer" |
-| Admins are told about every breach, not only the assignee | background sweep | - | "an SLA breach reaches every admin, not only the assignee" |
-| A ticket with no assignee is reported to the admins once, not every minute | background sweep | - | "the sweep reports a ticket with no assignee once, not every minute" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **6.** The deadline moves only for a reopen, or a priority change on a live ticket | A reopen restarts the SLA from the reopen moment, clears the breach, warning and resolve stamp, and is logged as `reopened` | `PUT /tickets/:id` | 200 | "a ticket resolved 46 hours ago comes back with a fresh window and is not breached by the next sweep" |
+|  | A staff reply leaves the SLA clock alone | `POST /tickets/:id/replies` | 201 | "the SLA clock is untouched by a staff reply" |
+|  | A priority change on a live ticket recomputes the deadline from the change moment, not from creation | `PUT /tickets/:id` | 200 | "changing the priority never clears the breach, and the new window runs from the change" |
+|  | The audit entry for a priority change records the old and the new deadline | `GET /tickets/:id/audit` | 200 | "the audit entry records the old and the new deadline" |
+|  | A finished ticket's deadline is left where it was | `PUT /tickets/:id` | 200 | "a resolved ticket's deadline is left where it was when its priority changes" |
+|  | A move between two live statuses leaves the clock alone | `PUT /tickets/:id` | 200 | "a move between two active statuses leaves the clock alone" |
+| **7.** A breach is permanent | A breach is permanent: changing the priority never clears it | `PUT /tickets/:id` | 200 | "changing the priority never clears the breach, and the new window runs from the change" |
+| **8.** Breaches are found by the system and reported to every admin | The sweep flags an overdue ticket as the system, never as a person | background sweep | - | "flags an overdue ticket and records the breach as the system, not the customer" |
+|  | Admins are told about every breach, not only the assignee | background sweep | - | "an SLA breach reaches every admin, not only the assignee" |
+| **9.** A ticket nobody owns is reported to the admins once | A ticket with no assignee is reported to the admins once, not every minute | background sweep | - | "the sweep reports a ticket with no assignee once, not every minute" |
 
 ### Agent teams, the second kind of access rule
 
@@ -94,48 +95,48 @@ Access is decided twice: by role, and by team. Every agent covers one or more of
 Settings, and works only inside them. An agent with no categories yet covers nothing, which is what an
 account created before teams existed looks like until an admin sets them on the Agents page.
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| An agent sees their own tickets plus an unassigned queue limited to their categories | `GET /tickets?view=unassigned` | 200 | "an agent sees the tickets nobody owns in their own categories, and no others" |
-| Another team's queue holds the rest; an admin's queue is the whole backlog | `GET /tickets?view=unassigned` | 200 | "another team's queue holds the other tickets", "an admin's queue is the whole backlog" |
-| A customer has no unassigned queue | `GET /tickets?view=unassigned` | 403 `FORBIDDEN` | "a customer has no unassigned queue" |
-| A filter inside the queue narrows it and never reaches past the team | `GET /tickets?view=unassigned` | 200 | "a filter inside the queue narrows it and never reaches past the team" |
-| An agent can open and claim an unowned ticket in their categories | `GET`/`POST /tickets/:id/assign` | 200 | "claiming takes the ticket, clears the unassigned alert and is recorded as a claim" |
-| An agent cannot open an unowned ticket outside them, and hears which team has it | `GET /tickets/:id` | 403 `OUTSIDE_TEAM` | "an agent cannot open an unowned ticket outside their categories, and hears which team has it" |
-| An agent cannot claim a ticket outside their categories; the message names the category | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an agent cannot claim a ticket outside their categories, and the message names it" |
-| An admin cannot assign a ticket to an agent whose team does not cover it | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an admin cannot hand a billing ticket to an agent who covers only general" |
-| The rule holds on tickets seeded days ago, and on agents who have no categories yet | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "the rule holds on a ticket seeded days ago, not only on new ones", "an agent with no categories yet covers nothing" |
-| Auto-assignment picks the least-loaded active agent in the ticket's category | `POST /tickets` | 201 | "the ticket goes to somebody whose team covers it" |
-| With nobody covering the category the ticket waits in the queue and every admin is told | `POST /tickets` | 201 | "with nobody covering the category the ticket waits in the queue and the admins are told" |
-| Refiling a ticket cannot leave it with an assignee outside that category's team | `PUT /tickets/:id` | 409 `ASSIGNEE_OUTSIDE_TEAM` | "moving it to a category the assignee does not cover is refused" |
-| Only an admin sets an agent's categories | `PATCH /agents/:id/categories` | 403 `FORBIDDEN` | "an agent cannot change a team" |
-| An agent's categories must exist in Settings | `POST /agents`, `PATCH /agents/:id/categories` | 422 `UNKNOWN_CATEGORY` | "a category that is not in Settings is refused, and the message says where to add it" |
-| An agent must be on at least one category | `POST /agents`, `PATCH /agents/:id/categories` | 400 `VALIDATION_ERROR` | "an empty team is refused: an agent nothing can reach is not a team" |
-| Changing a team never moves what the agent already holds | `PATCH /agents/:id/categories` | 200 | "an admin sets them, and what the agent already holds stays with them" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **10.** The unassigned queue and claiming follow the team: an agent sees and claims only their categories | An agent sees their own tickets plus an unassigned queue limited to their categories | `GET /tickets?view=unassigned` | 200 | "an agent sees the tickets nobody owns in their own categories, and no others" |
+|  | Another team's queue holds the rest; an admin's queue is the whole backlog | `GET /tickets?view=unassigned` | 200 | "another team's queue holds the other tickets", "an admin's queue is the whole backlog" |
+|  | A customer has no unassigned queue | `GET /tickets?view=unassigned` | 403 `FORBIDDEN` | "a customer has no unassigned queue" |
+|  | A filter inside the queue narrows it and never reaches past the team | `GET /tickets?view=unassigned` | 200 | "a filter inside the queue narrows it and never reaches past the team" |
+|  | An agent can open and claim an unowned ticket in their categories | `GET`/`POST /tickets/:id/assign` | 200 | "claiming takes the ticket, clears the unassigned alert and is recorded as a claim" |
+|  | An agent cannot open an unowned ticket outside them, and hears which team has it | `GET /tickets/:id` | 403 `OUTSIDE_TEAM` | "an agent cannot open an unowned ticket outside their categories, and hears which team has it" |
+|  | An agent cannot claim a ticket outside their categories; the message names the category | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an agent cannot claim a ticket outside their categories, and the message names it" |
+|  | The rule holds on tickets seeded days ago, and on agents who have no categories yet | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "the rule holds on a ticket seeded days ago, not only on new ones", "an agent with no categories yet covers nothing" |
+| **11.** A ticket's assignee always covers its category | An admin cannot assign a ticket to an agent whose team does not cover it | `POST /tickets/:id/assign` | 403 `OUTSIDE_TEAM` | "an admin cannot hand a billing ticket to an agent who covers only general" |
+|  | Refiling a ticket cannot leave it with an assignee outside that category's team | `PUT /tickets/:id` | 409 `ASSIGNEE_OUTSIDE_TEAM` | "moving it to a category the assignee does not cover is refused" |
+| **12.** A new ticket goes to the least-loaded agent covering its category, or waits in the queue with the admins told | Auto-assignment picks the least-loaded active agent in the ticket's category | `POST /tickets` | 201 | "the ticket goes to somebody whose team covers it" |
+|  | With nobody covering the category the ticket waits in the queue and every admin is told | `POST /tickets` | 201 | "with nobody covering the category the ticket waits in the queue and the admins are told" |
+| **13.** Only an admin sets a team, from the Settings categories, with at least one | Only an admin sets an agent's categories | `PATCH /agents/:id/categories` | 403 `FORBIDDEN` | "an agent cannot change a team" |
+|  | An agent's categories must exist in Settings | `POST /agents`, `PATCH /agents/:id/categories` | 422 `UNKNOWN_CATEGORY` | "a category that is not in Settings is refused, and the message says where to add it" |
+|  | An agent must be on at least one category | `POST /agents`, `PATCH /agents/:id/categories` | 400 `VALIDATION_ERROR` | "an empty team is refused: an agent nothing can reach is not a team" |
+| **14.** Changing a team never moves the work an agent already holds | Changing a team never moves what the agent already holds | `PATCH /agents/:id/categories` | 200 | "an admin sets them, and what the agent already holds stays with them" |
 
 ### The requester's edit window
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| A requester can correct the title and description while the ticket is open and unanswered | `PUT /tickets/:id` | 200 | "the title and description can be corrected on an open ticket nobody has answered" |
-| An internal note does not close the window, because the customer never sees it | `PUT /tickets/:id` | 200 | "an internal note does not count as an answer, because the customer never sees it" |
-| A public staff reply closes it; the reason given is the answer, not the status move it caused | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "a public staff reply locks the title and description, and the message says why" |
-| Work starting on the ticket closes it too, with its own reason | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "work starting on the ticket locks it too, with its own reason" |
-| The page hides the edit button and shows the same reason | `GET /tickets/:id` | 200 | "the page hides the edit button and shows the same reason" |
-| The support team edits a ticket for as long as it is not closed | `PUT /tickets/:id` | 200 | "an admin can rename a ticket the customer no longer can", "so can the agent the ticket is assigned to" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **15.** A requester edits the title and description until the team answers or starts work; the team edits until close | A requester can correct the title and description while the ticket is open and unanswered | `PUT /tickets/:id` | 200 | "the title and description can be corrected on an open ticket nobody has answered" |
+|  | An internal note does not close the window, because the customer never sees it | `PUT /tickets/:id` | 200 | "an internal note does not count as an answer, because the customer never sees it" |
+|  | A public staff reply closes it; the reason given is the answer, not the status move it caused | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "a public staff reply locks the title and description, and the message says why" |
+|  | Work starting on the ticket closes it too, with its own reason | `PUT /tickets/:id` | 409 `TICKET_LOCKED` | "work starting on the ticket locks it too, with its own reason" |
+|  | The page hides the edit button and shows the same reason | `GET /tickets/:id` | 200 | "the page hides the edit button and shows the same reason" |
+|  | The support team edits a ticket for as long as it is not closed | `PUT /tickets/:id` | 200 | "an admin can rename a ticket the customer no longer can", "so can the agent the ticket is assigned to" |
 
 ### Internal notes are editable for fifteen minutes
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| The author, or an admin, can edit a note within 15 minutes; the ticket then shows it as edited | `PUT /tickets/:id/replies/:replyId` | 200 | "editing it changes the text, marks it edited and leaves the posting time alone" |
-| They can delete it in the same window | `DELETE /tickets/:id/replies/:replyId` | 200 | "deleting it takes it off the ticket" |
-| After 15 minutes it is part of the ticket's record | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 422 `EDIT_WINDOW_EXPIRED` | "a note posted 16 minutes ago can no longer be edited or deleted" |
-| Nobody else can change it, and the page gives them no controls for it | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "another agent on the same ticket cannot touch it, and sees no trace of the controls" |
-| An admin can remove any note, because somebody has to be able to | `DELETE /tickets/:id/replies/:replyId` | 200 | "an admin can remove any note, because somebody has to be able to" |
-| A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
-| Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
-| A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **16.** An internal note is editable by its author or an admin for 15 minutes | The author, or an admin, can edit a note within 15 minutes; the ticket then shows it as edited | `PUT /tickets/:id/replies/:replyId` | 200 | "editing it changes the text, marks it edited and leaves the posting time alone" |
+|  | They can delete it in the same window | `DELETE /tickets/:id/replies/:replyId` | 200 | "deleting it takes it off the ticket" |
+|  | After 15 minutes it is part of the ticket's record | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 422 `EDIT_WINDOW_EXPIRED` | "a note posted 16 minutes ago can no longer be edited or deleted" |
+|  | Nobody else can change it, and the page gives them no controls for it | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "another agent on the same ticket cannot touch it, and sees no trace of the controls" |
+|  | An admin can remove any note, because somebody has to be able to | `DELETE /tickets/:id/replies/:replyId` | 200 | "an admin can remove any note, because somebody has to be able to" |
+|  | Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
+|  | A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
+| **17.** A public reply is never edited or deleted | A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
 
 ### Acting on several records at once
 
@@ -152,63 +153,63 @@ defines, so bulk actions, merges and deactivations **validate everything first a
 writes one after another**. A ticket changed by someone else in that short gap is re-checked by the
 single action as it is written and reported, never silently overwritten.
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| Bulk status: one illegal move refuses the whole action and nothing changes | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "one illegal move refuses the whole action, and nothing changes" |
-| The refusal lists every failing ticket with its title and the reason | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the answer lists every failing ticket with its title and the reason" |
-| Bulk moves follow the single move's lifecycle, including the reply needed to resolve | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the lifecycle rules are the single move's, including the reply needed to resolve" |
-| Each ticket that moves is saved and gets its own audit entry | `POST /tickets/bulk/status` | 200 | "every ticket moves, is saved, and is recorded on its own audit trail" |
-| A ticket already in the target state is counted as unchanged, not an error | `POST /tickets/bulk/status`, `/bulk/priority`, `/bulk/assign` | 200 | "a ticket already in that status is left alone and counted as unchanged" |
-| A ticket that does not exist is reported with the rest, never a 404 for the whole request | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "a ticket that does not exist is reported with the others" |
-| Bulk assign: one ticket outside the agent's team refuses the lot, naming the category | `POST /tickets/bulk/assign` | 422 `BULK_REJECTED` (`OUTSIDE_TEAM`) | "one ticket outside the agent's team refuses the whole action, naming the category" |
-| A closed ticket in a bulk assign or bulk priority refuses the lot | `POST /tickets/bulk/assign`, `/bulk/priority` | 422 `BULK_REJECTED` (`TICKET_CLOSED`) | "a closed ticket in the selection refuses the action", "a closed ticket is read-only, so one in the selection refuses the lot" |
-| Bulk priority gives each ticket a fresh SLA window from now; a breach stays on the record | `POST /tickets/bulk/priority` | 200 | "each ticket gets the new priority and a fresh SLA window from now", "on a breached ticket seeded hours ago, the breach stays on the record" |
-| An agent can include only tickets they can see | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` (`FORBIDDEN`) | "an agent can include only tickets they can see" |
-| Customers cannot reach the bulk actions | `POST /tickets/bulk/*` | 403 `FORBIDDEN` | "customers cannot reach either action" |
-| At most 50 tickets, each once, with well-formed ids | `POST /tickets/bulk/*` | 400 `VALIDATION_ERROR` | "nothing selected, too many, the same ticket twice and a malformed id are all 400" |
-| Deactivating an agent hands each open ticket to the least-loaded active agent covering its category | `PATCH /agents/:id/status` | 200 | "each goes to an active agent whose team covers its category, and finished tickets stay put" |
-| Every handed-on ticket is on its audit trail, and its new holder is told | `PATCH /agents/:id/status` | 200 | "every move is on the ticket's audit trail and the new holder is told" |
-| The confirmation shows the count and where each ticket goes before anything changes | `GET /agents/:id/deactivation-preview` | 200 | "it counts the open tickets and where each would go" |
-| The last active cover for a category with open work cannot be deactivated | `PATCH /agents/:id/status` | 409 `AGENT_LAST_COVER` | "the refusal names the category and the open tickets, and nothing moves" |
-| ...unless the admin explicitly sends that work to the unassigned queue, where every admin is told | `PATCH /agents/:id/status` | 200 | "with that choice the deactivation goes through, and the work waits in the queue with the admins told" |
-| Work nobody covers (an agent from before teams) goes to the unassigned queue, never outside the team | `PATCH /agents/:id/status` | 200 | "an agent from before teams existed, deactivated with a ticket nobody covers" |
-| Reactivating an agent moves nothing back | `PATCH /agents/:id/status` | 200 | "reactivating moves nothing back" |
-| Merge moves every reply into the primary in the order written, the duplicate's opening message with them | `POST /tickets/:id/merge` | 200 | "the replies move over in the order they were written" |
-| The duplicate is closed with a link to the primary, and both histories record the merge | `POST /tickets/:id/merge` | 200 | "the duplicate is closed with a link to the primary", "both histories record it" |
-| A merged duplicate cannot be reopened | `PUT /tickets/:id` | 409 `TICKET_MERGED` | "the duplicate cannot be reopened, because its conversation lives elsewhere" |
-| A ticket cannot be merged into itself | `POST /tickets/:id/merge` | 422 `MERGE_INTO_ITSELF` | "a ticket into itself" |
-| Two customers' tickets cannot be merged | `POST /tickets/:id/merge` | 422 `MERGE_DIFFERENT_CUSTOMERS` | "two different customers' tickets" |
-| A closed ticket on either side cannot be merged | `POST /tickets/:id/merge` | 409 `TICKET_CLOSED` | "a closed ticket on either side" |
-| Only staff merge, and only tickets they can see; the page offers only valid targets | `POST /tickets/:id/merge`, `GET /tickets/:id/merge-candidates` | 403 `FORBIDDEN` | "only the support team can merge", "the same customer's other tickets still in play" |
-| Merging seeded tickets leaves the primary's clock, status, priority and assignee alone | `POST /tickets/:id/merge` | 200 | "the primary keeps its own clock, status, priority and assignee" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **18.** A bulk action is all or nothing, and a refusal lists every failing ticket | Bulk status: one illegal move refuses the whole action and nothing changes | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "one illegal move refuses the whole action, and nothing changes" |
+|  | The refusal lists every failing ticket with its title and the reason | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the answer lists every failing ticket with its title and the reason" |
+|  | Each ticket that moves is saved and gets its own audit entry | `POST /tickets/bulk/status` | 200 | "every ticket moves, is saved, and is recorded on its own audit trail" |
+|  | A ticket that does not exist is reported with the rest, never a 404 for the whole request | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "a ticket that does not exist is reported with the others" |
+| **19.** Every ticket in a bulk action passes the single action's own rules | Bulk moves follow the single move's lifecycle, including the reply needed to resolve | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` | "the lifecycle rules are the single move's, including the reply needed to resolve" |
+|  | A ticket already in the target state is counted as unchanged, not an error | `POST /tickets/bulk/status`, `/bulk/priority`, `/bulk/assign` | 200 | "a ticket already in that status is left alone and counted as unchanged" |
+|  | Bulk assign: one ticket outside the agent's team refuses the lot, naming the category | `POST /tickets/bulk/assign` | 422 `BULK_REJECTED` (`OUTSIDE_TEAM`) | "one ticket outside the agent's team refuses the whole action, naming the category" |
+|  | A closed ticket in a bulk assign or bulk priority refuses the lot | `POST /tickets/bulk/assign`, `/bulk/priority` | 422 `BULK_REJECTED` (`TICKET_CLOSED`) | "a closed ticket in the selection refuses the action", "a closed ticket is read-only, so one in the selection refuses the lot" |
+|  | Bulk priority gives each ticket a fresh SLA window from now; a breach stays on the record | `POST /tickets/bulk/priority` | 200 | "each ticket gets the new priority and a fresh SLA window from now", "on a breached ticket seeded hours ago, the breach stays on the record" |
+|  | An agent can include only tickets they can see | `POST /tickets/bulk/status` | 422 `BULK_REJECTED` (`FORBIDDEN`) | "an agent can include only tickets they can see" |
+| **20.** Only staff use bulk actions, on at most 50 distinct tickets | Customers cannot reach the bulk actions | `POST /tickets/bulk/*` | 403 `FORBIDDEN` | "customers cannot reach either action" |
+|  | At most 50 tickets, each once, with well-formed ids | `POST /tickets/bulk/*` | 400 `VALIDATION_ERROR` | "nothing selected, too many, the same ticket twice and a malformed id are all 400" |
+| **21.** Deactivating an agent hands their open work to their team, previewed first | Deactivating an agent hands each open ticket to the least-loaded active agent covering its category | `PATCH /agents/:id/status` | 200 | "each goes to an active agent whose team covers its category, and finished tickets stay put" |
+|  | Every handed-on ticket is on its audit trail, and its new holder is told | `PATCH /agents/:id/status` | 200 | "every move is on the ticket's audit trail and the new holder is told" |
+|  | The confirmation shows the count and where each ticket goes before anything changes | `GET /agents/:id/deactivation-preview` | 200 | "it counts the open tickets and where each would go" |
+|  | Work nobody covers (an agent from before teams) goes to the unassigned queue, never outside the team | `PATCH /agents/:id/status` | 200 | "an agent from before teams existed, deactivated with a ticket nobody covers" |
+|  | Reactivating an agent moves nothing back | `PATCH /agents/:id/status` | 200 | "reactivating moves nothing back" |
+| **22.** The last active cover for a category with open work stays, unless the admin sends that work to the queue | The last active cover for a category with open work cannot be deactivated | `PATCH /agents/:id/status` | 409 `AGENT_LAST_COVER` | "the refusal names the category and the open tickets, and nothing moves" |
+|  | ...unless the admin explicitly sends that work to the unassigned queue, where every admin is told | `PATCH /agents/:id/status` | 200 | "with that choice the deactivation goes through, and the work waits in the queue with the admins told" |
+| **23.** A merge folds a duplicate into its primary and leaves the primary as it was | Merge moves every reply into the primary in the order written, the duplicate's opening message with them | `POST /tickets/:id/merge` | 200 | "the replies move over in the order they were written" |
+|  | The duplicate is closed with a link to the primary, and both histories record the merge | `POST /tickets/:id/merge` | 200 | "the duplicate is closed with a link to the primary", "both histories record it" |
+|  | Merging seeded tickets leaves the primary's clock, status, priority and assignee alone | `POST /tickets/:id/merge` | 200 | "the primary keeps its own clock, status, priority and assignee" |
+| **24.** Only two live tickets from the same customer merge, by staff who can see both | A ticket cannot be merged into itself | `POST /tickets/:id/merge` | 422 `MERGE_INTO_ITSELF` | "a ticket into itself" |
+|  | Two customers' tickets cannot be merged | `POST /tickets/:id/merge` | 422 `MERGE_DIFFERENT_CUSTOMERS` | "two different customers' tickets" |
+|  | A closed ticket on either side cannot be merged | `POST /tickets/:id/merge` | 409 `TICKET_CLOSED` | "a closed ticket on either side" |
+|  | Only staff merge, and only tickets they can see; the page offers only valid targets | `POST /tickets/:id/merge`, `GET /tickets/:id/merge-candidates` | 403 `FORBIDDEN` | "only the support team can merge", "the same customer's other tickets still in play" |
+| **25.** A merged duplicate stays closed | A merged duplicate cannot be reopened | `PUT /tickets/:id` | 409 `TICKET_MERGED` | "the duplicate cannot be reopened, because its conversation lives elsewhere" |
 
 ### Access
 
-| Rule | Endpoint | Code | Test |
-|---|---|---|---|
-| Only customers raise tickets | `POST /tickets` | 403 `FORBIDDEN` | "an agent may not", "an admin may not" |
-| A customer sees and touches only their own tickets | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot touch someone else's ticket" |
-| A customer may close or reopen their own ticket, and nothing else in the lifecycle | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot move a ticket anywhere else in the lifecycle" |
-| A customer cannot set a ticket's priority, category or tags | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot set a ticket's priority, category or tags" |
-| Internal notes never reach a customer, on any endpoint that returns a ticket | `GET /tickets`, `GET /tickets/:id` | 200 | "ticket detail omits internal note content but keeps public replies", "ticket list omits internal note content" |
-| A customer cannot post an internal note | `POST /tickets/:id/replies` | 201 (forced public) | "a customer cannot post an internal note" |
-| An agent may assign only a ticket they can see; an admin any ticket | `POST /tickets/:id/assign` | 403 `FORBIDDEN` | "an agent cannot reassign a ticket assigned to another agent" |
-| Only an existing, active agent can be assigned | `POST /tickets/:id/assign` | 400 `INVALID_AGENT` | "an inactive agent cannot be assigned", "a non-agent account cannot be assigned" |
-| Auto-assignment skips inactive agents | `POST /tickets` | 201 | "never assigns a new ticket to an inactive agent" |
-| The status history is readable only by people who can see the ticket | `GET /tickets/:id/history` | 403 `FORBIDDEN` | "nobody can read the history of a ticket they cannot see" |
-| The full audit trail is admin-only | `GET /tickets/:id/audit`, `GET /audit-logs` | 403 `FORBIDDEN` | "agents and customers cannot read it" |
-| Sign-up always creates a customer; the role cannot be chosen | `POST /auth/register` | 201 | "a newly registered customer cannot reach admin-only routes" |
-| One account per email address | `POST /auth/register`, `POST /agents` | 409 `EMAIL_TAKEN` | "signing up with an email already in use is refused", "adding an agent with an email already in use is refused" |
-| A deactivated account with the right password is told it is deactivated, and gets no session | `POST /auth/login` | 403 `ACCOUNT_DEACTIVATED` | "the right password is told the account is deactivated (403)", "an inactive agent cannot sign in" |
-| A wrong password or an unknown email gets one generic answer, after the same password check, so neither the answer nor its timing reveals which emails have accounts | `POST /auth/login` | 401 `INVALID_CREDENTIALS` | "a wrong password gets the generic answer (401)", "an unknown email gets the same generic answer (401), after a password check" |
-| Signing out revokes the token everywhere, across restarts | `POST /auth/logout` | 401 `AUTH_REQUIRED` | "a signed-out token is still refused by a freshly started process (nothing held in memory)" |
-| Canned responses are unreachable for customers | `GET`/`POST /canned-responses` | 403 `FORBIDDEN` | "customers cannot reach them at all" |
-| An agent's template is personal; only an admin can publish a global one | `POST /canned-responses` | 201 | "an agent's template is personal, whatever they ask for" |
-| A template is deletable only by its author or an admin | `DELETE /canned-responses/:id` | 403 `FORBIDDEN` | "an agent cannot delete a template somebody else owns" |
-| Only admins change settings | `PUT /settings` | 403 `FORBIDDEN` | "only admins can change settings" |
-| A category agents are on, or open tickets are filed under, cannot be removed; the message counts both | `PUT /settings` | 409 `CATEGORY_IN_USE` | "the refusal names the category and counts what is using it" |
-| The Settings page is told what is in use, so the remove button says why it is disabled | `GET /settings` | 200 | "the settings page is told what is in use, so the remove button can say why" |
-| Finished tickets do not hold a category open | `PUT /settings` | 200 | "closed and resolved tickets do not hold a category open" |
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **26.** Only customers raise tickets | Only customers raise tickets | `POST /tickets` | 403 `FORBIDDEN` | "an agent may not", "an admin may not" |
+| **27.** A customer acts only on their own tickets, and only to close or reopen them | A customer sees and touches only their own tickets | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot touch someone else's ticket" |
+|  | A customer may close or reopen their own ticket, and nothing else in the lifecycle | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot move a ticket anywhere else in the lifecycle" |
+|  | A customer cannot set a ticket's priority, category or tags | `PUT /tickets/:id` | 403 `FORBIDDEN` | "a customer cannot set a ticket's priority, category or tags" |
+| **28.** Internal notes are for staff only | Internal notes never reach a customer, on any endpoint that returns a ticket | `GET /tickets`, `GET /tickets/:id` | 200 | "ticket detail omits internal note content but keeps public replies", "ticket list omits internal note content" |
+|  | A customer cannot post an internal note | `POST /tickets/:id/replies` | 201 (forced public) | "a customer cannot post an internal note" |
+| **29.** An agent assigns only tickets they can see, and only to active agents | An agent may assign only a ticket they can see; an admin any ticket | `POST /tickets/:id/assign` | 403 `FORBIDDEN` | "an agent cannot reassign a ticket assigned to another agent" |
+|  | Only an existing, active agent can be assigned | `POST /tickets/:id/assign` | 400 `INVALID_AGENT` | "an inactive agent cannot be assigned", "a non-agent account cannot be assigned" |
+|  | Auto-assignment skips inactive agents | `POST /tickets` | 201 | "never assigns a new ticket to an inactive agent" |
+| **30.** A ticket's history and audit trail are shown only to those allowed | The status history is readable only by people who can see the ticket | `GET /tickets/:id/history` | 403 `FORBIDDEN` | "nobody can read the history of a ticket they cannot see" |
+|  | The full audit trail is admin-only | `GET /tickets/:id/audit`, `GET /audit-logs` | 403 `FORBIDDEN` | "agents and customers cannot read it" |
+| **31.** Sign-up makes a customer, with one account per email | Sign-up always creates a customer; the role cannot be chosen | `POST /auth/register` | 201 | "a newly registered customer cannot reach admin-only routes" |
+|  | One account per email address | `POST /auth/register`, `POST /agents` | 409 `EMAIL_TAKEN` | "signing up with an email already in use is refused", "adding an agent with an email already in use is refused" |
+| **32.** Sign-in tells a deactivated account so only with the right password; otherwise one generic answer | A deactivated account with the right password is told it is deactivated, and gets no session | `POST /auth/login` | 403 `ACCOUNT_DEACTIVATED` | "the right password is told the account is deactivated (403)", "an inactive agent cannot sign in" |
+|  | A wrong password or an unknown email gets one generic answer, after the same password check, so neither the answer nor its timing reveals which emails have accounts | `POST /auth/login` | 401 `INVALID_CREDENTIALS` | "a wrong password gets the generic answer (401)", "an unknown email gets the same generic answer (401), after a password check" |
+| **33.** Signing out revokes the token everywhere | Signing out revokes the token everywhere, across restarts | `POST /auth/logout` | 401 `AUTH_REQUIRED` | "a signed-out token is still refused by a freshly started process (nothing held in memory)" |
+| **34.** Canned responses are for staff; a template is personal unless an admin publishes it | Canned responses are unreachable for customers | `GET`/`POST /canned-responses` | 403 `FORBIDDEN` | "customers cannot reach them at all" |
+|  | An agent's template is personal; only an admin can publish a global one | `POST /canned-responses` | 201 | "an agent's template is personal, whatever they ask for" |
+|  | A template is deletable only by its author or an admin | `DELETE /canned-responses/:id` | 403 `FORBIDDEN` | "an agent cannot delete a template somebody else owns" |
+| **35.** Only admins change settings | Only admins change settings | `PUT /settings` | 403 `FORBIDDEN` | "only admins can change settings" |
+| **36.** A category in use cannot be removed, and the page says why | A category agents are on, or open tickets are filed under, cannot be removed; the message counts both | `PUT /settings` | 409 `CATEGORY_IN_USE` | "the refusal names the category and counts what is using it" |
+|  | The Settings page is told what is in use, so the remove button says why it is disabled | `GET /settings` | 200 | "the settings page is told what is in use, so the remove button can say why" |
+|  | Finished tickets do not hold a category open | `PUT /settings` | 200 | "closed and resolved tickets do not hold a category open" |
 
 ### Input and resilience
 
