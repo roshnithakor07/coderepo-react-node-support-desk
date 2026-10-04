@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+    assigneeChoices,
     DEFAULT_SORT,
     filtersFromQuery,
     PRIORITY_OPTIONS,
@@ -237,5 +238,28 @@ describe("navigate", () => {
         navigate("#/tickets");
         navigate("#/tickets", { replace: true });
         expect(calls).toEqual([]);
+    });
+});
+
+describe("who the Assigned to filter offers", () => {
+    const agents = [
+        { _id: "b".repeat(24), name: "Priya Sharma" },
+        { _id: "a".repeat(24), name: "Diego Fernandez" },
+    ];
+
+    test("an admin gets Unassigned and every agent by name, A to Z", () => {
+        expect(assigneeChoices("admin", agents, "c".repeat(24)).map((choice) => choice.label)).toEqual([
+            "Unassigned",
+            "Diego Fernandez",
+            "Priya Sharma",
+        ]);
+    });
+
+    test("an agent gets only Unassigned and Me, whoever else is on the roster", () => {
+        const me = "b".repeat(24);
+        expect(assigneeChoices("agent", agents, me)).toEqual([
+            { value: "unassigned", label: "Unassigned" },
+            { value: me, label: "Me" },
+        ]);
     });
 });

@@ -12,8 +12,8 @@ import {
     queryFromFilters,
     SORT_OPTIONS,
     STATUS_OPTIONS,
-    UNASSIGNED_ASSIGNEE,
     UNASSIGNED_VIEW,
+    assigneeChoices,
 } from "./ticket-filters.js";
 
 function PriorityCell({ priority }) {
@@ -47,22 +47,6 @@ function SlaCell({ ticket }) {
             </span>
         </span>
     );
-}
-
-// Who the "Assigned to" filter offers: an admin any active agent, an agent themselves and the people
-// who cover a category with them, since those are the only agents their own list ever involves.
-// Sorted by name, so the same workspace always reads in the same order.
-function assigneeOptions(agents, role, currentUserId, categories) {
-    const mine = (categories || []).map((category) => String(category).toLowerCase());
-    const offered =
-        role === "admin"
-            ? agents
-            : agents.filter(
-                  (agent) =>
-                      agent._id === currentUserId ||
-                      (agent.categories || []).some((category) => mine.includes(String(category).toLowerCase())),
-              );
-    return [...offered].sort((first, second) => first.name.localeCompare(second.name));
 }
 
 // What the list means depends on who is looking: a customer sees their own tickets, an agent the
@@ -309,10 +293,9 @@ export function TicketList({
     const hasActiveFilters = Boolean(search || filters.status || filters.priority || filters.assignee);
     // Who a ticket is with is a staff question; a customer's list is their own tickets either way.
     const canFilterByAssignee = role !== "customer";
-    const assignees = canFilterByAssignee ? assigneeOptions(agents, role, currentUserId, categories) : [];
+    const assigneeOptions = canFilterByAssignee ? assigneeChoices(role, agents, currentUserId) : [];
     const selectedAssignee = filters.assignee || "";
-    const isUnknownAssignee =
-        selectedAssignee && selectedAssignee !== UNASSIGNED_ASSIGNEE && !assignees.some((agent) => agent._id === selectedAssignee);
+    const isUnknownAssignee = selectedAssignee && !assigneeOptions.some((option) => option.value === selectedAssignee);
     const canCreate = role === "customer";
     const isQueue = filters.view === UNASSIGNED_VIEW;
     // Only an agent can take a ticket for themselves; an admin opens it and picks somebody.
@@ -472,15 +455,16 @@ export function TicketList({
                         aria-label="Filter by assignee"
                     >
                         <option value="">Anyone</option>
-                        <option value={UNASSIGNED_ASSIGNEE}>Unassigned</option>
-                        {assignees.map((agent) => (
-                            <option key={agent._id} value={agent._id}>
-                                {agent.name}
+                        {assigneeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
                             </option>
                         ))}
                         {/* A link may name an agent who has since been deactivated; the filter still
                             says what it is set to instead of showing an empty box. */}
-                        {isUnknownAssignee && <option value={selectedAssignee}>Agent no longer listed</option>}
+                        {isUnknownAssignee && (
+                            <option value={selectedAssignee}>{role === "agent" ? "Another agent" : "Agent no longer listed"}</option>
+                        )}
                     </select>
                 )}
                 {hasActiveFilters && (

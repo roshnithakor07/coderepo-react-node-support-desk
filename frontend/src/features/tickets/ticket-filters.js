@@ -67,3 +67,13 @@ export function queryFromFilters(filters) {
         page: filters.page > 1 ? String(filters.page) : "",
     };
 }
+
+// What the "Assigned to" select offers, as { value, label } after "Anyone". An admin may ask for any
+// agent, by name. An agent's list is only ever their own tickets, so another agent's name could only show
+// an empty list; they get "Unassigned" (their team's queue) and "Me" instead.
+export function assigneeChoices(role, agents, currentUserId) {
+    const choices = [{ value: UNASSIGNED_ASSIGNEE, label: "Unassigned" }];
+    if (role === "agent") return [...choices, { value: currentUserId, label: "Me" }];
+    const named = agents.map((agent) => ({ value: agent._id, label: agent.name }));
+    return [...choices, ...named.sort((first, second) => first.label.localeCompare(second.label))];
+}
