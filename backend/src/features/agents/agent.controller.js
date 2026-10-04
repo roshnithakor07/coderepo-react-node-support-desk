@@ -18,7 +18,9 @@ const createSchema = z
     })
     .strict();
 
-const setActiveSchema = z.object({ isActive: z.boolean() }).strict();
+// `sendBlockedToQueue` is the admin's explicit choice to deactivate the last agent covering a
+// category anyway, sending that category's work to the unassigned queue instead of being refused.
+const setActiveSchema = z.object({ isActive: z.boolean(), sendBlockedToQueue: z.boolean().optional() }).strict();
 
 const setCategoriesSchema = z.object({ categories: categoryList }).strict();
 
@@ -62,8 +64,8 @@ export async function previewDeactivation(request, response, next) {
 
 export async function updateAgentStatus(request, response, next) {
     try {
-        const { isActive } = setActiveSchema.parse(request.body);
-        const agent = await agentService.setActive(request.params.agentId, isActive, request.user);
+        const { isActive, sendBlockedToQueue } = setActiveSchema.parse(request.body);
+        const agent = await agentService.setActive(request.params.agentId, isActive, request.user, { sendBlockedToQueue });
         response.json({ data: agent });
     } catch (error) {
         next(error);

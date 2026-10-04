@@ -81,18 +81,21 @@ export const agentService = {
     },
 
     // Deactivating an agent hands their open tickets on in the same action: to the least-loaded active
-    // agent who covers each one's category, or to the unassigned queue when nobody does. It is refused
-    // when they are the last active cover for a category that still has open work, because that work
-    // would be left with nobody who may take it. Reactivating moves nothing.
-    async setActive(id, isActive, actor) {
+    // agent who covers each one's category, or to the unassigned queue (the admins told) when nobody
+    // does. When they are the last active cover for a category that still has open work, it is refused,
+    // because that work would be left with nobody who may take it, unless the admin explicitly chooses
+    // to send it to the unassigned queue. Reactivating moves nothing.
+    async setActive(id, isActive, actor, { sendBlockedToQueue = false } = {}) {
         const agent = await findAgent(id);
         let reassigned = { moved: 0, queued: 0 };
 
         if (!isActive && agent.isActive) {
             const plan = await ticketService.previewReassignment(agent);
-            if (plan.blocked.length > 0) {
+            if (plan.blocked.length > 0 && !sendBlockedToQueue) {
                 throw new AppError(409, "AGENT_LAST_COVER", plan.blockedReason, { blocked: plan.blocked });
             }
+            // With the admin's say-so, the tickets nobody else covers are already in the plan's queue
+            // list: they have no candidate, which is exactly why the category was blocked.
             await ticketService.reassignOpenTickets(agent, plan, actor);
             reassigned = { moved: plan.moves.length, queued: plan.queued.length };
         }

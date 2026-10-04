@@ -44,5 +44,5 @@ export function lastCoverMessage(agent, blocked) {
         ({ category, openTickets }) => `${categoryLabel(category)} (${openTickets} open ${openTickets === 1 ? "ticket" : "tickets"})`,
     );
     const names = blocked.map(({ category }) => categoryLabel(category));
-    return `${agent.name} is the only active agent covering ${parts.join(" and ")}. Add another agent to ${names.join(" and ")} before deactivating them.`;
+    return `${agent.name} is the only active agent covering ${parts.join(" and ")}. Add another agent to ${names.join(" and ")} first, or send that work to the unassigned queue.`;
 }
