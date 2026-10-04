@@ -3,6 +3,7 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { authRepository } from "../auth/auth.repository.js";
 import { settingsService } from "../settings/settings.service.js";
 import { categoryLabel, normalizeCategories } from "../tickets/ticket-teams.js";
+import { ticketService } from "../tickets/ticket.service.js";
 import { agentRepository } from "./agent.repository.js";
 
 function toPublicAgent(agent) {
@@ -32,6 +33,12 @@ async function assertKnownCategories(categories) {
         );
     }
     return categories;
+}
+
+async function findAgent(id) {
+    const agent = await authRepository.findById(id);
+    if (!agent || agent.role !== "agent") throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    return agent;
 }
 
 export const agentService = {
@@ -64,9 +71,33 @@ export const agentService = {
         return agent;
     },
 
-    async setActive(id, isActive) {
-        const agent = await agentRepository.setActive(id, isActive);
-        if (!agent) throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
-        return agent;
+    // What deactivating this agent would do, for the confirmation to say before anything happens. An
+    // agent who is already inactive has nothing to move.
+    async previewDeactivation(id) {
+        const agent = await findAgent(id);
+        if (!agent.isActive) return { openTickets: 0, reassignTo: [], toQueue: 0, blocked: [], blockedReason: null };
+        const { moves, queued, ...preview } = await ticketService.previewReassignment(agent);
+        return preview;
+    },
+
+    // Deactivating an agent hands their open tickets on in the same action: to the least-loaded active
+    // agent who covers each one's category, or to the unassigned queue when nobody does. It is refused
+    // when they are the last active cover for a category that still has open work, because that work
+    // would be left with nobody who may take it. Reactivating moves nothing.
+    async setActive(id, isActive, actor) {
+        const agent = await findAgent(id);
+        let reassigned = { moved: 0, queued: 0 };
+
+        if (!isActive && agent.isActive) {
+            const plan = await ticketService.previewReassignment(agent);
+            if (plan.blocked.length > 0) {
+                throw new AppError(409, "AGENT_LAST_COVER", plan.blockedReason, { blocked: plan.blocked });
+            }
+            await ticketService.reassignOpenTickets(agent, plan, actor);
+            reassigned = { moved: plan.moves.length, queued: plan.queued.length };
+        }
+
+        const updated = await agentRepository.setActive(id, isActive);
+        return { ...updated, reassigned };
     },
 };

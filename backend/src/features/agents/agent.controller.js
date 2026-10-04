@@ -51,10 +51,19 @@ export async function updateAgentCategories(request, response, next) {
     }
 }
 
+export async function previewDeactivation(request, response, next) {
+    try {
+        const preview = await agentService.previewDeactivation(request.params.agentId);
+        response.json({ data: preview });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function updateAgentStatus(request, response, next) {
     try {
         const { isActive } = setActiveSchema.parse(request.body);
-        const agent = await agentService.setActive(request.params.agentId, isActive);
+        const agent = await agentService.setActive(request.params.agentId, isActive, request.user);
         response.json({ data: agent });
     } catch (error) {
         next(error);
