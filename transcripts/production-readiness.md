@@ -1492,3 +1492,17 @@ leave it is the user's call.
 build OK. Fresh clone of the branch: install, build, 307 + 38 tests, `bun start` on 3000/8000, health
 connected, auth, the feature and error-path calls, restart reset, clean tree; dependency sections
 identical to the reference; archive 1.2 MB.
+
+## [2026-10-04] `fix/final-review` approved and merged; the formatting decision
+
+**Decision (the user's, on the Prettier finding):**
+
+| Options | Chosen | Reason |
+|---|---|---|
+| (a) reformat the repo to tabs, about 150 files, (b) leave the formatting and say so in the README | **(b)** | The starter's own source is mostly four-space (checked: its `.editorconfig` says 4 spaces; 77 of its 83 source files are space-indented and 5 `.js` files use tabs) and `prettier --check` fails on 78 of its source files, so tabs would not match it. A 150-file formatting-only change would also bury the real history. |
+
+A "Formatting" note was added to the README's Getting Started section saying exactly that.
+Approved by the user as built. Merged with --no-ff, pushed, and the branch deleted locally and on
+origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Per the
+standing rule, work stops here until the user's next prompt. Test results on main are in the log
+entry for this turn.
