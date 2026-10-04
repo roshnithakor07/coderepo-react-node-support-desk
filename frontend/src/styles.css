@@ -1151,6 +1151,9 @@ input[type="checkbox"]:disabled {
     max-width: 1100px;
     margin: 0 auto;
     box-shadow: var(--shadow-sm);
+    /* Tables inside switch to cards by the width the page actually has (see the table cards below),
+       which the screen width alone can't tell once the sidebar takes its share. */
+    container-type: inline-size;
 }
 
 /* A collapsed sidebar gives its width to the page rather than to empty side gutters, so the gutters
@@ -3227,7 +3230,12 @@ input[type="checkbox"]:disabled {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 12px;
-    min-height: 36px;
+}
+
+/* The bar's controls share the filter row's height, so the two rows line up. */
+.bulk-bar-row select,
+.bulk-bar-row button {
+    height: 38px;
 }
 
 .bulk-bar-row select {
@@ -3235,8 +3243,29 @@ input[type="checkbox"]:disabled {
     min-width: 0;
 }
 
+.bulk-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* The select-all checkbox sits in the Title header, in the same column as the row checkboxes. */
+.th-with-lead {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Cards have no header row, so there select-all gets its own line above them instead. */
+.bulk-select-all-line {
+    display: none;
+    margin-bottom: 12px;
+}
+
 .bulk-select-all {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 8px;
     margin: 0;
@@ -3793,13 +3822,15 @@ input[type="checkbox"]:disabled {
     }
 }
 
-/* Narrow screens: every data table becomes a list of cards. The first column is the card's
-   title and every other cell shows its column name next to the value. */
+/* Every data table becomes a list of cards once the page is narrower than the widest table needs
+   (the ticket table needs about 820 px), so no table ever scrolls sideways, whether the space went
+   to a small screen or to the sidebar. The first column is the card's title and every other cell
+   shows its column name next to the value. */
 .table-sort {
     display: none;
 }
 
-@media (max-width: 720px) {
+@container (max-width: 819px) {
     .table-sort {
         display: flex;
         flex-direction: row;
@@ -3823,6 +3854,10 @@ input[type="checkbox"]:disabled {
 
     .data-table thead {
         display: none;
+    }
+
+    .bulk-select-all-line {
+        display: flex;
     }
 
     .data-table,
@@ -3879,6 +3914,22 @@ input[type="checkbox"]:disabled {
 
     .row-actions {
         flex-wrap: wrap;
+    }
+}
+
+/* Phones: the bulk bar stays one line; the action picker takes whatever width is left. */
+@container (max-width: 480px) {
+    .bulk-bar-row {
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .bulk-bar-row select {
+        flex: 1 1 0;
+    }
+
+    .bulk-bar-row button {
+        padding: 0 12px;
     }
 }
 
