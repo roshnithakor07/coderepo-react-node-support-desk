@@ -46,7 +46,18 @@ const SORT_FIELDS = {
     titleSort: { $toLower: "$title" },
 };
 
-const HIDE_SORT_FIELDS = Object.fromEntries(Object.keys(SORT_FIELDS).map((field) => [field, 0]));
+// A list row is a summary: it says how many replies the conversation has, never the replies themselves,
+// which can run to hundreds per ticket. `publicReplyCount` is what a customer may be told, since the
+// internal notes among the replies are not theirs to count. Computed after the page is cut, so only the
+// rows on screen are measured.
+const REPLY_COUNTS = {
+    replyCount: { $size: { $ifNull: ["$replies", []] } },
+    publicReplyCount: {
+        $size: { $filter: { input: { $ifNull: ["$replies", []] }, cond: { $ne: ["$$this.isInternal", true] } } },
+    },
+};
+
+const HIDE_SORT_FIELDS = { ...Object.fromEntries(Object.keys(SORT_FIELDS).map((field) => [field, 0])), replies: 0 };
 
 export const ticketRepository = {
     findById: (id) => Ticket.findById(id).populate(populateFields),
@@ -146,6 +157,7 @@ export const ticketRepository = {
             { $sort: { ...sort, _id: 1 } },
             { $skip: skip },
             { $limit: limit },
+            { $addFields: REPLY_COUNTS },
             { $project: HIDE_SORT_FIELDS },
         ]);
         return Ticket.populate(tickets, listPopulateFields);

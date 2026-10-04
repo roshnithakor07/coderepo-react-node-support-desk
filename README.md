@@ -31,7 +31,7 @@ the action and shows the reason, and each has a `bun test` that proves it. Endpo
 **At a glance:** 40 distinct product rules across nine areas (the lifecycle, SLA integrity, agent
 teams, the requester's edit window, internal notes, the size of a conversation, notifications,
 multi-record actions and access). Each rule is numbered once, with the cases that prove it listed
-under it, 131 in all,
+under it, 132 in all,
 each with its test. The 11 input and resilience checks at the end are listed separately and not
 counted as rules.
 
@@ -177,6 +177,7 @@ when a page is added above them.
 |  | A customer cannot page another customer's conversation, and hears exactly what they hear of the ticket | `GET /tickets/:id/replies` | 403 `FORBIDDEN` | "a customer cannot page the replies of someone else's ticket, and hears what they hear of it" |
 |  | A page is at most 50; a malformed cursor is a 400 and one that is not on the ticket a 404 | `GET /tickets/:id/replies` | 400 `VALIDATION_ERROR` / 404 `REPLY_NOT_FOUND` | "the page size is capped, and a malformed or unknown cursor is a 400 or a 404" |
 |  | Resolving still needs an answer the customer can read, even when it is pages behind the latest 50 | `GET /tickets/:id` | 200 | "resolving still needs a staff reply the customer can read, even when it is pages back" |
+|  | A list row carries `replyCount` and none of the replies; a customer's count leaves out internal notes | `GET /tickets` | 200 | "a row has no replies in it, only the count", "a customer is told only the replies they can read, so the count gives no note away" |
 
 ### Notifications
 

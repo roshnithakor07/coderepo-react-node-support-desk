@@ -128,6 +128,13 @@ function presentTicket(ticket, actor) {
     return { ...ticket, replies: ticket.replies.filter((reply) => !reply.isInternal) };
 }
 
+// A row on the list carries the size of its conversation and none of it. A customer is told the number
+// they could read, so the count never gives away how many internal notes there are.
+function presentListRow(ticket, actor) {
+    const { publicReplyCount, ...row } = ticket;
+    return { ...row, replyCount: actor.role === "customer" ? publicReplyCount : row.replyCount };
+}
+
 // The conversation is sent one page at a time, so the ticket also says how long it is: `replyCount` is
 // what the 500-reply rule counts, and `visibleReplyCount` how many of those this viewer may read, which
 // is what the "Show earlier replies" button counts down. `oldestReplyId` is where paging back starts,
@@ -383,7 +390,7 @@ export const ticketService = {
             ticketRepository.findMany(query, { skip, limit: pageSize, sort }),
             ticketRepository.count(query),
         ]);
-        return { tickets: tickets.map((ticket) => presentTicket(ticket, actor)), total, page, pageSize };
+        return { tickets: tickets.map((ticket) => presentListRow(ticket, actor)), total, page, pageSize };
     },
 
     // Counts for the dashboard tiles. Deliberately independent of the ticket list's filters, so

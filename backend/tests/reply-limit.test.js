@@ -237,3 +237,52 @@ describe("a long conversation is read one page at a time", () => {
         expect(body.data.permissions.resolveBlockedReason).toBeNull();
     });
 });
+
+describe("the ticket list carries the size of a conversation, never the conversation", () => {
+    let title;
+    let ticketId;
+
+    beforeAll(async () => {
+        title = "Reply list: thirty replies, three of them notes";
+        const ticket = await newTicket(title);
+        ticketId = ticket._id;
+        await fillReplies(ticketId, 30, { internalEveryTenth: true });
+    });
+
+    async function rowFor(session) {
+        const { status, body } = await api(`/tickets?search=${encodeURIComponent(title)}&pageSize=100`, { token: session.token });
+        expect(status).toBe(200);
+        return body.data.tickets.find((entry) => entry._id === ticketId);
+    }
+
+    test("a row has no replies in it, only the count", async () => {
+        const row = await rowFor(admin);
+        expect(row).toBeTruthy();
+        expect("replies" in row).toBe(false);
+        expect(row.replyCount).toBe(30);
+        expect("publicReplyCount" in row).toBe(false);
+    });
+
+    test("every row of every list is the same shape, whoever asks", async () => {
+        for (const session of [admin, agent, customer]) {
+            const { body } = await api("/tickets?pageSize=100", { token: session.token });
+            expect(body.data.tickets.length).toBeGreaterThan(0);
+            for (const row of body.data.tickets) {
+                expect("replies" in row).toBe(false);
+                expect(Number.isInteger(row.replyCount)).toBe(true);
+            }
+        }
+    });
+
+    test("a customer is told only the replies they can read, so the count gives no note away", async () => {
+        const row = await rowFor(customer);
+        expect(row.replyCount).toBe(27);
+        expect(JSON.stringify(row)).not.toContain("note ");
+    });
+
+    test("the unassigned queue and the sorted pages are rows of the same kind", async () => {
+        const { body } = await api("/tickets?view=unassigned&sort=title_asc&pageSize=100", { token: admin.token });
+        expect(body.data.tickets.length).toBeGreaterThan(0);
+        expect(body.data.tickets.every((row) => !("replies" in row) && Number.isInteger(row.replyCount))).toBe(true);
+    });
+});
