@@ -2727,7 +2727,7 @@ input[type="checkbox"]:disabled {
 }
 
 /* Stats & charts */
-/* Always four tiles: one row of four, or two rows of two on narrow screens, never three and one. */
+/* Always four tiles: one row of four, or two by two once the sidebar folds away, never three and one. */
 .stat-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2744,13 +2744,6 @@ input[type="checkbox"]:disabled {
     display: flex;
     flex-direction: column;
     gap: 4px;
-}
-
-/* Breached SLAs: a warning, not an alarm. The tile keeps the neutral fill and ink, and an amber
-   edge marks it; amber is not used for text because it fails contrast on the light theme. */
-.stat-tile-warning {
-    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
-    box-shadow: inset 3px 0 0 var(--warning);
 }
 
 .stat-tile-icon {
@@ -2783,9 +2776,9 @@ input[type="checkbox"]:disabled {
     color: var(--info);
 }
 
-.stat-tile-icon-warning {
-    background: var(--warning-soft);
-    color: var(--warning);
+.stat-tile-icon-danger {
+    background: var(--danger-soft);
+    color: var(--danger);
 }
 
 .stat-value {
@@ -2799,6 +2792,12 @@ input[type="checkbox"]:disabled {
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
+}
+
+/* A figure that flags a problem (breached SLAs above zero), in the red the ticket rows use for
+   "SLA breached". */
+.stat-value-danger {
+    color: var(--danger);
 }
 
 .chart-grid {
@@ -3913,7 +3912,7 @@ input[type="checkbox"]:disabled {
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 999px) {
     .stat-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }

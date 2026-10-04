@@ -1,5 +1,6 @@
 import { StatusBadge } from "../../shared/components/Badge.jsx";
-import { InboxIcon } from "../../shared/components/Icon.jsx";
+import { AlertCircleIcon, CheckCircleIcon, ClockIcon, InboxCheckIcon, InboxIcon } from "../../shared/components/Icon.jsx";
+import { StatTile, StatTileSkeleton } from "../../shared/components/StatTile.jsx";
 import { formatSlaCountdown } from "../../shared/utils/format.js";
 import { toHash } from "../../shared/utils/router.js";
 import { ticketPath } from "../../shared/utils/routes.js";
@@ -33,11 +34,8 @@ export function Dashboard({ currentUser, tickets, stats, onNewTicket, isLoading,
                     </div>
                 </div>
                 <div className="stat-row">
-                    {["open", "resolved", "breached", "compliance"].map((key) => (
-                        <div className="stat-tile" key={key}>
-                            <span className="skeleton skeleton-block" style={{ height: "28px", width: "50%" }} />
-                            <span className="skeleton skeleton-block" style={{ height: "12px", width: "70%" }} />
-                        </div>
+                    {["open", "resolved", "compliance", "breached"].map((key) => (
+                        <StatTileSkeleton key={key} />
                     ))}
                 </div>
                 <div className="panel-subheader">
@@ -88,22 +86,10 @@ export function Dashboard({ currentUser, tickets, stats, onNewTicket, isLoading,
             </div>
 
             <div className="stat-row">
-                <div className="stat-tile">
-                    <span className="stat-value">{open}</span>
-                    <span className="stat-label">Open</span>
-                </div>
-                <div className="stat-tile">
-                    <span className="stat-value">{resolved}</span>
-                    <span className="stat-label">Resolved</span>
-                </div>
-                <div className={`stat-tile ${breached > 0 ? "stat-tile-warning" : ""}`}>
-                    <span className="stat-value">{breached}</span>
-                    <span className="stat-label">SLA breached</span>
-                </div>
-                <div className="stat-tile">
-                    <span className="stat-value">{slaComplianceRate}%</span>
-                    <span className="stat-label">SLA compliance</span>
-                </div>
+                <StatTile icon={ClockIcon} tone="info" value={open} label="Open" />
+                <StatTile icon={InboxCheckIcon} tone="success" value={resolved} label="Resolved" />
+                <StatTile icon={CheckCircleIcon} tone="success" value={`${slaComplianceRate}%`} label="SLA compliance" />
+                <StatTile icon={AlertCircleIcon} tone="danger" value={breached} label="SLA breached" isAlert={breached > 0} />
             </div>
 
             <div className="panel-subheader">
