@@ -5,5 +5,3 @@ coverage
 build
 .env
 .mongodb
-backend/src/shared/config/database.js
-frontend/vite.config.js
