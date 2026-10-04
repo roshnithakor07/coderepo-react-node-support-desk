@@ -96,7 +96,7 @@ export function Dashboard({ currentUser, tickets, stats, onNewTicket, analyticsS
                     <span className="stat-value">{resolved}</span>
                     <span className="stat-label">Resolved</span>
                 </div>
-                <div className={`stat-tile ${breached > 0 ? "stat-tile-danger" : ""}`}>
+                <div className={`stat-tile ${breached > 0 ? "stat-tile-warning" : ""}`}>
                     <span className="stat-value">{breached}</span>
                     <span className="stat-label">SLA breached</span>
                 </div>

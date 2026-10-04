@@ -176,8 +176,8 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading, e
                         <span className="stat-value">{dashboard.openCount}</span>
                         <span className="stat-label">Open</span>
                     </div>
-                    <div className={`stat-tile ${dashboard.breachedTickets > 0 ? "stat-tile-danger" : ""}`}>
-                        <span className="stat-tile-icon stat-tile-icon-danger">
+                    <div className={`stat-tile ${dashboard.breachedTickets > 0 ? "stat-tile-warning" : ""}`}>
+                        <span className="stat-tile-icon stat-tile-icon-warning">
                             <AlertCircleIcon />
                         </span>
                         <span className="stat-value">{dashboard.breachedTickets}</span>

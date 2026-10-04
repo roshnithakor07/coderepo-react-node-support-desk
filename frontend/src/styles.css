@@ -2712,9 +2712,11 @@ textarea:disabled {
     gap: 4px;
 }
 
-.stat-tile-danger {
-    border-color: rgba(239, 68, 68, 0.35);
-    background: var(--danger-soft);
+/* Breached SLAs: a warning, not an alarm. The tile keeps the neutral fill and ink, and an amber
+   edge marks it; amber is not used for text because it fails contrast on the light theme. */
+.stat-tile-warning {
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+    box-shadow: inset 3px 0 0 var(--warning);
 }
 
 .stat-tile-icon {
@@ -2747,9 +2749,9 @@ textarea:disabled {
     color: var(--info);
 }
 
-.stat-tile-icon-danger {
-    background: var(--danger-soft);
-    color: var(--danger);
+.stat-tile-icon-warning {
+    background: var(--warning-soft);
+    color: var(--warning);
 }
 
 .stat-value {
