@@ -28,10 +28,11 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
-**At a glance:** 36 distinct product rules across seven areas (the lifecycle, SLA integrity, agent
-teams, the requester's edit window, internal notes, multi-record actions and access). Each rule is
-numbered once, with the cases that prove it listed under it, 106 in all, each with its test. The 11
-input and resilience checks at the end are listed separately and not counted as rules.
+**At a glance:** 37 distinct product rules across eight areas (the lifecycle, SLA integrity, agent
+teams, the requester's edit window, internal notes, the size of a conversation, multi-record actions
+and access). Each rule is numbered once, with the cases that prove it listed under it, 117 in all,
+each with its test. The 11 input and resilience checks at the end are listed separately and not
+counted as rules.
 
 **Screens that change several records at once, or move something through a status:**
 
@@ -137,6 +138,35 @@ account created before teams existed looks like until an admin sets them on the 
 |  | Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
 |  | A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
 | **17.** A public reply is never edited or deleted | A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
+
+### A conversation holds at most 500 replies
+
+Replies live inside the ticket document, and a MongoDB document cannot pass 16 MB, so a conversation is
+capped: public replies and internal notes together, 500 of them. The cap is applied by the write itself
+(the push matches only while the array is still under 500), so two replies sent in the same moment cannot
+both get past it without a transaction, which this single-node MongoDB does not offer. A full ticket
+refuses the next reply with the message above and the page offers the requester a follow-up ticket,
+already named after this one and filed in the same category.
+
+Reading follows the same shape: `GET /tickets/:id` carries the **latest 50** replies with `replyCount`,
+and `GET /tickets/:id/replies?before=<replyId>&limit=50` walks back through the older pages under the
+same view rules as the ticket, internal notes stripped for customers exactly as they are on it. The
+ticket page shows "Show earlier replies (N more)" above the conversation and keeps the reader's place
+when a page is added above them.
+
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **37.** A ticket holds at most 500 replies, counted together, and is read one page of 50 at a time | The 500th reply is accepted and the 501st refused, leaving the ticket at 500 | `POST /tickets/:id/replies` | 422 `REPLY_LIMIT_REACHED` | "the 500th reply is accepted and the 501st is refused, with the ticket left at 500" |
+|  | Two replies sent at the same moment on a ticket with 499 leave exactly 500 | `POST /tickets/:id/replies` | 201 + 422 `REPLY_LIMIT_REACHED` | "two replies sent at the same moment on a ticket with 499 leave exactly 500" |
+|  | A refused reply changes nothing else: the status and the SLA clock stay as they were | `POST /tickets/:id/replies` | 422 `REPLY_LIMIT_REACHED` | "the refused reply leaves the ticket's status and SLA clock alone" |
+|  | The page is told the conversation is full, so the composer is replaced by the reason and a follow-up | `GET /tickets/:id` | 200 | "the ticket page is told the conversation is full, so the composer is replaced" |
+|  | A merge that would carry the primary past the limit is refused before anything moves | `POST /tickets/:id/merge` | 422 `MERGE_REPLY_LIMIT` | "a merge that would take the primary past the limit is refused" |
+|  | The ticket carries the latest 50 replies and the count of them all | `GET /tickets/:id` | 200 | "the ticket carries the latest 50 replies and the count of them all" |
+|  | Paging before the oldest one on screen returns the previous 50, in the order written | `GET /tickets/:id/replies` | 200 | "paging before the oldest one on screen returns the previous 50, in order" |
+|  | Internal notes stay out of a customer's pages, as they do on the ticket | `GET /tickets/:id/replies` | 200 | "internal notes stay out of a customer's pages, as they do on the ticket" |
+|  | A customer cannot page another customer's conversation, and hears exactly what they hear of the ticket | `GET /tickets/:id/replies` | 403 `FORBIDDEN` | "a customer cannot page the replies of someone else's ticket, and hears what they hear of it" |
+|  | A page is at most 50; a malformed cursor is a 400 and one that is not on the ticket a 404 | `GET /tickets/:id/replies` | 400 `VALIDATION_ERROR` / 404 `REPLY_NOT_FOUND` | "the page size is capped, and a malformed or unknown cursor is a 400 or a 404" |
+|  | Resolving still needs an answer the customer can read, even when it is pages behind the latest 50 | `GET /tickets/:id` | 200 | "resolving still needs a staff reply the customer can read, even when it is pages back" |
 
 ### Acting on several records at once
 
