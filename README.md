@@ -271,7 +271,9 @@ coderepo-react-node-support-desk/
 │   │   ├── App.jsx
 │   │   └── styles.css
 │   └── package.json
-├── skills/validate/                  # HackerRank submission validator (copied, reference only)
+├── skills/
+│   ├── validate/                     # HackerRank submission validator (copied, reference only)
+│   └── submission-gate/              # our own strict pre-submission gate: run it last, in a fresh session
 ├── transcripts/                      # exported AI build session log
 ├── AGENTS.md / GUIDELINES.md         # HackerRank submission contract (copied, reference only)
 ├── hackerrank.yml
