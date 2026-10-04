@@ -1,3 +1,4 @@
+import { slaComplianceRate } from "../tickets/ticket-sla.js";
 import { analyticsRepository } from "./analytics.repository.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -21,7 +22,6 @@ export const analyticsService = {
         ]);
 
         const slaRow = slaComplianceRows[0] || { total: 0, breached: 0 };
-        const slaComplianceRate = slaRow.total > 0 ? Number((((slaRow.total - slaRow.breached) / slaRow.total) * 100).toFixed(1)) : 100;
 
         const statusMap = Object.fromEntries(statusCounts.map((row) => [row._id, row.count]));
         const openCount = (statusMap.open || 0) + (statusMap.in_progress || 0) + (statusMap.pending || 0);
@@ -35,7 +35,7 @@ export const analyticsService = {
                 count: row.count,
             })),
             agentPerformance,
-            slaComplianceRate,
+            slaComplianceRate: slaComplianceRate(slaRow.total, slaRow.breached),
             totalTickets: slaRow.total,
             breachedTickets: slaRow.breached,
             openCount,

@@ -74,6 +74,26 @@ describe("dashboard ticket counts", () => {
         expect((await stats(admin.token)).body.data.total).toBe(summary.body.data.total);
     });
 
+    test("SLA compliance is the share of tickets that never breached, for every role", async () => {
+        for (const session of [admin, agent, customer]) {
+            const { body } = await stats(session.token);
+            const { total, breached, slaComplianceRate } = body.data;
+            const expected = total > 0 ? Number((((total - breached) / total) * 100).toFixed(1)) : 100;
+            expect(slaComplianceRate).toBe(expected);
+        }
+    });
+
+    test("an admin's SLA compliance matches the database and the all-time Analytics figure", async () => {
+        const [{ body }, analytics, total, breached] = await Promise.all([
+            stats(admin.token),
+            api("/analytics", { token: admin.token }),
+            Ticket.countDocuments(),
+            Ticket.countDocuments({ slaBreached: true }),
+        ]);
+        expect(body.data.slaComplianceRate).toBe(Number((((total - breached) / total) * 100).toFixed(1)));
+        expect(body.data.slaComplianceRate).toBe(analytics.body.data.slaComplianceRate);
+    });
+
     test("signing in is required", async () => {
         const { status } = await api("/tickets/stats");
         expect(status).toBe(401);

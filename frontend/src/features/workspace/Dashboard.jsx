@@ -17,9 +17,9 @@ const EMPTY_DESCRIPTIONS = {
     customer: "Create your first ticket to get help from our team.",
 };
 
-export function Dashboard({ currentUser, tickets, stats, onNewTicket, analyticsSummary, isLoading, isRefreshing, error, onRetry }) {
+export function Dashboard({ currentUser, tickets, stats, onNewTicket, isLoading, isRefreshing, error, onRetry }) {
     // Counts come from the server, over every ticket this role may see, not just the few listed.
-    const { open = 0, resolved = 0, breached = 0 } = stats || {};
+    const { open = 0, resolved = 0, breached = 0, slaComplianceRate = 100 } = stats || {};
     const canCreate = currentUser.role === "customer";
 
     // Nothing claims "no tickets" until the first response has actually arrived.
@@ -33,7 +33,7 @@ export function Dashboard({ currentUser, tickets, stats, onNewTicket, analyticsS
                     </div>
                 </div>
                 <div className="stat-row">
-                    {["open", "resolved", "breached"].map((key) => (
+                    {["open", "resolved", "breached", "compliance"].map((key) => (
                         <div className="stat-tile" key={key}>
                             <span className="skeleton skeleton-block" style={{ height: "28px", width: "50%" }} />
                             <span className="skeleton skeleton-block" style={{ height: "12px", width: "70%" }} />
@@ -100,12 +100,10 @@ export function Dashboard({ currentUser, tickets, stats, onNewTicket, analyticsS
                     <span className="stat-value">{breached}</span>
                     <span className="stat-label">SLA breached</span>
                 </div>
-                {analyticsSummary && (
-                    <div className="stat-tile">
-                        <span className="stat-value">{analyticsSummary.slaComplianceRate}%</span>
-                        <span className="stat-label">SLA compliance</span>
-                    </div>
-                )}
+                <div className="stat-tile">
+                    <span className="stat-value">{slaComplianceRate}%</span>
+                    <span className="stat-label">SLA compliance</span>
+                </div>
             </div>
 
             <div className="panel-subheader">

@@ -2727,9 +2727,10 @@ input[type="checkbox"]:disabled {
 }
 
 /* Stats & charts */
+/* Always four tiles: one row of four, or two rows of two on narrow screens, never three and one. */
 .stat-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -3910,9 +3911,11 @@ input[type="checkbox"]:disabled {
         top: auto;
         width: auto;
     }
+}
 
+@media (max-width: 720px) {
     .stat-row {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
