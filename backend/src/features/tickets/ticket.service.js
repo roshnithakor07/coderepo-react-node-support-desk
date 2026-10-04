@@ -19,6 +19,7 @@ import { BULK_LIMIT, bulkRejectedError, hasDuplicates, toRejection } from "./tic
 import { assertMergeAllowed, mergeBlock, mergedReplies, ticketNumber } from "./ticket-merge.js";
 import { assertNoteEditable, canEditNote, noteEditBlockedReason } from "./ticket-notes.js";
 import { lastCoverBlock, lastCoverMessage, planReassignments } from "./ticket-reassign.js";
+import { slaComplianceRate } from "./ticket-sla.js";
 import {
     assertAssigneeCoversCategory,
     assertInTeam,
@@ -339,8 +340,9 @@ export const ticketService = {
 
     // Counts for the dashboard tiles. Deliberately independent of the ticket list's filters, so
     // filtering the list cannot change what the home page reports.
-    summarize(actor) {
-        return ticketRepository.summarize(scopeFor(actor));
+    async summarize(actor) {
+        const summary = await ticketRepository.summarize(scopeFor(actor));
+        return { ...summary, slaComplianceRate: slaComplianceRate(summary.total, summary.breached) };
     },
 
     async getById(id, actor) {

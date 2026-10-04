@@ -788,11 +788,6 @@ export default function App() {
         }
     }
 
-    const analyticsSummary = useMemo(
-        () => (analyticsDashboard ? { slaComplianceRate: analyticsDashboard.slaComplianceRate } : null),
-        [analyticsDashboard],
-    );
-
     // State from a ticket the user has just left is never shown under the new ticket's URL.
     const currentTicket = selectedTicket?._id === selectedTicketId ? selectedTicket : null;
     const currentTicketError = ticketLoadError?.ticketId === selectedTicketId ? ticketLoadError.error : null;
@@ -896,7 +891,6 @@ export default function App() {
                             tickets={dashboardTickets}
                             stats={dashboardStats}
                             onNewTicket={() => setShowNewTicketModal(true)}
-                            analyticsSummary={analyticsSummary}
                             isLoading={!dashboardLoaded}
                             isRefreshing={dashboardLoading && dashboardLoaded}
                             error={dashboardError}

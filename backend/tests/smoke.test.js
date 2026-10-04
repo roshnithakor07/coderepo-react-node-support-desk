@@ -25,8 +25,8 @@ describe("sign in", () => {
 
     test("an inactive agent cannot sign in", async () => {
         const { status, body } = await login(SEEDED_ACCOUNTS.inactiveAgent);
-        expect(status).toBe(401);
-        expect(body.error.code).toBe("INVALID_CREDENTIALS");
+        expect(status).toBe(403);
+        expect(body.error.code).toBe("ACCOUNT_DEACTIVATED");
     });
 
     test("a wrong password is rejected without revealing which field was wrong", async () => {

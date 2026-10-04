@@ -26,6 +26,11 @@ function hashToken(token) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+// The hash an unknown email's password is checked against. Checking every sign-in, even when no
+// account matches, makes an unknown email take as long as a wrong password, so the response time
+// doesn't reveal which emails have accounts.
+const NO_ACCOUNT_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString("hex"), 10);
+
 function signToken(user) {
     const config = getConfig();
     return jwt.sign({ sub: String(user._id), role: user.role }, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
@@ -48,9 +53,12 @@ export const authService = {
 
     async login(email, password) {
         const user = await authRepository.findByEmail(email);
-        if (!user || !user.isActive) throw new AppError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
-        const matches = await bcrypt.compare(password, user.password);
-        if (!matches) throw new AppError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+        const matches = await bcrypt.compare(password, user ? user.password : NO_ACCOUNT_HASH);
+        if (!user || !matches) throw new AppError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+        // Said only to someone who knows the password, so it tells a guesser nothing.
+        if (!user.isActive) {
+            throw new AppError(403, "ACCOUNT_DEACTIVATED", "Your account has been deactivated. Contact your administrator.");
+        }
         const token = signToken(user);
         return { user: toPublicUser(user), token };
     },

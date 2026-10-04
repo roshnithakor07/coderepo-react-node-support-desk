@@ -184,9 +184,9 @@ textarea:disabled {
     cursor: default;
 }
 
-/* Links: never the browser's blue and underline, visited or not. Text links use the accent color,
-   and every link underlines on hover. Links that stand in for plain text (ticket titles, rows, the
-   sidebar) override the color below and change only on hover and focus. */
+/* Links: never the browser's blue and underline, visited or not. Text links use the accent color
+   and underline on hover. Links in lists (ticket titles, rows, history entries) and the sidebar
+   change color only: the row highlight and the keyboard focus ring already mark them. */
 /* :where() keeps :visited at the specificity of a plain "a", so a component's own link color (a primary
    button's white text, say) always wins over this default, visited or not. */
 a,
@@ -496,6 +496,33 @@ input:disabled,
 select:disabled,
 textarea:disabled {
     opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Checkboxes are not text fields: no field height, padding or focus glow. Keyboard focus gets a
+   small ring hugging the box; a mouse click shows none. */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+input[type="checkbox"]:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+input[type="checkbox"]:disabled {
     cursor: not-allowed;
 }
 
@@ -1113,17 +1140,30 @@ textarea:disabled {
     min-height: 0;
     overflow-y: auto;
     position: relative;
-    padding: 24px;
+    padding: 20px;
 }
 
 .panel {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
-    padding: 24px;
+    padding: 20px;
     max-width: 1100px;
     margin: 0 auto;
     box-shadow: var(--shadow-sm);
+    /* Tables inside switch to cards by the width the page actually has (see the table cards below),
+       which the screen width alone can't tell once the sidebar takes its share. */
+    container-type: inline-size;
+}
+
+/* A collapsed sidebar gives its width to the page rather than to empty side gutters, so the gutters
+   match the expanded layout at every width. */
+.app-shell.sidebar-collapsed .panel {
+    max-width: calc(1100px + var(--sidebar-width) - var(--sidebar-width-collapsed));
+}
+
+.app-shell.sidebar-collapsed .ticket-detail {
+    max-width: calc(1360px + var(--sidebar-width) - var(--sidebar-width-collapsed));
 }
 
 .panel-header {
@@ -1375,7 +1415,7 @@ textarea:disabled {
 .ticket-title-link:hover,
 .ticket-title-link:focus-visible {
     color: var(--accent);
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 /* No access / not found / couldn't load: a page-sized message with a way back. */
@@ -2221,6 +2261,12 @@ textarea:disabled {
     list-style: none;
 }
 
+/* A ticket linked from a history entry: the color shift marks the hover, no underline. */
+.status-history-note a:hover {
+    color: var(--accent-hover);
+    text-decoration: none;
+}
+
 .status-history-entry {
     display: flex;
     gap: 10px;
@@ -2684,9 +2730,10 @@ textarea:disabled {
 }
 
 /* Stats & charts */
+/* Always four tiles: one row of four, or two by two once the sidebar folds away, never three and one. */
 .stat-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -2700,11 +2747,6 @@ textarea:disabled {
     display: flex;
     flex-direction: column;
     gap: 4px;
-}
-
-.stat-tile-danger {
-    border-color: rgba(239, 68, 68, 0.35);
-    background: var(--danger-soft);
 }
 
 .stat-tile-icon {
@@ -2753,6 +2795,12 @@ textarea:disabled {
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
+}
+
+/* A figure that flags a problem (breached SLAs above zero), in the red the ticket rows use for
+   "SLA breached". */
+.stat-value-danger {
+    color: var(--danger);
 }
 
 .chart-grid {
@@ -2976,7 +3024,6 @@ textarea:disabled {
 .dashboard-ticket-list a:hover .ticket-title-cell,
 .dashboard-ticket-list a:focus-visible .ticket-title-cell {
     color: var(--accent);
-    text-decoration: underline;
 }
 
 .dashboard-ticket-list a:hover {
@@ -3059,7 +3106,8 @@ textarea:disabled {
 }
 
 .sla-row-input input {
-    width: 52px;
+    /* Room for three digits (the maximum is 720) plus the padding and the browser's spin buttons. */
+    width: calc(3ch + 48px);
     height: 38px;
     padding: 0 8px;
     font-size: 16px;
@@ -3153,16 +3201,12 @@ textarea:disabled {
 
 .category-picker-option {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 6px;
     margin: 0;
     font-size: 14px;
     cursor: pointer;
-}
-
-.category-picker-option input {
-    width: auto;
-    margin: 0;
 }
 
 .category-cell {
@@ -3186,7 +3230,12 @@ textarea:disabled {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 12px;
-    min-height: 36px;
+}
+
+/* The bar's controls share the filter row's height, so the two rows line up. */
+.bulk-bar-row select,
+.bulk-bar-row button {
+    height: 38px;
 }
 
 .bulk-bar-row select {
@@ -3194,8 +3243,29 @@ textarea:disabled {
     min-width: 0;
 }
 
+.bulk-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* The select-all checkbox sits in the Title header, in the same column as the row checkboxes. */
+.th-with-lead {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Cards have no header row, so there select-all gets its own line above them instead. */
+.bulk-select-all-line {
+    display: none;
+    margin-bottom: 12px;
+}
+
 .bulk-select-all {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 8px;
     margin: 0;
@@ -3203,16 +3273,6 @@ textarea:disabled {
     color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
-}
-
-.bulk-select-all input,
-.row-select {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    flex-shrink: 0;
-    accent-color: var(--accent);
-    cursor: pointer;
 }
 
 .title-with-select {
@@ -3728,11 +3788,11 @@ textarea:disabled {
     }
 
     .app-content {
-        padding: 16px;
+        padding: 12px;
     }
 
     .panel {
-        padding: 20px;
+        padding: 16px;
     }
 }
 
@@ -3762,13 +3822,15 @@ textarea:disabled {
     }
 }
 
-/* Narrow screens: every data table becomes a list of cards. The first column is the card's
-   title and every other cell shows its column name next to the value. */
+/* Every data table becomes a list of cards once the page is narrower than the widest table needs
+   (the ticket table needs about 820 px), so no table ever scrolls sideways, whether the space went
+   to a small screen or to the sidebar. The first column is the card's title and every other cell
+   shows its column name next to the value. */
 .table-sort {
     display: none;
 }
 
-@media (max-width: 720px) {
+@container (max-width: 819px) {
     .table-sort {
         display: flex;
         flex-direction: row;
@@ -3792,6 +3854,10 @@ textarea:disabled {
 
     .data-table thead {
         display: none;
+    }
+
+    .bulk-select-all-line {
+        display: flex;
     }
 
     .data-table,
@@ -3851,6 +3917,22 @@ textarea:disabled {
     }
 }
 
+/* Phones: the bulk bar stays one line; the action picker takes whatever width is left. */
+@container (max-width: 480px) {
+    .bulk-bar-row {
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .bulk-bar-row select {
+        flex: 1 1 0;
+    }
+
+    .bulk-bar-row button {
+        padding: 0 12px;
+    }
+}
+
 @media (max-width: 480px) {
     .form-row {
         flex-direction: column;
@@ -3879,9 +3961,11 @@ textarea:disabled {
         top: auto;
         width: auto;
     }
+}
 
+@media (max-width: 999px) {
     .stat-row {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -3889,4 +3973,39 @@ textarea:disabled {
     align-self: center;
     font-size: 12px;
     color: var(--text-muted);
+}
+
+/* Analytics range: presets, From, To and the UTC note on one row at the control height, with the
+   labels beside their inputs so every control shares one centre line. */
+.filter-bar-dates .preset-group {
+    height: 38px;
+}
+
+.filter-bar-dates label {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+}
+
+/* A fixed width: Chrome otherwise narrows an empty date input that holds an out-of-range value. */
+.filter-bar-dates input {
+    width: 150px;
+}
+
+.filter-bar-dates .field-error {
+    flex-basis: 100%;
+}
+
+/* Phones: each date takes a full row, with the labels in one column so both inputs line up. */
+@media (max-width: 600px) {
+    .filter-bar-dates label {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        flex: 1 1 100%;
+    }
+
+    .filter-bar-dates input {
+        width: 100%;
+    }
 }

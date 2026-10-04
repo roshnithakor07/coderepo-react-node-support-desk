@@ -1,5 +1,7 @@
 import { InboxIcon } from "./Icon.jsx";
 
+// A column may put a control before its header text (`headerLead`, such as a select-all checkbox);
+// `header` stays plain text because it also labels the cell when rows become cards.
 // One sort model for the whole table: a single option value, shared by the column headers and the
 // "Sort by" select that replaces them when rows become cards on narrow screens. A column opts in by
 // naming the one or two option values it cycles through.
@@ -47,15 +49,23 @@ export function Table({
             <tr>
                 {columns.map((column) => {
                     const state = onSortChange ? columnSortState(column, sortValue) : null;
+                    const label = state ? (
+                        <button type="button" className="sortable-header" onClick={() => onSortChange(state.next)}>
+                            {column.header}
+                            <span className={`sort-indicator ${state.indicator === "↕" ? "" : "active"}`}>{state.indicator}</span>
+                        </button>
+                    ) : (
+                        column.header
+                    );
                     return (
                         <th key={column.key}>
-                            {state ? (
-                                <button type="button" className="sortable-header" onClick={() => onSortChange(state.next)}>
-                                    {column.header}
-                                    <span className={`sort-indicator ${state.indicator === "↕" ? "" : "active"}`}>{state.indicator}</span>
-                                </button>
+                            {column.headerLead ? (
+                                <span className="th-with-lead">
+                                    {column.headerLead}
+                                    {label}
+                                </span>
                             ) : (
-                                column.header
+                                label
                             )}
                         </th>
                     );

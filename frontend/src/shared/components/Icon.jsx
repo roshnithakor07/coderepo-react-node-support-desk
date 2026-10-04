@@ -73,6 +73,17 @@ export function InboxIcon(props) {
     );
 }
 
+// An inbox tray with a check above it: work that came in and is done.
+export function InboxCheckIcon(props) {
+    return (
+        <svg {...base} {...props} aria-hidden="true">
+            <path d="M3 13h5l1.5 2.5h5L16 13h5" />
+            <path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" />
+            <path d="m8.5 6.5 2.5 2.5 4.5-5" />
+        </svg>
+    );
+}
+
 export function CheckCircleIcon(props) {
     return (
         <svg {...base} {...props} aria-hidden="true">

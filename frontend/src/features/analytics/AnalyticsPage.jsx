@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BarChart, DonutChart, LineChart } from "../../shared/components/Charts.jsx";
 import { AlertCircleIcon, CheckCircleIcon, ClockIcon, TicketIcon } from "../../shared/components/Icon.jsx";
+import { StatTile, StatTileSkeleton } from "../../shared/components/StatTile.jsx";
 
 const PRESETS = [
     { label: "7D", days: 7 },
@@ -55,11 +56,8 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading, e
             <section className="panel" aria-busy="true">
                 <p className="panel-subtitle">Ticket trends, SLA health, and agent performance at a glance.</p>
                 <div className="stat-row">
-                    {["critical", "high", "medium", "low"].map((key) => (
-                        <div className="stat-tile" key={key}>
-                            <span className="skeleton skeleton-block" style={{ height: "1.6rem", width: "50%" }} />
-                            <span className="skeleton skeleton-block" style={{ height: "0.8rem", width: "70%" }} />
-                        </div>
+                    {["total", "compliance", "open", "breached"].map((key) => (
+                        <StatTileSkeleton key={key} />
                     ))}
                 </div>
                 <span className="skeleton skeleton-block" style={{ height: "220px", marginBottom: "20px" }} />
@@ -104,7 +102,7 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading, e
                     </p>
                     <p className="panel-subtitle">Ticket trends, SLA health, and agent performance at a glance.</p>
                 </div>
-                <div className="filter-bar">
+                <div className="filter-bar filter-bar-dates">
                     <div className="preset-group" role="group" aria-label="Date range presets">
                         <button type="button" className={isAllTimeActive ? "active" : ""} onClick={() => onFilterChange({})}>
                             All time
@@ -155,34 +153,16 @@ export function AnalyticsPage({ dashboard, filters, onFilterChange, isLoading, e
 
             <div className={`analytics-figures ${isLoading || error ? "is-refreshing" : ""}`}>
                 <div className="stat-row">
-                    <div className="stat-tile">
-                        <span className="stat-tile-icon stat-tile-icon-accent">
-                            <TicketIcon />
-                        </span>
-                        <span className="stat-value">{dashboard.totalTickets}</span>
-                        <span className="stat-label">Total tickets</span>
-                    </div>
-                    <div className="stat-tile">
-                        <span className="stat-tile-icon stat-tile-icon-success">
-                            <CheckCircleIcon />
-                        </span>
-                        <span className="stat-value">{dashboard.slaComplianceRate}%</span>
-                        <span className="stat-label">SLA compliance</span>
-                    </div>
-                    <div className="stat-tile">
-                        <span className="stat-tile-icon stat-tile-icon-info">
-                            <ClockIcon />
-                        </span>
-                        <span className="stat-value">{dashboard.openCount}</span>
-                        <span className="stat-label">Open</span>
-                    </div>
-                    <div className={`stat-tile ${dashboard.breachedTickets > 0 ? "stat-tile-danger" : ""}`}>
-                        <span className="stat-tile-icon stat-tile-icon-danger">
-                            <AlertCircleIcon />
-                        </span>
-                        <span className="stat-value">{dashboard.breachedTickets}</span>
-                        <span className="stat-label">SLA breached</span>
-                    </div>
+                    <StatTile icon={TicketIcon} tone="accent" value={dashboard.totalTickets} label="Total tickets" />
+                    <StatTile icon={CheckCircleIcon} tone="success" value={`${dashboard.slaComplianceRate}%`} label="SLA compliance" />
+                    <StatTile icon={ClockIcon} tone="info" value={dashboard.openCount} label="Open" />
+                    <StatTile
+                        icon={AlertCircleIcon}
+                        tone="danger"
+                        value={dashboard.breachedTickets}
+                        label="SLA breached"
+                        isAlert={dashboard.breachedTickets > 0}
+                    />
                 </div>
 
                 <div className="chart-card chart-card-hero">

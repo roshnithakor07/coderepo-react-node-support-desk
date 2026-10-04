@@ -73,19 +73,46 @@ function ClaimCell({ ticket, onClaim, isClaiming }) {
     );
 }
 
+// Selects every ticket on the page, or clears them all; shows a dash while only some are picked. It
+// sits in the Title header in front of the row checkboxes, and on its own line above the cards on
+// narrow screens, where the table has no header row.
+function SelectAllCheckbox({ ids, selected, onSelectedChange, disabled, showLabel = false }) {
+    const picked = ids.filter((id) => selected.includes(id));
+    const allPicked = ids.length > 0 && picked.length === ids.length;
+    const label = "Select all on this page";
+    const box = (
+        <input
+            type="checkbox"
+            aria-label={showLabel ? undefined : label}
+            title={label}
+            checked={allPicked}
+            ref={(element) => {
+                if (element) element.indeterminate = picked.length > 0 && !allPicked;
+            }}
+            onChange={() => onSelectedChange(allPicked ? [] : ids)}
+            disabled={ids.length === 0 || disabled}
+        />
+    );
+    if (!showLabel) return box;
+    return (
+        <label className="bulk-select-all">
+            {box}
+            {label}
+        </label>
+    );
+}
+
 // Acting on several tickets at once. One picker holds every action (give them to an agent, or move
 // them to a status), so the bar stays one row wide on a phone. The server holds every ticket to the
 // rule the single action enforces and refuses the lot if any breaks it, so the answer is a list of
 // which tickets and why, with a way to drop them from the selection and try again.
-function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, onBulkStatus, onBulkPriority }) {
+function BulkBar({ tickets, selected, onSelectedChange, isBusy, onBusyChange, agents, onBulkAssign, onBulkStatus, onBulkPriority }) {
     const [action, setAction] = useState("");
     const [confirming, setConfirming] = useState(null);
-    const [isBusy, setIsBusy] = useState(false);
     const [problem, setProblem] = useState(null);
 
     const ids = tickets.map((ticket) => ticket._id);
     const picked = ids.filter((id) => selected.includes(id));
-    const allPicked = ids.length > 0 && picked.length === ids.length;
 
     function describe(value) {
         const [kind, target] = value.split(":");
@@ -112,7 +139,7 @@ function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, on
     async function run() {
         const { kind, target } = confirming;
         setConfirming(null);
-        setIsBusy(true);
+        onBusyChange(true);
         setProblem(null);
         try {
             if (kind === "assign") await onBulkAssign(picked, target);
@@ -123,7 +150,7 @@ function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, on
         } catch (error) {
             setProblem({ message: error.message, rejections: error.details?.rejections || [] });
         } finally {
-            setIsBusy(false);
+            onBusyChange(false);
         }
     }
 
@@ -133,23 +160,17 @@ function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, on
         setProblem(null);
     }
 
+    // Nothing to act on: no bar, so the table starts right under the filters.
+    if (picked.length === 0 && !problem) return null;
+
     return (
         <div className="bulk-bar" role="region" aria-label="Bulk actions">
             <div className="bulk-bar-row">
-                <label className="bulk-select-all">
-                    <input
-                        type="checkbox"
-                        checked={allPicked}
-                        ref={(element) => {
-                            if (element) element.indeterminate = picked.length > 0 && !allPicked;
-                        }}
-                        onChange={() => onSelectedChange(allPicked ? [] : ids)}
-                        disabled={ids.length === 0 || isBusy}
-                    />
-                    {picked.length > 0 ? `${picked.length} selected` : "Select all on this page"}
-                </label>
                 {picked.length > 0 && (
                     <>
+                        <span className="bulk-count" aria-live="polite">
+                            {picked.length} selected
+                        </span>
                         <label htmlFor="bulk-action" className="visually-hidden">
                             Action for the selected tickets
                         </label>
@@ -181,14 +202,14 @@ function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, on
                         </select>
                         <button
                             type="button"
-                            className="button-primary button-compact"
+                            className="button-primary"
                             disabled={!action || isBusy}
                             onClick={() => setConfirming(describe(action))}
                         >
                             {isBusy && <span className="spinner" aria-hidden="true" />}
                             {isBusy ? "Applying..." : "Apply"}
                         </button>
-                        <button type="button" className="link-button" onClick={() => onSelectedChange([])} disabled={isBusy}>
+                        <button type="button" className="button-secondary" onClick={() => onSelectedChange([])} disabled={isBusy}>
                             Clear
                         </button>
                     </>
@@ -258,6 +279,7 @@ export function TicketList({
     categories,
 }) {
     const [selected, setSelected] = useState([]);
+    const [isBulkBusy, setIsBulkBusy] = useState(false);
     const search = filters.search || "";
     const hasActiveFilters = Boolean(search || filters.status || filters.priority);
     const canCreate = role === "customer";
@@ -284,10 +306,15 @@ export function TicketList({
         return toHash("/tickets", queryFromFilters({ ...filters, view, page: 1 }));
     }
 
+    const pageIds = tickets.map((ticket) => ticket._id);
+
     const columns = [
         {
             key: "title",
             header: "Title",
+            headerLead: canBulk && (
+                <SelectAllCheckbox ids={pageIds} selected={selected} onSelectedChange={setSelected} disabled={isBulkBusy} />
+            ),
             sort: ["title_asc", "title_desc"],
             // A real link, so the ticket can be opened in a new tab; the rest of the row opens it here.
             render: (row) => (
@@ -415,10 +442,18 @@ export function TicketList({
             </div>
 
             {canBulk && !isLoading && tickets.length > 0 && (
+                <div className="bulk-select-all-line">
+                    <SelectAllCheckbox ids={pageIds} selected={selected} onSelectedChange={setSelected} disabled={isBulkBusy} showLabel />
+                </div>
+            )}
+
+            {canBulk && !isLoading && tickets.length > 0 && (
                 <BulkBar
                     tickets={tickets}
                     selected={selected}
                     onSelectedChange={setSelected}
+                    isBusy={isBulkBusy}
+                    onBusyChange={setIsBulkBusy}
                     agents={agents}
                     onBulkAssign={onBulkAssign}
                     onBulkStatus={onBulkStatus}
