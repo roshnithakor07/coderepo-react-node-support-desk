@@ -1321,3 +1321,11 @@ Element-rect check at 1280 and 375 in both themes over every page and role, plus
 the refusal panel, the last-cover dialog and the merge modal: every state scrollWidth equal to the
 viewport, with no element off screen. The only console entries were Chrome's network log lines for the
 four deliberate 422 refusals.
+
+## [2026-10-04T07:47:05+00:00] `feat/bulk-actions` approved and merged
+
+Approved by the user as built. Merged with --no-ff, pushed, and the branch deleted locally and on
+origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Per the
+new standing rule, work stops here until the user's next prompt; `fix/ui-polish` is next in the order
+they set (SLA hours input and Analytics filter row must be fixed; page spacing and the SLA-breached tile
+only as small safe changes). Test results on main are in the log entry for this turn.
