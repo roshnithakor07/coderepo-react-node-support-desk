@@ -1453,3 +1453,10 @@ check, 34 states (Tickets at 1280 and 375, both themes, three roles, plus the un
 sort, the admin bulk bar with the whole page selected, and the dashboard): 0 off screen, 0 console
 errors. Agents' select shows `["Anyone","Unassigned","Me"]`, admins' shows every agent A-Z, customers
 have none.
+
+## [2026-10-04] `fix/reply-limit` approved and merged
+
+Approved by the user as built, after the two follow-up fixes. Merged with --no-ff, pushed, and the
+branch deleted locally and on origin. This note is the branch's last commit, so main needs no
+docs-only follow-up branch. Per the standing rule, work stops here until the user's next prompt. Test
+results on main are in the log entry for this turn.
