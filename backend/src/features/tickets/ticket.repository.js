@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Ticket } from "./ticket.model.js";
 
 // The assignee's categories come along because the team rules are checked against them: refiling a
@@ -51,6 +52,75 @@ export const ticketRepository = {
     findById: (id) => Ticket.findById(id).populate(populateFields),
 
     findByIdLean: (id) => Ticket.findById(id).populate(populateFields).lean(),
+
+    // The ticket as its page shows it: the latest page of the conversation rather than all of it, plus
+    // how many replies there are in all. A ticket with hundreds of replies then answers with a small
+    // document, and the page asks for the older ones only when somebody scrolls back.
+    async findByIdDetail(id, pageSize) {
+        const ticket = await Ticket.findById(id, { replies: { $slice: -pageSize } })
+            .populate(populateFields)
+            .lean();
+        if (!ticket) return null;
+        const counts = await this.countReplies(id);
+        return { ...ticket, replyCount: counts.total, publicReplyCount: counts.public, publicStaffReplyCount: counts.publicStaff };
+    },
+
+    // Just enough of the ticket to decide who may read its conversation, with none of it loaded.
+    findByIdForAccess: (id) => Ticket.findById(id, { replies: 0 }).populate(listPopulateFields).lean(),
+
+    // Counted in the database, because the point of the page window is never to load every reply.
+    // `publicStaff` is what the "resolving needs an answer the customer can read" rule asks about: a
+    // reply from somebody other than the requester, which may well be older than the page on screen.
+    async countReplies(id) {
+        const [row] = await Ticket.aggregate([
+            { $match: Ticket.find({ _id: id }).cast(Ticket) },
+            {
+                $project: {
+                    total: { $size: "$replies" },
+                    public: { $size: { $filter: { input: "$replies", cond: { $ne: ["$$this.isInternal", true] } } } },
+                    publicStaff: {
+                        $size: {
+                            $filter: {
+                                input: "$replies",
+                                cond: { $and: [{ $ne: ["$$this.isInternal", true] }, { $ne: ["$$this.author", "$createdBy"] }] },
+                            },
+                        },
+                    },
+                },
+            },
+        ]);
+        return row ? { total: row.total, public: row.public, publicStaff: row.publicStaff } : { total: 0, public: 0, publicStaff: 0 };
+    },
+
+    // The page of replies immediately before one of them, oldest first, with the next cursor and
+    // whether anything is left behind it. Positions in the array are the order the conversation was
+    // written in, which is also the order a merge leaves it in, so paging follows the thread exactly.
+    // `beforeReplyId` is null for the latest page.
+    async findRepliesBefore(id, beforeReplyId, limit) {
+        const cursor = beforeReplyId ? new mongoose.Types.ObjectId(String(beforeReplyId)) : null;
+        const [row] = await Ticket.aggregate([
+            { $match: Ticket.find({ _id: id, ...(cursor ? { "replies._id": cursor } : {}) }).cast(Ticket) },
+            // Where the page ends: at the cursor, or at the end of the conversation when there is none.
+            { $project: { replies: 1, end: cursor ? { $indexOfArray: ["$replies._id", cursor] } : { $size: "$replies" } } },
+            { $project: { replies: 1, end: 1, start: { $max: [0, { $subtract: ["$end", limit] }] } } },
+            {
+                $project: {
+                    start: 1,
+                    // $slice needs a positive count, so an empty page is answered as one.
+                    page: { $cond: [{ $lte: ["$end", 0] }, [], { $slice: ["$replies", "$start", { $subtract: ["$end", "$start"] }] }] },
+                },
+            },
+        ]);
+        if (!row) return null;
+        await Ticket.populate(row, { path: "page.author", model: "User", select: "name email role avatar" });
+        return { replies: row.page, hasEarlier: row.start > 0 };
+    },
+
+    // Atomic by design: the push matches only while the conversation is still under the limit, because
+    // `replies.<limit - 1>` exists exactly when it is full. Two replies sent in the same moment both
+    // run this, and the second one matches nothing rather than taking the ticket past the limit.
+    pushReply: (id, reply, limit) =>
+        Ticket.updateOne({ _id: id, [`replies.${limit - 1}`]: { $exists: false } }, { $push: { replies: reply } }),
 
     exists: (id) => Ticket.exists({ _id: id }),
 

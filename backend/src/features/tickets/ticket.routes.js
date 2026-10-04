@@ -14,6 +14,7 @@ import {
     getTicketHistory,
     getMergeCandidates,
     getTicketStats,
+    listReplies,
     listTickets,
     mergeTicket,
     updateReply,
@@ -40,6 +41,9 @@ ticketRouter.get("/:ticketId", getTicket);
 // reopen their own ticket without being able to touch its priority or anyone else's ticket.
 ticketRouter.put("/:ticketId", updateTicket);
 ticketRouter.post("/:ticketId/replies", addReply);
+// The ticket itself carries the latest page of its conversation; this is how the page walks back
+// through the older ones, under the same view rules as the ticket.
+ticketRouter.get("/:ticketId/replies", listReplies);
 // Only internal notes can be changed after the fact, and only by their author or an admin inside the
 // edit window, so these two belong to the support team alone.
 ticketRouter.put("/:ticketId/replies/:replyId", requireRole("admin", "agent"), updateReply);

@@ -18,6 +18,7 @@ import {
 import { BULK_LIMIT, bulkRejectedError, hasDuplicates, toRejection } from "./ticket-bulk.js";
 import { assertMergeAllowed, mergeBlock, mergedReplies, ticketNumber } from "./ticket-merge.js";
 import { assertNoteEditable, canEditNote, noteEditBlockedReason } from "./ticket-notes.js";
+import { REPLY_LIMIT, REPLY_LIMIT_MESSAGE, REPLY_LIMIT_NOTICE_FROM, REPLY_PAGE_SIZE, replyLimitError } from "./ticket-replies.js";
 import { lastCoverBlock, lastCoverMessage, planReassignments } from "./ticket-reassign.js";
 import { slaComplianceRate } from "./ticket-sla.js";
 import {
@@ -124,6 +125,25 @@ function presentTicket(ticket, actor) {
     return { ...ticket, replies: ticket.replies.filter((reply) => !reply.isInternal) };
 }
 
+// The conversation is sent one page at a time, so the ticket also says how long it is: `replyCount` is
+// what the 500-reply rule counts, and `visibleReplyCount` how many of those this viewer may read, which
+// is what the "Show earlier replies" button counts down. `oldestReplyId` is where paging back starts,
+// taken before internal notes are stripped so a customer's cursor still lands on the right place.
+function replyPaging(ticket, presented, actor) {
+    return {
+        replyCount: ticket.replyCount ?? ticket.replies.length,
+        visibleReplyCount:
+            actor.role === "customer"
+                ? (ticket.publicReplyCount ?? presented.replies.length)
+                : (ticket.replyCount ?? ticket.replies.length),
+        oldestReplyId: ticket.replies.length > 0 ? ticket.replies[0]._id : null,
+        // The two numbers behind the composer's notice, so the page shows the rule rather than keeping a
+        // second copy of it.
+        replyLimit: REPLY_LIMIT,
+        replyNoticeFrom: REPLY_LIMIT_NOTICE_FROM,
+    };
+}
+
 // Each internal note carries whether this viewer may still change it, and why not, so the Edit and
 // Delete controls appear on exactly the notes the API would accept them for.
 function presentReplies(replies, actor, now) {
@@ -139,13 +159,24 @@ function presentReplies(replies, actor, now) {
 function presentTicketDetail(ticket, actor) {
     const now = new Date();
     const presented = presentTicket(ticket, actor);
+    // The counts the page needs; the raw ones they are derived from are left behind here, not deleted
+    // from the ticket, which the rules below still read.
+    const paging = replyPaging(ticket, presented, actor);
+    const { publicReplyCount, publicStaffReplyCount, ...withoutRawCounts } = presented;
     // Permissions are derived from the full ticket: an internal note still counts as a reply even
-    // though the customer never sees it.
+    // though the customer never sees it, and the answer that allows a resolve may be pages back.
+    const permissions = permissionsFor(ticket, actor, now);
+    const isFull = paging.replyCount >= REPLY_LIMIT;
     return {
-        ...presented,
+        ...withoutRawCounts,
+        ...paging,
         replies: presentReplies(presented.replies, actor, now),
         permissions: {
-            ...permissionsFor(ticket, actor, now),
+            ...permissions,
+            // A full conversation closes the composer the way a closed ticket does, and says so in the
+            // same place, with the reason the API would give.
+            canReply: permissions.canReply && !isFull,
+            replyLimitReason: isFull ? REPLY_LIMIT_MESSAGE : null,
             canClaim: isClaimableByTeam(ticket, actor),
             // Staff can fold a duplicate into another ticket while it is still in play.
             canMerge: actor.role !== "customer" && ticket.status !== "closed" && !ticket.mergedInto,
@@ -304,7 +335,7 @@ export const ticketService = {
             );
         }
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     async list(filters, actor) {
@@ -345,11 +376,35 @@ export const ticketService = {
         return { ...summary, slaComplianceRate: slaComplianceRate(summary.total, summary.breached) };
     },
 
+    // The ticket with the latest page of its conversation. The older pages come from `listReplies`, so
+    // a thread with hundreds of replies opens as quickly as a fresh one.
     async getById(id, actor) {
-        const ticket = await ticketRepository.findByIdLean(id);
+        const ticket = await ticketRepository.findByIdDetail(id, REPLY_PAGE_SIZE);
         if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
         assertCanView(ticket, actor);
         return presentTicketDetail(ticket, actor);
+    },
+
+    // A page of the replies written before a given one, oldest first: the same view rules as the ticket
+    // itself, and internal notes stripped for a customer exactly as they are on the ticket. `nextBefore`
+    // is where the page after this one starts, counted before any note is stripped, so a page that holds
+    // nothing a customer may read still moves them back through the thread.
+    async listReplies(id, { before, limit }, actor) {
+        const ticket = await ticketRepository.findByIdForAccess(id);
+        if (!ticket) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+        assertCanView(ticket, actor);
+
+        const page = await ticketRepository.findRepliesBefore(id, before || null, limit);
+        // The ticket is there, so a missing page means the cursor names a reply that is not on it.
+        if (!page) throw new AppError(404, "REPLY_NOT_FOUND", "That message is no longer on this ticket.");
+
+        const now = new Date();
+        const visible = actor.role === "customer" ? page.replies.filter((reply) => !reply.isInternal) : page.replies;
+        return {
+            replies: presentReplies(visible, actor, now),
+            nextBefore: page.replies.length > 0 ? page.replies[0]._id : null,
+            hasEarlier: page.hasEarlier,
+        };
     },
 
     async update(id, patch, actor) {
@@ -421,7 +476,7 @@ export const ticketService = {
             await notificationService.notify(ticket.createdBy, "status_changed", statusChangeMessage(ticket), ticket._id);
         }
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     async assign(id, agentId, actor) {
@@ -445,7 +500,7 @@ export const ticketService = {
             await notificationService.notify(agent._id, "ticket_assigned", `You were assigned ticket "${ticket.title}".`, ticket._id);
         }
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     // Several tickets to one agent, all or nothing. Every ticket is held to the rule the single
@@ -559,7 +614,7 @@ export const ticketService = {
             primary._id,
         );
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(primary._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(primary._id, REPLY_PAGE_SIZE), actor);
     },
 
     // What deactivating this agent would do, for the confirmation to say before anything happens: how
@@ -638,7 +693,7 @@ export const ticketService = {
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "note_edited", actor.id, { replyId: String(reply._id) });
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     async deleteReply(id, replyId, actor) {
@@ -648,7 +703,7 @@ export const ticketService = {
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "note_deleted", actor.id, { replyId: String(replyId) });
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     async addReply(id, actor, { body, isInternal }) {
@@ -660,18 +715,33 @@ export const ticketService = {
 
         const internal = actor.role === "customer" ? false : Boolean(isInternal);
         const now = new Date();
-        ticket.replies.push({ body, author: actor.id, isInternal: internal });
 
         // A public staff reply starts work on an open ticket; an internal note never moves it. A
         // customer's reply on a pending ticket hands it back to the team, and on a resolved ticket
         // reopens it. Only the reopen starts a fresh SLA period: a pending ticket is still inside
         // the period it was already in, so its clock, and any breach on it, carry on unchanged.
+        // Where the reply puts the ticket is decided before it is written, so a reply the ticket has
+        // no room for leaves the status alone as well.
         const isCustomer = actor.role === "customer";
         const autoStatus = isCustomer ? statusAfterCustomerReply(ticket) : statusAfterStaffReply(ticket, internal);
+
+        // The conversation is capped, and the cap is applied by the write itself rather than by a count
+        // read beforehand: the push matches only while the ticket is still under the limit, so two
+        // replies sent in the same moment cannot both get in past it. No match means it is full.
+        const pushed = await ticketRepository.pushReply(id, { body, author: actor.id, isInternal: internal, createdAt: now }, REPLY_LIMIT);
+        if (pushed.matchedCount === 0) {
+            // The ticket was there a moment ago, so a push that matches nothing means it is full,
+            // unless it has been removed in between.
+            if (!(await ticketRepository.exists(id))) throw new AppError(404, "TICKET_NOT_FOUND", "Ticket not found.");
+            throw replyLimitError();
+        }
+
         const changes = {};
         let reopened = false;
         if (autoStatus) reopened = await applyStatusChange(ticket, autoStatus, now, changes);
 
+        // The reply is already stored, and this document's own `replies` was never touched, so saving
+        // it writes the status and the clock without putting a stale conversation back.
         await ticketRepository.save(ticket);
         await auditLogService.record(ticket._id, "replied", actor.id, { isInternal: internal });
         if (changes.status) {
@@ -686,7 +756,7 @@ export const ticketService = {
             }
         }
 
-        return presentTicketDetail(await ticketRepository.findByIdLean(ticket._id), actor);
+        return presentTicketDetail(await ticketRepository.findByIdDetail(ticket._id, REPLY_PAGE_SIZE), actor);
     },
 
     async getAuditTrail(id) {

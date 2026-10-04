@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REPLY_PAGE_SIZE } from "./ticket-replies.js";
 import { TICKET_SORT_KEYS, ticketService } from "./ticket.service.js";
 
 const createSchema = z
@@ -26,6 +27,18 @@ const replySchema = z
     .object({
         body: z.string().trim().min(1).max(5000),
         isInternal: z.boolean().optional(),
+    })
+    .strict();
+
+// Paging back through a long conversation: `before` is the reply the page stops at (the latest page
+// when it is left out), and a page is at most REPLY_PAGE_SIZE replies.
+const replyPageQuerySchema = z
+    .object({
+        before: z
+            .string()
+            .regex(/^[a-f\d]{24}$/i, "That message id is not valid.")
+            .optional(),
+        limit: z.coerce.number().int().min(1).max(REPLY_PAGE_SIZE).optional(),
     })
     .strict();
 
@@ -112,6 +125,16 @@ export async function addReply(request, response, next) {
         const input = replySchema.parse(request.body);
         const ticket = await ticketService.addReply(request.params.ticketId, request.user, input);
         response.status(201).json({ data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function listReplies(request, response, next) {
+    try {
+        const { before, limit } = replyPageQuerySchema.parse(request.query);
+        const page = await ticketService.listReplies(request.params.ticketId, { before, limit: limit || REPLY_PAGE_SIZE }, request.user);
+        response.json({ data: page });
     } catch (error) {
         next(error);
     }
