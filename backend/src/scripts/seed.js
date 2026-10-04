@@ -166,6 +166,9 @@ const TICKET_BLUEPRINTS = [
     // alert are for. They sit in different categories, so each agent's queue shows only its own.
     { title: "Cannot download my past invoices", priority: "medium", category: "billing", status: "open", ageHours: 1, unassigned: true },
     { title: "Where do I find my account history?", priority: "low", category: "general", status: "open", ageHours: 13, unassigned: true },
+    // The same problem raised twice by one customer, a day apart: what ticket merge is for. It belongs
+    // to the customer of "Two-factor authentication not working", so the two can be merged.
+    { title: "Login code never arrives by text", priority: "high", category: "account", status: "open", ageHours: 30, customerOf: "Two-factor authentication not working" },
 ];
 
 const REPLY_SNIPPETS = [
@@ -191,7 +194,9 @@ async function seedTickets(agents, customers) {
 
     for (let index = 0; index < TICKET_BLUEPRINTS.length; index += 1) {
         const blueprint = TICKET_BLUEPRINTS[index];
-        const customer = customers[index % customers.length];
+        // A duplicate is seeded for the same customer as the ticket it duplicates.
+        const sameAs = blueprint.customerOf ? TICKET_BLUEPRINTS.findIndex((other) => other.title === blueprint.customerOf) : index;
+        const customer = customers[sameAs % customers.length];
         const agent = blueprint.unassigned ? null : pickAgent(activeAgents, blueprint.category, index);
         // The deadline follows the seeded SLA hours for the ticket's priority, like a ticket created in the app.
         // A ticket is breached if it is still open past its deadline, or was resolved after it.

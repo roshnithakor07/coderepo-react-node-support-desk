@@ -8,6 +8,7 @@ const LABELS = {
     reopened: "Reopened",
     sla_breached: "SLA breached",
     updated: "Status changed",
+    merged: "Merged",
 };
 
 function Entry({ entry }) {
@@ -37,6 +38,16 @@ function Entry({ entry }) {
                     {formatDateTime(entry.createdAt)}
                 </span>
                 {entry.slaRestartedAt && <span className="status-history-note">Response time restarted from here.</span>}
+                {entry.mergedInto && (
+                    <span className="status-history-note">
+                        Into <a href={`#/tickets/${entry.mergedInto.id}`}>{entry.mergedInto.number}</a> {entry.mergedInto.title}
+                    </span>
+                )}
+                {entry.mergedFrom && (
+                    <span className="status-history-note">
+                        From <a href={`#/tickets/${entry.mergedFrom.id}`}>{entry.mergedFrom.number}</a> {entry.mergedFrom.title}
+                    </span>
+                )}
             </span>
         </li>
     );

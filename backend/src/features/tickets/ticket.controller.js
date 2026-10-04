@@ -31,6 +31,19 @@ const replySchema = z
 
 const assignSchema = z.object({ agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
 
+// The ids are checked here for shape only; whether each ticket exists, may be seen and may take the
+// action is the service's job, so one bad id is reported with the rest instead of failing the request.
+const objectId = z.string().regex(/^[a-f\d]{24}$/i, "One of the selected tickets has an invalid id.");
+const ticketIds = z.array(objectId).min(1, "Select at least one ticket.");
+
+const bulkAssignSchema = z.object({ ticketIds, agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
+
+const bulkStatusSchema = z.object({ ticketIds, status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]) }).strict();
+
+const bulkPrioritySchema = z.object({ ticketIds, priority: z.enum(["low", "medium", "high", "critical"]) }).strict();
+
+const mergeSchema = z.object({ primaryId: z.string().regex(/^[a-f\d]{24}$/i, "Choose the ticket to merge into.") }).strict();
+
 const replyEditSchema = z.object({ body: z.string().trim().min(1).max(5000) }).strict();
 
 const listQuerySchema = z.object({
@@ -117,6 +130,55 @@ export async function updateReply(request, response, next) {
 export async function deleteReply(request, response, next) {
     try {
         const ticket = await ticketService.deleteReply(request.params.ticketId, request.params.replyId, request.user);
+        response.json({ data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function bulkAssign(request, response, next) {
+    try {
+        const { ticketIds: ids, agentId } = bulkAssignSchema.parse(request.body);
+        const result = await ticketService.bulkAssign(ids, agentId, request.user);
+        response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function bulkStatus(request, response, next) {
+    try {
+        const { ticketIds: ids, status } = bulkStatusSchema.parse(request.body);
+        const result = await ticketService.bulkStatus(ids, status, request.user);
+        response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function bulkPriority(request, response, next) {
+    try {
+        const { ticketIds: ids, priority } = bulkPrioritySchema.parse(request.body);
+        const result = await ticketService.bulkPriority(ids, priority, request.user);
+        response.json({ data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getMergeCandidates(request, response, next) {
+    try {
+        const candidates = await ticketService.getMergeCandidates(request.params.ticketId, request.user);
+        response.json({ data: candidates });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function mergeTicket(request, response, next) {
+    try {
+        const { primaryId } = mergeSchema.parse(request.body);
+        const ticket = await ticketService.merge(request.params.ticketId, primaryId, request.user);
         response.json({ data: ticket });
     } catch (error) {
         next(error);

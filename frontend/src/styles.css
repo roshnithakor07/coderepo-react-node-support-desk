@@ -3172,6 +3172,187 @@ textarea:disabled {
     gap: 6px;
 }
 
+/* Bulk actions: the bar above the ticket list, the checkbox on each row, and the panel that says
+   which tickets refused an action. It wraps instead of squeezing, so it stays usable on a phone. */
+.bulk-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.bulk-bar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    min-height: 36px;
+}
+
+.bulk-bar-row select {
+    flex: 0 1 240px;
+    min-width: 0;
+}
+
+.bulk-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.bulk-select-all input,
+.row-select {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.title-with-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.data-table tbody tr.is-selected {
+    background: var(--accent-soft);
+}
+
+.bulk-problem {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-card);
+    background: var(--warning-soft);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.bulk-problem-title {
+    margin: 0 0 8px;
+    font-weight: 600;
+}
+
+.bulk-problem ul {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bulk-problem li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-wrap: anywhere;
+}
+
+.bulk-problem li span {
+    color: var(--text-secondary);
+}
+
+.bulk-problem-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Merging a duplicate: the choice of ticket, the action on the ticket page, and the banner on a ticket
+   that was merged away. */
+.merge-modal-intro,
+.merge-modal-empty {
+    margin: 0 0 14px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.merge-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: none;
+    padding: 0;
+    margin: 0 0 12px;
+    min-width: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.merge-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    cursor: pointer;
+    min-width: 0;
+}
+
+.merge-option.is-chosen {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.merge-option input {
+    width: auto;
+    margin: 3px 0 0;
+    accent-color: var(--accent);
+}
+
+.merge-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.merge-option-title {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.merge-option-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.ticket-merge-action {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.ticket-merged-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-button);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
 /* The two views of the ticket list: the viewer's own tickets, and the unassigned queue. */
 .view-tabs {
     display: flex;

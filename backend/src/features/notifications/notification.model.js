@@ -5,7 +5,15 @@ const notificationSchema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
         type: {
             type: String,
-            enum: ["ticket_assigned", "ticket_unassigned", "ticket_reply", "sla_warning", "sla_breached", "status_changed"],
+            enum: [
+                "ticket_assigned",
+                "ticket_unassigned",
+                "ticket_reply",
+                "sla_warning",
+                "sla_breached",
+                "status_changed",
+                "ticket_merged",
+            ],
             required: true,
         },
         message: { type: String, required: true, trim: true, maxlength: 280 },

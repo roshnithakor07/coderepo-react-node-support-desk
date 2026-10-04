@@ -40,6 +40,9 @@ const ticketSchema = new mongoose.Schema(
         // Set once admins have been told the ticket has nobody on it, so the alert is not repeated
         // every minute by the sweep. Cleared when someone is assigned.
         unassignedNotifiedAt: { type: Date, default: null },
+        // Set when this ticket was merged into another as a duplicate. It is then closed for good: its
+        // replies live on the other ticket, which is where the page links to.
+        mergedInto: { type: mongoose.Schema.Types.ObjectId, ref: "Ticket", default: null },
         replies: { type: [replySchema], default: [] },
     },
     { timestamps: true, versionKey: false },

@@ -9,6 +9,7 @@ const TYPE_ICONS = {
     sla_warning: ClockIcon,
     sla_breached: AlertCircleIcon,
     status_changed: InfoIcon,
+    ticket_merged: TicketIcon,
 };
 
 export function NotificationBell({ notifications, unreadCount, onMarkRead, onClear, onOpenTicket }) {

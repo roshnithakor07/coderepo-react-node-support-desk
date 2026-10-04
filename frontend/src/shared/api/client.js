@@ -32,7 +32,8 @@ export async function request(path, options = {}) {
             window.dispatchEvent(new CustomEvent("support-desk-session-expired", { detail: message }));
         }
         // The status travels with the message, so a page can tell "not yours" (403) from "gone" (404).
-        throw Object.assign(new Error(message), { status: response.status, code });
+        // `details` carries what a rule refused beyond the message, such as which tickets of a bulk action failed.
+        throw Object.assign(new Error(message), { status: response.status, code, details: payload?.error?.details });
     }
 
     if (!payload || !("data" in payload)) throw new Error("Service returned an invalid response.");

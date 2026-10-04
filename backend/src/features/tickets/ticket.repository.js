@@ -6,6 +6,8 @@ const populateFields = [
     { path: "createdBy", select: "name email role avatar" },
     { path: "assignedTo", select: "name email role avatar categories" },
     { path: "replies.author", select: "name email role avatar" },
+    // A merged duplicate links to the ticket its conversation moved to.
+    { path: "mergedInto", select: "title status" },
 ];
 
 const listPopulateFields = [
@@ -51,6 +53,17 @@ export const ticketRepository = {
     findByIdLean: (id) => Ticket.findById(id).populate(populateFields).lean(),
 
     exists: (id) => Ticket.exists({ _id: id }),
+
+    // Documents rather than plain objects, because a bulk action checks the same rules the single
+    // action does, and those read the ticket the way a saved document presents it.
+    findManyByIds: (ids) => Ticket.find({ _id: { $in: ids } }).populate(populateFields),
+
+    // What an agent is working right now: the tickets that move when they are deactivated. Oldest
+    // first, so the plan is the same every time it is made.
+    findOpenAssignedTo: (agentId, activeStatuses) =>
+        Ticket.find({ assignedTo: agentId, status: { $in: activeStatuses } })
+            .sort({ createdAt: 1, _id: 1 })
+            .populate(populateFields),
 
     // Sorting runs in the database so it holds across pages, not only inside the page on screen.
     async findMany(filter, { skip = 0, limit = 25, sort = { createdAt: -1 } } = {}) {
@@ -99,6 +112,12 @@ export const ticketRepository = {
         ]);
         return Object.fromEntries(rows.map((row) => [row._id, row.count]));
     },
+
+    // The customer's other tickets still in play: the only ones a duplicate can be merged into.
+    findMergeCandidates: (createdBy, excludeId) =>
+        Ticket.find({ createdBy, _id: { $ne: excludeId }, status: { $ne: "closed" } })
+            .sort({ createdAt: -1 })
+            .populate(populateFields),
 
     create: (input) => Ticket.create(input),
 

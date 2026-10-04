@@ -35,6 +35,13 @@ import { filtersFromQuery, queryFromFilters } from "./features/tickets/ticket-fi
 
 const NOTIFICATION_POLL_MS = 15000;
 
+// "3 tickets assigned." or, when some already had that result, "2 tickets assigned. 1 was already there."
+function bulkMessage({ updated, unchanged }, verb) {
+    const tickets = (count) => `${count} ${count === 1 ? "ticket" : "tickets"}`;
+    if (updated === 0) return `Nothing to change: ${tickets(unchanged)} already ${unchanged === 1 ? "has" : "have"} that.`;
+    return `${tickets(updated)} ${verb}.${unchanged > 0 ? ` ${unchanged} already had that.` : ""}`;
+}
+
 // Mirrors the ticket layout (header, conversation, properties card) so opening a ticket does not
 // reflow once the data lands.
 function TicketDetailSkeleton() {
@@ -341,7 +348,7 @@ export default function App() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (currentUser && (activeView === "agents" || activeView === "ticket-detail")) loadAgents();
+        if (currentUser && (activeView === "agents" || activeView === "ticket-detail" || activeView === "tickets")) loadAgents();
     }, [currentUser, activeView, loadAgents]);
 
     const loadCannedResponses = useCallback(() => {
@@ -606,6 +613,15 @@ export default function App() {
         }
     }
 
+    // The merge moves this ticket's conversation onto the other one, so that is where the page goes next.
+    async function handleMerge(primaryId) {
+        await ticketApi.merge(selectedTicketId, primaryId);
+        pushToast("success", `Merged into ${ticketNumber(primaryId)}. The conversation continues here.`);
+        loadTickets();
+        loadDashboard();
+        navigate(toHash(ticketPath(primaryId)));
+    }
+
     async function handleEditNote(replyId, body) {
         setIsSavingNote(true);
         try {
@@ -668,6 +684,31 @@ export default function App() {
         }
     }
 
+    // Both bulk actions throw on a refusal and leave the explaining to the list, which shows which
+    // tickets failed and why. Only a success is reported here.
+    async function handleBulkAssign(ids, agentId) {
+        const result = await ticketApi.bulkAssign(ids, agentId);
+        pushToast("success", bulkMessage(result, "assigned"));
+        loadTickets();
+        loadDashboard();
+    }
+
+    async function handleBulkStatus(ids, status) {
+        const result = await ticketApi.bulkStatus(ids, status);
+        pushToast("success", bulkMessage(result, "updated"));
+        loadTickets();
+        loadDashboard();
+    }
+
+    async function handleBulkPriority(ids, priority) {
+        const result = await ticketApi.bulkPriority(ids, priority);
+        pushToast("success", bulkMessage(result, "updated"));
+        loadTickets();
+        loadDashboard();
+    }
+
+    const handlePreviewDeactivation = useCallback((id) => agentApi.previewDeactivation(id), []);
+
     async function handleSetAgentCategories(id, categories) {
         setAgentBusy(true);
         try {
@@ -681,11 +722,14 @@ export default function App() {
         }
     }
 
-    function handleSetAgentActive(id, isActive, verb) {
+    function handleSetAgentActive(id, isActive, verb, options) {
         agentApi
-            .setActive(id, isActive)
-            .then(() => {
-                pushToast(isActive ? "success" : "warning", `Agent ${verb}d.`);
+            .setActive(id, isActive, options)
+            .then((agent) => {
+                const { moved, queued } = agent.reassigned || { moved: 0, queued: 0 };
+                const handedOn =
+                    moved + queued > 0 ? ` ${moved + queued} open ${moved + queued === 1 ? "ticket" : "tickets"} handed on.` : "";
+                pushToast(isActive ? "success" : "warning", `Agent ${verb}d.${handedOn}`);
                 loadAgents();
             })
             .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't update this agent. Please try again.")));
@@ -870,6 +914,10 @@ export default function App() {
                             onNewTicket={() => setShowNewTicketModal(true)}
                             onClaim={handleClaimFromQueue}
                             claimingId={claimingTicketId}
+                            agents={agents.filter((agent) => agent.isActive)}
+                            onBulkAssign={handleBulkAssign}
+                            onBulkStatus={handleBulkStatus}
+                            onBulkPriority={handleBulkPriority}
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
                             role={currentUser.role}
@@ -908,6 +956,7 @@ export default function App() {
                             onClaim={() => handleAssignTicket(currentUser.id)}
                             onEditNote={handleEditNote}
                             onDeleteNote={handleDeleteNote}
+                            onMerge={handleMerge}
                             onEditDetails={() => {
                                 setTicketEditError("");
                                 setShowEditTicketModal(true);
@@ -927,6 +976,7 @@ export default function App() {
                             onCreateAgent={handleCreateAgent}
                             onSetActive={handleSetAgentActive}
                             onSetCategories={handleSetAgentCategories}
+                            onPreviewDeactivation={handlePreviewDeactivation}
                             isAdmin={currentUser.role === "admin"}
                             error={agentError}
                             loadError={agentsLoadError}
