@@ -6,7 +6,15 @@ import { Table } from "../../shared/components/Table.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
 import { toHash } from "../../shared/utils/router.js";
 import { ticketPath } from "../../shared/utils/routes.js";
-import { DEFAULT_SORT, PRIORITY_OPTIONS, queryFromFilters, SORT_OPTIONS, STATUS_OPTIONS, UNASSIGNED_VIEW } from "./ticket-filters.js";
+import {
+    DEFAULT_SORT,
+    PRIORITY_OPTIONS,
+    queryFromFilters,
+    SORT_OPTIONS,
+    STATUS_OPTIONS,
+    UNASSIGNED_ASSIGNEE,
+    UNASSIGNED_VIEW,
+} from "./ticket-filters.js";
 
 function PriorityCell({ priority }) {
     return (
@@ -39,6 +47,22 @@ function SlaCell({ ticket }) {
             </span>
         </span>
     );
+}
+
+// Who the "Assigned to" filter offers: an admin any active agent, an agent themselves and the people
+// who cover a category with them, since those are the only agents their own list ever involves.
+// Sorted by name, so the same workspace always reads in the same order.
+function assigneeOptions(agents, role, currentUserId, categories) {
+    const mine = (categories || []).map((category) => String(category).toLowerCase());
+    const offered =
+        role === "admin"
+            ? agents
+            : agents.filter(
+                  (agent) =>
+                      agent._id === currentUserId ||
+                      (agent.categories || []).some((category) => mine.includes(String(category).toLowerCase())),
+              );
+    return [...offered].sort((first, second) => first.name.localeCompare(second.name));
 }
 
 // What the list means depends on who is looking: a customer sees their own tickets, an agent the
@@ -276,12 +300,19 @@ export function TicketList({
     isLoading,
     isRefreshing,
     role,
+    currentUserId,
     categories,
 }) {
     const [selected, setSelected] = useState([]);
     const [isBulkBusy, setIsBulkBusy] = useState(false);
     const search = filters.search || "";
-    const hasActiveFilters = Boolean(search || filters.status || filters.priority);
+    const hasActiveFilters = Boolean(search || filters.status || filters.priority || filters.assignee);
+    // Who a ticket is with is a staff question; a customer's list is their own tickets either way.
+    const canFilterByAssignee = role !== "customer";
+    const assignees = canFilterByAssignee ? assigneeOptions(agents, role, currentUserId, categories) : [];
+    const selectedAssignee = filters.assignee || "";
+    const isUnknownAssignee =
+        selectedAssignee && selectedAssignee !== UNASSIGNED_ASSIGNEE && !assignees.some((agent) => agent._id === selectedAssignee);
     const canCreate = role === "customer";
     const isQueue = filters.view === UNASSIGNED_VIEW;
     // Only an agent can take a ticket for themselves; an admin opens it and picks somebody.
@@ -434,6 +465,24 @@ export function TicketList({
                         </option>
                     ))}
                 </select>
+                {canFilterByAssignee && (
+                    <select
+                        value={selectedAssignee}
+                        onChange={(event) => onFilterChange({ ...filters, assignee: event.target.value, page: 1 })}
+                        aria-label="Filter by assignee"
+                    >
+                        <option value="">Anyone</option>
+                        <option value={UNASSIGNED_ASSIGNEE}>Unassigned</option>
+                        {assignees.map((agent) => (
+                            <option key={agent._id} value={agent._id}>
+                                {agent.name}
+                            </option>
+                        ))}
+                        {/* A link may name an agent who has since been deactivated; the filter still
+                            says what it is set to instead of showing an empty box. */}
+                        {isUnknownAssignee && <option value={selectedAssignee}>Agent no longer listed</option>}
+                    </select>
+                )}
                 {hasActiveFilters && (
                     <button type="button" className="link-button" onClick={clearFilters}>
                         Clear filters

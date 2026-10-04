@@ -45,6 +45,9 @@ const SORT_ORDERS = {
 
 export const TICKET_SORT_KEYS = Object.keys(SORT_ORDERS);
 
+// The "Assigned to" filter's value for the tickets nobody owns, next to the agent ids it also takes.
+export const UNASSIGNED_ASSIGNEE = "unassigned";
+
 // Audit actions that belong on the status history the ticket page shows.
 const HISTORY_ACTIONS = ["created", "reopened", "sla_breached", "merged"];
 
@@ -339,21 +342,35 @@ export const ticketService = {
     },
 
     async list(filters, actor) {
-        const query = scopeForView(actor, filters.view);
-        const isUnassignedQueue = filters.view === "unassigned";
+        // Who a ticket is with is a staff question: a customer's list is their own tickets either way.
+        if (filters.assignee && actor.role === "customer") {
+            throw new AppError(403, "FORBIDDEN", "Filtering by assignee is for the support team. Every ticket on your list is your own.");
+        }
 
-        // Inside the unassigned queue a filter can only narrow what the queue already allows, never
+        const isUnassignedQueue = filters.view === "unassigned";
+        const wantsUnowned = filters.assignee === UNASSIGNED_ASSIGNEE;
+        // "Unassigned" means on the list what it means in the queue: the tickets nobody owns that this
+        // person may work, the admin's whole backlog and an agent's own categories. Taking the queue's
+        // own scope is what stops the filter showing more than the queue does.
+        const query = wantsUnowned && !isUnassignedQueue ? unassignedScopeFor(actor) : scopeForView(actor, filters.view);
+        const unownedOnly = isUnassignedQueue || wantsUnowned;
+
+        // Looking at tickets nobody owns, a filter can only narrow what that scope already allows, never
         // widen it: asking for a finished status, or for a category the team does not cover, matches
         // nothing rather than reaching past the scope.
-        if (filters.status) query.status = narrowTo(filters.status, !isUnassignedQueue || ACTIVE_STATUSES.includes(filters.status));
+        if (filters.status) query.status = narrowTo(filters.status, !unownedOnly || ACTIVE_STATUSES.includes(filters.status));
         if (filters.priority) query.priority = filters.priority;
         if (filters.category) {
-            query.category = narrowTo(
-                filters.category,
-                !isUnassignedQueue || actor.role === "admin" || coversCategory(actor, filters.category),
-            );
+            query.category = narrowTo(filters.category, !unownedOnly || actor.role === "admin" || coversCategory(actor, filters.category));
         }
-        if (filters.assignedTo && actor.role === "admin" && !isUnassignedQueue) query.assignedTo = filters.assignedTo;
+        // A named agent: an admin may ask for any of them, an agent only for themselves, because this
+        // filter writes over the scope that limits an agent's list to their own tickets. Where nothing is
+        // owned, a named agent matches nothing.
+        if (filters.assignee && !wantsUnowned) {
+            query.assignedTo = unownedOnly
+                ? { $in: [] }
+                : narrowTo(filters.assignee, actor.role === "admin" || filters.assignee === actor.id);
+        }
         const search = (filters.search || "").trim();
         if (search) query.$or = searchConditions(search);
 

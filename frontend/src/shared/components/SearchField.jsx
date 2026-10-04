@@ -4,7 +4,8 @@ import { CloseIcon, SearchIcon } from "./Icon.jsx";
 const DEBOUNCE_MS = 300;
 
 // A search box that types freely and only asks the server once typing pauses, so a word is one
-// request instead of one per keystroke. The clear button empties it immediately.
+// request instead of one per keystroke. The clear button empties it immediately. Saved entries are
+// turned off, because the browser's own list of them drops over the rows underneath.
 export function SearchField({ value, onChange, label, placeholder, id }) {
     const [draft, setDraft] = useState(value);
     const inputRef = useRef(null);
@@ -42,6 +43,7 @@ export function SearchField({ value, onChange, label, placeholder, id }) {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 aria-label={label}
+                autoComplete="off"
             />
             {draft && (
                 <button type="button" className="search-clear" onClick={clear} aria-label={`Clear ${label.toLowerCase()}`}>

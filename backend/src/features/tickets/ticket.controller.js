@@ -63,7 +63,12 @@ const listQuerySchema = z.object({
     status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     category: z.string().optional(),
-    assignedTo: z.string().optional(),
+    // "unassigned" or a well-formed agent id. Anything else is a bad filter, answered as one rather
+    // than quietly returning an empty list.
+    assignee: z
+        .string()
+        .regex(/^(unassigned|[a-f\d]{24})$/i, 'Filter by an agent id, or by "unassigned".')
+        .optional(),
     // "unassigned" is the team's queue of tickets nobody owns; anything else is the viewer's own list.
     view: z.enum(["unassigned"]).optional(),
     search: z.string().max(140).optional(),

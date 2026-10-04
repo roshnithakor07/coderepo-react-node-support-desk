@@ -23,6 +23,11 @@ const PAGE_SIZE = 20;
 // support team has one, so for a customer the parameter is simply not a view that exists.
 export const UNASSIGNED_VIEW = "unassigned";
 
+// The "Assigned to" filter takes an agent id or this, for the tickets nobody owns. It is a staff
+// filter: a customer's list is their own tickets whoever is working them.
+export const UNASSIGNED_ASSIGNEE = "unassigned";
+const OBJECT_ID = /^[a-f\d]{24}$/i;
+
 export function filtersFromQuery(search, role) {
     const params = new URLSearchParams(search);
     // Digits only: Number() would also accept "1e3", " 2" or "0x10" as a page.
@@ -40,7 +45,14 @@ export function filtersFromQuery(search, role) {
         status: STATUS_OPTIONS.includes(status) ? status : "",
         priority: PRIORITY_OPTIONS.includes(priority) ? priority : "",
         view: view === UNASSIGNED_VIEW && role !== "customer" ? UNASSIGNED_VIEW : "",
+        assignee: assigneeFromQuery(params.get("assignee"), role),
     };
+}
+
+// Only a shape the API accepts reaches it: an agent id or "unassigned", and neither for a customer.
+function assigneeFromQuery(assignee, role) {
+    if (!assignee || role === "customer") return "";
+    return assignee === UNASSIGNED_ASSIGNEE || OBJECT_ID.test(assignee) ? assignee : "";
 }
 
 // Defaults are left out, so the plain list stays at a plain #/tickets.
@@ -50,6 +62,7 @@ export function queryFromFilters(filters) {
         search: filters.search || "",
         status: filters.status || "",
         priority: filters.priority || "",
+        assignee: filters.assignee || "",
         sort: filters.sort && filters.sort !== DEFAULT_SORT ? filters.sort : "",
         page: filters.page > 1 ? String(filters.page) : "",
     };

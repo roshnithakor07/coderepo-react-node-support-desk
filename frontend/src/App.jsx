@@ -940,6 +940,7 @@ export default function App() {
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
                             role={currentUser.role}
+                            currentUserId={currentUser.id}
                             categories={currentUser.categories}
                         />
                     )}

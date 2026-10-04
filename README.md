@@ -28,9 +28,9 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
-**At a glance:** 37 distinct product rules across eight areas (the lifecycle, SLA integrity, agent
+**At a glance:** 38 distinct product rules across eight areas (the lifecycle, SLA integrity, agent
 teams, the requester's edit window, internal notes, the size of a conversation, multi-record actions
-and access). Each rule is numbered once, with the cases that prove it listed under it, 117 in all,
+and access). Each rule is numbered once, with the cases that prove it listed under it, 124 in all,
 each with its test. The 11 input and resilience checks at the end are listed separately and not
 counted as rules.
 
@@ -40,6 +40,7 @@ counted as rules.
 |---|---|---|
 | Ticket list, bulk bar | Select tickets (one by one or the whole page), then assign, set the status or set the priority of all of them at once, all or nothing | Acting on several records at once |
 | Ticket list, Unassigned queue (`#/tickets?view=unassigned`) | An agent claims a ticket nobody owns, limited to their team's categories | Agent teams |
+| Ticket list, filters (`#/tickets?assignee=…`) | Search, status, priority and "Assigned to" narrow the list in the database and live in the URL, so a refresh, Back and a shared link all show the same list | Access, agent teams |
 | Ticket detail, status control and history | Moves a ticket one step through `open -> in_progress -> pending -> resolved -> closed`, with every move on its status history | Ticket lifecycle, SLA integrity |
 | Ticket detail, merge | Folds a duplicate into the primary: the replies move, the duplicate closes, both histories record it | Acting on several records at once |
 | Ticket detail, requester actions | The customer closes, reopens or edits their own ticket within the rules | Ticket lifecycle, the requester's edit window |
@@ -114,6 +115,13 @@ account created before teams existed looks like until an admin sets them on the 
 |  | An agent's categories must exist in Settings | `POST /agents`, `PATCH /agents/:id/categories` | 422 `UNKNOWN_CATEGORY` | "a category that is not in Settings is refused, and the message says where to add it" |
 |  | An agent must be on at least one category | `POST /agents`, `PATCH /agents/:id/categories` | 400 `VALIDATION_ERROR` | "an empty team is refused: an agent nothing can reach is not a team" |
 | **14.** Changing a team never moves the work an agent already holds | Changing a team never moves what the agent already holds | `PATCH /agents/:id/categories` | 200 | "an admin sets them, and what the agent already holds stays with them" |
+| **38.** The "Assigned to" filter can only narrow what the viewer may already see | An admin filters by any agent, and the count is that agent's own | `GET /tickets?assignee=<id>` | 200 | "asking for one agent returns their tickets and nobody else's", "another agent's filter returns a different set" |
+|  | It combines with the search, the status and the paging, and the page is a page of the filter | `GET /tickets?assignee=<id>&status=&search=` | 200 | "it combines with the status filter, and with the search", "a page of filtered results is a page of that filter, not of the whole list" |
+|  | An agent may ask only for themselves; another agent's name shows nothing, never their tickets | `GET /tickets?assignee=<id>` | 200 | "asking for themselves is their own list", "asking for another agent shows nothing, and never their tickets" |
+|  | "Unassigned" means what it means in the queue: unowned tickets still in play, an agent's own categories only | `GET /tickets?assignee=unassigned` | 200 | "unassigned returns the tickets nobody owns, still in play", "unassigned is their team's queue, never another team's" |
+|  | Inside the queue a named agent matches nothing, because nobody owns those tickets | `GET /tickets?view=unassigned&assignee=<id>` | 200 | "inside the queue, asking for an agent matches nothing, because nobody owns those tickets" |
+|  | A customer cannot filter by assignee at all, and their own list is untouched | `GET /tickets?assignee=<id>` | 403 `FORBIDDEN` | "a customer cannot filter by assignee at all" |
+|  | A malformed assignee is a bad filter, not an empty list | `GET /tickets?assignee=not-an-id` | 400 `VALIDATION_ERROR` | "a malformed assignee is a 400, not an empty list" |
 
 ### The requester's edit window
 
