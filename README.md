@@ -199,7 +199,8 @@ single action as it is written and reported, never silently overwritten.
 | The full audit trail is admin-only | `GET /tickets/:id/audit`, `GET /audit-logs` | 403 `FORBIDDEN` | "agents and customers cannot read it" |
 | Sign-up always creates a customer; the role cannot be chosen | `POST /auth/register` | 201 | "a newly registered customer cannot reach admin-only routes" |
 | One account per email address | `POST /auth/register`, `POST /agents` | 409 `EMAIL_TAKEN` | "signing up with an email already in use is refused", "adding an agent with an email already in use is refused" |
-| An inactive agent cannot sign in | `POST /auth/login` | 403 `FORBIDDEN` | "an inactive agent cannot sign in" |
+| A deactivated account with the right password is told it is deactivated, and gets no session | `POST /auth/login` | 403 `ACCOUNT_DEACTIVATED` | "the right password is told the account is deactivated (403)", "an inactive agent cannot sign in" |
+| A wrong password or an unknown email gets one generic answer, after the same password check, so neither the answer nor its timing reveals which emails have accounts | `POST /auth/login` | 401 `INVALID_CREDENTIALS` | "a wrong password gets the generic answer (401)", "an unknown email gets the same generic answer (401), after a password check" |
 | Signing out revokes the token everywhere, across restarts | `POST /auth/logout` | 401 `AUTH_REQUIRED` | "a signed-out token is still refused by a freshly started process (nothing held in memory)" |
 | Canned responses are unreachable for customers | `GET`/`POST /canned-responses` | 403 `FORBIDDEN` | "customers cannot reach them at all" |
 | An agent's template is personal; only an admin can publish a global one | `POST /canned-responses` | 201 | "an agent's template is personal, whatever they ask for" |
