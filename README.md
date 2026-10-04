@@ -357,6 +357,10 @@ Visit `http://localhost:3000`. The frontend proxies `/api/*` to the backend auto
 
 MongoDB behavior: `setup.sh` checks `127.0.0.1:27017` and starts a local `mongod` (via `.mongodb/`) if nothing is listening. The seed script always clears every collection and re-inserts a deterministic baseline, so re-running `bun run seed` (or restarting via `bun start`, which reseeds on every `prestart`) restores a known-good state.
 
+### Formatting
+
+Source files use 4-space indentation, the same as the reference starter's code. The starter's `.prettierrc` sets `useTabs: true`, which its own source doesn't follow either, so `prettier --check` reports the same style difference on the unmodified starter files; `.prettierignore` is kept identical to the starter's.
+
 ### Seeded login credentials
 
 All seeded accounts share one password: **`SupportDesk@2026`**
