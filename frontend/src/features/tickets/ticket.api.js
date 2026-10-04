@@ -11,6 +11,11 @@ export const ticketApi = {
     create: (ticket) => request("/tickets", { method: "POST", body: JSON.stringify(ticket) }),
     update: (id, patch) => request(`/tickets/${id}`, { method: "PUT", body: JSON.stringify(patch) }),
     reply: (id, reply) => request(`/tickets/${id}/replies`, { method: "POST", body: JSON.stringify(reply) }),
+    // A ticket carries only the latest page of its conversation; this walks back through the older ones.
+    replies: (id, { before, limit }) => {
+        const query = new URLSearchParams({ ...(before ? { before } : {}), limit: String(limit) });
+        return request(`/tickets/${id}/replies?${query.toString()}`);
+    },
     updateReply: (id, replyId, body) => request(`/tickets/${id}/replies/${replyId}`, { method: "PUT", body: JSON.stringify({ body }) }),
     deleteReply: (id, replyId) => request(`/tickets/${id}/replies/${replyId}`, { method: "DELETE" }),
     assign: (id, agentId) => request(`/tickets/${id}/assign`, { method: "POST", body: JSON.stringify({ agentId }) }),

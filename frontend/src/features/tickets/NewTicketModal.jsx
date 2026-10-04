@@ -6,12 +6,15 @@ import { validateMaxLength, validateRequired } from "../../shared/utils/validate
 // The admin-managed list from Settings; the fallback only covers the moment before it arrives.
 const FALLBACK_CATEGORIES = ["general"];
 
-export function NewTicketModal({ onClose, onCreate, categories, isBusy, error }) {
+// `draft` prefills the form: a follow-up to a ticket whose conversation is full opens already named
+// after it and filed in the same category. A category that is no longer in Settings falls back to the
+// first one on offer, so the select is never left on a value it cannot show.
+export function NewTicketModal({ onClose, onCreate, categories, draft, isBusy, error }) {
     const options = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
-    const [title, setTitle] = useState("");
+    const [title, setTitle] = useState(draft?.title || "");
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState("medium");
-    const [category, setCategory] = useState(options[0]);
+    const [category, setCategory] = useState(options.includes(draft?.category) ? draft.category : options[0]);
     const [fieldErrors, setFieldErrors] = useState({});
 
     function validate() {
