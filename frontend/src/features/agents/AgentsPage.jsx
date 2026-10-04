@@ -80,6 +80,7 @@ export function AgentsPage({
     onCreateAgent,
     onSetActive,
     onSetCategories,
+    onPreviewDeactivation,
     isAdmin,
     error,
     loadError,
@@ -95,7 +96,8 @@ export function AgentsPage({
     const [newCategories, setNewCategories] = useState([]);
     const [fieldErrors, setFieldErrors] = useState({});
     const [sortValue, setSortValue] = useState(DEFAULT_SORT);
-    const [agentToDeactivate, setAgentToDeactivate] = useState(null);
+    // The agent being deactivated, and what the server says that would do (null until it answers).
+    const [deactivation, setDeactivation] = useState(null);
     const [agentToEdit, setAgentToEdit] = useState(null);
     const [editCategories, setEditCategories] = useState([]);
     const [editError, setEditError] = useState("");
@@ -164,24 +166,49 @@ export function AgentsPage({
             .catch((problem) => setEditError(problem.message));
     }
 
-    // Deactivation asks first; reactivation is not destructive, so it happens at once.
+    // Deactivation asks first, and what it asks is what will actually happen: the server says how many
+    // open tickets move and to whom, or why it is refused. Reactivation is not destructive, so it
+    // happens at once.
     function handleToggleActive(agent) {
-        if (agent.isActive) setAgentToDeactivate(agent);
-        else onSetActive(agent._id, true, "activate");
+        if (!agent.isActive) {
+            onSetActive(agent._id, true, "activate");
+            return;
+        }
+        setDeactivation({ agent, preview: null, error: "" });
+        onPreviewDeactivation(agent._id)
+            .then((preview) => setDeactivation((current) => (current?.agent._id === agent._id ? { ...current, preview } : current)))
+            .catch((problem) =>
+                setDeactivation((current) => (current?.agent._id === agent._id ? { ...current, error: problem.message } : current)),
+            );
     }
 
+    // When the agent is the last cover for a category, going ahead is the admin's explicit choice to
+    // send that work to the unassigned queue; otherwise it is the ordinary deactivation.
     function confirmDeactivation() {
-        onSetActive(agentToDeactivate._id, false, "deactivate");
-        setAgentToDeactivate(null);
+        const options = deactivation.preview?.blockedReason ? { sendBlockedToQueue: true } : undefined;
+        onSetActive(deactivation.agent._id, false, "deactivate", options);
+        setDeactivation(null);
     }
 
-    function deactivationMessage(agent) {
-        const openTickets = agent.openTicketCount ?? 0;
-        const ticketNote =
-            openTickets > 0
-                ? ` Their ${openTickets} open ${openTickets === 1 ? "ticket stays" : "tickets stay"} assigned to them until you reassign ${openTickets === 1 ? "it" : "them"}.`
-                : "";
-        return `${agent.name} will be signed out, won't be able to sign in, and won't get new tickets.${ticketNote} You can activate them again later.`;
+    function deactivationMessage({ agent, preview, error }) {
+        if (error) return error;
+        if (!preview) return "Checking what happens to their tickets...";
+        if (preview.blockedReason) {
+            const queued = preview.toQueue;
+            // The block can come from open work that is already unassigned, in which case nothing of
+            // theirs moves and the point is that nobody will be able to pick it up.
+            const consequence =
+                queued === 0
+                    ? "none of their own tickets move, but that work stays in the Unassigned queue with nobody covering it"
+                    : `${queued === 1 ? "their ticket nobody else covers waits" : `the ${queued} tickets nobody else covers wait`} in the Unassigned queue, with every admin told`;
+            return `${preview.blockedReason} If you go ahead anyway, ${agent.name} is deactivated now and ${consequence}.`;
+        }
+        const consequence = `${agent.name} will be signed out, won't be able to sign in, and won't get new tickets.`;
+        if (preview.openTickets === 0) return `${consequence} They have no open tickets. You can activate them again later.`;
+        const moves = preview.reassignTo.map((entry) => `${entry.count} to ${entry.name}`);
+        if (preview.toQueue > 0)
+            moves.push(`${preview.toQueue} to the Unassigned queue, because nobody else covers ${preview.toQueue === 1 ? "it" : "them"}`);
+        return `${consequence} Their ${preview.openTickets} open ${preview.openTickets === 1 ? "ticket moves" : "tickets move"} now: ${moves.join(", ")}. Resolved and closed tickets stay with them. You can activate them again later, but the tickets will not move back.`;
     }
 
     return (
@@ -397,13 +424,21 @@ export function AgentsPage({
                     </form>
                 </Modal>
             )}
-            {agentToDeactivate && (
+            {deactivation && (
                 <ConfirmationDialog
-                    title={`Deactivate ${agentToDeactivate.name}?`}
-                    message={deactivationMessage(agentToDeactivate)}
-                    confirmLabel="Deactivate"
+                    title={
+                        deactivation.preview?.blockedReason
+                            ? `${deactivation.agent.name} is the last cover`
+                            : `Deactivate ${deactivation.agent.name}?`
+                    }
+                    message={deactivationMessage(deactivation)}
+                    confirmLabel={
+                        deactivation.error ? null : deactivation.preview?.blockedReason ? "Send to unassigned queue" : "Deactivate"
+                    }
+                    cancelLabel={deactivation.error ? "Close" : "Cancel"}
+                    confirmDisabled={!deactivation.preview}
                     danger
-                    onCancel={() => setAgentToDeactivate(null)}
+                    onCancel={() => setDeactivation(null)}
                     onConfirm={confirmDeactivation}
                 />
             )}

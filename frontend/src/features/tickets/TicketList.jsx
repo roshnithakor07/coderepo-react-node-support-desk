@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { StatusBadge } from "../../shared/components/Badge.jsx";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { SearchField } from "../../shared/components/SearchField.jsx";
 import { Table } from "../../shared/components/Table.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, titleCase } from "../../shared/utils/format.js";
@@ -71,6 +73,172 @@ function ClaimCell({ ticket, onClaim, isClaiming }) {
     );
 }
 
+// Acting on several tickets at once. One picker holds every action (give them to an agent, or move
+// them to a status), so the bar stays one row wide on a phone. The server holds every ticket to the
+// rule the single action enforces and refuses the lot if any breaks it, so the answer is a list of
+// which tickets and why, with a way to drop them from the selection and try again.
+function BulkBar({ tickets, selected, onSelectedChange, agents, onBulkAssign, onBulkStatus, onBulkPriority }) {
+    const [action, setAction] = useState("");
+    const [confirming, setConfirming] = useState(null);
+    const [isBusy, setIsBusy] = useState(false);
+    const [problem, setProblem] = useState(null);
+
+    const ids = tickets.map((ticket) => ticket._id);
+    const picked = ids.filter((id) => selected.includes(id));
+    const allPicked = ids.length > 0 && picked.length === ids.length;
+
+    function describe(value) {
+        const [kind, target] = value.split(":");
+        if (kind === "assign") {
+            const agent = agents.find((entry) => entry._id === target);
+            return {
+                kind,
+                target,
+                summary: `Assign to ${agent?.name || "this agent"}`,
+                verb: `assign them to ${agent?.name || "this agent"}`,
+            };
+        }
+        if (kind === "priority") {
+            return {
+                kind,
+                target,
+                summary: `Set priority to ${titleCase(target)}`,
+                verb: `get ${titleCase(target)} priority, with a fresh response time from now`,
+            };
+        }
+        return { kind, target, summary: `Set status to ${titleCase(target)}`, verb: `move them to ${titleCase(target)}` };
+    }
+
+    async function run() {
+        const { kind, target } = confirming;
+        setConfirming(null);
+        setIsBusy(true);
+        setProblem(null);
+        try {
+            if (kind === "assign") await onBulkAssign(picked, target);
+            else if (kind === "priority") await onBulkPriority(picked, target);
+            else await onBulkStatus(picked, target);
+            onSelectedChange([]);
+            setAction("");
+        } catch (error) {
+            setProblem({ message: error.message, rejections: error.details?.rejections || [] });
+        } finally {
+            setIsBusy(false);
+        }
+    }
+
+    function dropFailed() {
+        const failed = new Set(problem.rejections.map((entry) => entry.ticketId));
+        onSelectedChange(selected.filter((id) => !failed.has(id)));
+        setProblem(null);
+    }
+
+    return (
+        <div className="bulk-bar" role="region" aria-label="Bulk actions">
+            <div className="bulk-bar-row">
+                <label className="bulk-select-all">
+                    <input
+                        type="checkbox"
+                        checked={allPicked}
+                        ref={(element) => {
+                            if (element) element.indeterminate = picked.length > 0 && !allPicked;
+                        }}
+                        onChange={() => onSelectedChange(allPicked ? [] : ids)}
+                        disabled={ids.length === 0 || isBusy}
+                    />
+                    {picked.length > 0 ? `${picked.length} selected` : "Select all on this page"}
+                </label>
+                {picked.length > 0 && (
+                    <>
+                        <label htmlFor="bulk-action" className="visually-hidden">
+                            Action for the selected tickets
+                        </label>
+                        <select id="bulk-action" value={action} onChange={(event) => setAction(event.target.value)} disabled={isBusy}>
+                            <option value="">Choose an action...</option>
+                            {agents.length > 0 && (
+                                <optgroup label="Assign to">
+                                    {agents.map((agent) => (
+                                        <option key={agent._id} value={`assign:${agent._id}`}>
+                                            {agent.name}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
+                            <optgroup label="Set priority to">
+                                {PRIORITY_OPTIONS.map((priority) => (
+                                    <option key={priority} value={`priority:${priority}`}>
+                                        {titleCase(priority)}
+                                    </option>
+                                ))}
+                            </optgroup>
+                            <optgroup label="Set status to">
+                                {STATUS_OPTIONS.map((status) => (
+                                    <option key={status} value={`status:${status}`}>
+                                        {titleCase(status)}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        </select>
+                        <button
+                            type="button"
+                            className="button-primary button-compact"
+                            disabled={!action || isBusy}
+                            onClick={() => setConfirming(describe(action))}
+                        >
+                            {isBusy && <span className="spinner" aria-hidden="true" />}
+                            {isBusy ? "Applying..." : "Apply"}
+                        </button>
+                        <button type="button" className="link-button" onClick={() => onSelectedChange([])} disabled={isBusy}>
+                            Clear
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {problem && (
+                <div className="bulk-problem" role="alert">
+                    {problem.rejections.length > 0 ? (
+                        <>
+                            <p className="bulk-problem-title">
+                                Nothing was changed. {problem.rejections.length} of {picked.length} selected{" "}
+                                {picked.length === 1 ? "ticket" : "tickets"} can&rsquo;t take this action:
+                            </p>
+                            <ul>
+                                {problem.rejections.map((entry) => (
+                                    <li key={entry.ticketId}>
+                                        <strong>{entry.title || "Unknown ticket"}</strong>
+                                        <span>{entry.message}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <div className="bulk-problem-actions">
+                                <button type="button" className="button-secondary button-compact" onClick={dropFailed}>
+                                    Deselect {problem.rejections.length === 1 ? "it" : "these"}
+                                </button>
+                                <button type="button" className="link-button" onClick={() => setProblem(null)}>
+                                    Dismiss
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="bulk-problem-title">{problem.message}</p>
+                    )}
+                </div>
+            )}
+
+            {confirming && (
+                <ConfirmationDialog
+                    title={`${confirming.summary}?`}
+                    message={`${picked.length} ${picked.length === 1 ? "ticket" : "tickets"} will ${confirming.verb}. They change together: if any one of them can't, none do.`}
+                    confirmLabel="Apply"
+                    onCancel={() => setConfirming(null)}
+                    onConfirm={run}
+                />
+            )}
+        </div>
+    );
+}
+
 export function TicketList({
     tickets,
     total,
@@ -80,11 +248,16 @@ export function TicketList({
     onNewTicket,
     onClaim,
     claimingId,
+    agents,
+    onBulkAssign,
+    onBulkStatus,
+    onBulkPriority,
     isLoading,
     isRefreshing,
     role,
     categories,
 }) {
+    const [selected, setSelected] = useState([]);
     const search = filters.search || "";
     const hasActiveFilters = Boolean(search || filters.status || filters.priority);
     const canCreate = role === "customer";
@@ -94,6 +267,12 @@ export function TicketList({
     const pageSize = filters.pageSize || 20;
     const page = filters.page || 1;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    // A selection belongs to the page it was made on: a new search, filter, sort, page or view starts clean.
+    const listKey = JSON.stringify(queryFromFilters(filters));
+    useEffect(() => setSelected([]), [listKey]);
+
+    const canBulk = role !== "customer";
 
     function clearFilters() {
         onFilterChange({ page: 1, pageSize, sort: filters.sort || DEFAULT_SORT, view: filters.view });
@@ -112,9 +291,24 @@ export function TicketList({
             sort: ["title_asc", "title_desc"],
             // A real link, so the ticket can be opened in a new tab; the rest of the row opens it here.
             render: (row) => (
-                <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row._id))}>
-                    {row.title}
-                </a>
+                <span className="title-with-select">
+                    {canBulk && (
+                        <input
+                            type="checkbox"
+                            className="row-select"
+                            aria-label={`Select ${row.title}`}
+                            checked={selected.includes(row._id)}
+                            onChange={() =>
+                                setSelected((current) =>
+                                    current.includes(row._id) ? current.filter((id) => id !== row._id) : [...current, row._id],
+                                )
+                            }
+                        />
+                    )}
+                    <a className="ticket-title-cell ticket-title-link" href={toHash(ticketPath(row._id))}>
+                        {row.title}
+                    </a>
+                </span>
             ),
         },
         { key: "status", header: "Status", sort: ["status"], render: (row) => <StatusBadge status={row.status} /> },
@@ -220,8 +414,21 @@ export function TicketList({
                 )}
             </div>
 
+            {canBulk && !isLoading && tickets.length > 0 && (
+                <BulkBar
+                    tickets={tickets}
+                    selected={selected}
+                    onSelectedChange={setSelected}
+                    agents={agents}
+                    onBulkAssign={onBulkAssign}
+                    onBulkStatus={onBulkStatus}
+                    onBulkPriority={onBulkPriority}
+                />
+            )}
+
             <Table
                 rowKey={(row) => row._id}
+                rowClassName={(row) => (selected.includes(row._id) ? "is-selected" : "")}
                 onRowClick={(row) => onSelectTicket(row._id)}
                 emptyTitle={
                     search

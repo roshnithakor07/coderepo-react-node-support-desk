@@ -16,6 +16,7 @@ export function Table({
     rows,
     rowKey,
     onRowClick,
+    rowClassName,
     emptyMessage = "Nothing to show yet.",
     emptyTitle = "Nothing here yet",
     emptyDescription,
@@ -107,7 +108,7 @@ export function Table({
     // A link or a button inside a row does its own job (including Ctrl/Cmd-click into a new tab), so
     // the row only handles clicks and keys that land on the row itself.
     function handleClick(event, row) {
-        if (event.target.closest("a, button")) return;
+        if (event.target.closest("a, button, input, label")) return;
         onRowClick(row);
     }
 
@@ -128,7 +129,7 @@ export function Table({
                     {rows.map((row) => (
                         <tr
                             key={rowKey(row)}
-                            className={onRowClick ? "clickable" : ""}
+                            className={`${onRowClick ? "clickable" : ""} ${rowClassName ? rowClassName(row) : ""}`.trim()}
                             onClick={onRowClick ? (event) => handleClick(event, row) : undefined}
                             onKeyDown={onRowClick ? (event) => handleKeyDown(event, row) : undefined}
                             tabIndex={onRowClick ? 0 : undefined}

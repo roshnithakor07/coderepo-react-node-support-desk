@@ -127,7 +127,7 @@ function assigneeOptionLabel(agent, category) {
     return agent.name;
 }
 
-export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUpdate, onAssign, onClaim, isUpdating }) {
+export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUpdate, onAssign, onClaim, onOpenMerge, isUpdating }) {
     const permissions = ticket.permissions || {};
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const isClosed = ticket.status === "closed";
@@ -228,6 +228,15 @@ export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUp
                     </PropertyRow>
                 )}
             </div>
+
+            {permissions.canMerge && (
+                <div className="ticket-merge-action">
+                    <button type="button" className="button-secondary button-compact" onClick={onOpenMerge} disabled={isUpdating}>
+                        Merge into another ticket
+                    </button>
+                    <p className="ticket-info-hint">For a duplicate of one of this customer&rsquo;s other open tickets.</p>
+                </div>
+            )}
 
             {currentUser.role === "customer" && (
                 <RequesterActions ticket={ticket} permissions={permissions} onUpdate={onUpdate} isUpdating={isUpdating} />

@@ -4,6 +4,7 @@ import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.j
 import { ArrowLeftIcon, LockIcon } from "../../shared/components/Icon.jsx";
 import { formatDateTime, formatSlaCountdown, getSlaProgress, initials, ticketNumber } from "../../shared/utils/format.js";
 import { useFitsInView } from "../../shared/utils/pinning.js";
+import { MergeTicketModal } from "./MergeTicketModal.jsx";
 import { StatusHistory } from "./StatusHistory.jsx";
 import { TicketProperties } from "./TicketProperties.jsx";
 
@@ -120,6 +121,7 @@ export function TicketDetail({
     onEditNote,
     onDeleteNote,
     onEditDetails,
+    onMerge,
     isReplying,
     isUpdating,
     isSavingNote,
@@ -132,6 +134,7 @@ export function TicketDetail({
     const [showCanned, setShowCanned] = useState(false);
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [noteToDelete, setNoteToDelete] = useState(null);
+    const [showMerge, setShowMerge] = useState(false);
     const replyFieldRef = useRef(null);
     const latestMessageRef = useRef(null);
 
@@ -224,6 +227,16 @@ export function TicketDetail({
                         </span>
                     </div>
                 </div>
+                {/* A merged duplicate's conversation lives on the other ticket, so the page says where. */}
+                {ticket.mergedInto && (
+                    <p className="ticket-merged-banner">
+                        <LockIcon /> Merged into{" "}
+                        <a href={`#/tickets/${ticket.mergedInto._id}`}>
+                            {ticketNumber(ticket.mergedInto._id)} {ticket.mergedInto.title}
+                        </a>
+                        . The conversation continues there.
+                    </p>
+                )}
                 <div className="ticket-meta-row">
                     <p className="ticket-meta">
                         Opened by {ticket.createdBy?.name} &middot; {formatDateTime(ticket.createdAt)}
@@ -405,6 +418,7 @@ export function TicketDetail({
                             onUpdate={onUpdate}
                             onAssign={onAssign}
                             onClaim={onClaim}
+                            onOpenMerge={() => setShowMerge(true)}
                             isUpdating={isUpdating}
                         />
                     </aside>
@@ -414,6 +428,8 @@ export function TicketDetail({
                     </aside>
                 </div>
             </div>
+
+            {showMerge && <MergeTicketModal ticket={ticket} onClose={() => setShowMerge(false)} onMerge={onMerge} />}
 
             {noteToDelete && (
                 <ConfirmationDialog
