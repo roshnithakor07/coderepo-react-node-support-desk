@@ -5,7 +5,8 @@ export const notificationRepository = {
     createMany: (inputs) => Notification.insertMany(inputs),
     findForUser: (userId, limit) => Notification.find({ userId }).sort({ createdAt: -1 }).limit(limit).lean(),
     unreadCount: (userId) => Notification.countDocuments({ userId, isRead: false }),
-    markRead: (userId, ids) => Notification.updateMany({ userId, _id: { $in: ids } }, { $set: { isRead: true } }),
+    // Scoped to the owner, so another user's notification simply matches nothing.
+    markOneRead: (userId, id) => Notification.updateOne({ _id: id, userId }, { $set: { isRead: true } }),
     markAllRead: (userId) => Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } }),
     clearAll: (userId) => Notification.deleteMany({ userId }),
 };

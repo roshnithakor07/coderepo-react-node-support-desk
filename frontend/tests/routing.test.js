@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+    assigneeChoices,
     DEFAULT_SORT,
     filtersFromQuery,
     PRIORITY_OPTIONS,
@@ -110,12 +111,30 @@ describe("ticket list filters in the URL", () => {
             status: "open",
             priority: "high",
             view: "",
+            assignee: "",
         });
     });
 
     test("an empty query is the plain list", () => {
-        expect(filtersFromQuery("")).toEqual({ page: 1, pageSize: 20, sort: DEFAULT_SORT, search: "", status: "", priority: "", view: "" });
-        expect(queryFromFilters(filtersFromQuery(""))).toEqual({ view: "", search: "", status: "", priority: "", sort: "", page: "" });
+        expect(filtersFromQuery("")).toEqual({
+            page: 1,
+            pageSize: 20,
+            sort: DEFAULT_SORT,
+            search: "",
+            status: "",
+            priority: "",
+            view: "",
+            assignee: "",
+        });
+        expect(queryFromFilters(filtersFromQuery(""))).toEqual({
+            view: "",
+            search: "",
+            status: "",
+            priority: "",
+            assignee: "",
+            sort: "",
+            page: "",
+        });
     });
 
     test("anything unknown falls back instead of reaching the API", () => {
@@ -129,12 +148,24 @@ describe("ticket list filters in the URL", () => {
         for (const status of STATUS_OPTIONS) {
             for (const priority of PRIORITY_OPTIONS) {
                 for (const { value: sort } of SORT_OPTIONS) {
-                    const filters = { page: 4, pageSize: 20, sort, search: "a b&c", status, priority, view: "" };
+                    const filters = { page: 4, pageSize: 20, sort, search: "a b&c", status, priority, view: "", assignee: "" };
                     const url = toHash("/tickets", queryFromFilters(filters));
                     expect(filtersFromQuery(parseHash(url).search)).toEqual(filters);
                 }
             }
         }
+    });
+
+    test("the assignee filter survives the URL, and only in a shape the API takes", () => {
+        const agentId = "66f1a2b3c4d5e6f708192a3b";
+        expect(filtersFromQuery(`assignee=${agentId}`, "admin").assignee).toBe(agentId);
+        expect(filtersFromQuery("assignee=unassigned", "agent").assignee).toBe("unassigned");
+        expect(filtersFromQuery("assignee=nobody-in-particular", "admin").assignee).toBe("");
+        // Who a ticket is with is a staff question, so a customer's URL cannot carry the filter.
+        expect(filtersFromQuery(`assignee=${agentId}`, "customer").assignee).toBe("");
+        const url = toHash("/tickets", queryFromFilters({ page: 1, sort: DEFAULT_SORT, assignee: agentId }));
+        expect(url).toBe(`#/tickets?assignee=${agentId}`);
+        expect(filtersFromQuery(parseHash(url).search, "admin").assignee).toBe(agentId);
     });
 
     test("the default sort and the first page stay out of the URL", () => {
@@ -207,5 +238,28 @@ describe("navigate", () => {
         navigate("#/tickets");
         navigate("#/tickets", { replace: true });
         expect(calls).toEqual([]);
+    });
+});
+
+describe("who the Assigned to filter offers", () => {
+    const agents = [
+        { _id: "b".repeat(24), name: "Priya Sharma" },
+        { _id: "a".repeat(24), name: "Diego Fernandez" },
+    ];
+
+    test("an admin gets Unassigned and every agent by name, A to Z", () => {
+        expect(assigneeChoices("admin", agents, "c".repeat(24)).map((choice) => choice.label)).toEqual([
+            "Unassigned",
+            "Diego Fernandez",
+            "Priya Sharma",
+        ]);
+    });
+
+    test("an agent gets only Unassigned and Me, whoever else is on the roster", () => {
+        const me = "b".repeat(24);
+        expect(assigneeChoices("agent", agents, me)).toEqual([
+            { value: "unassigned", label: "Unassigned" },
+            { value: me, label: "Me" },
+        ]);
     });
 });

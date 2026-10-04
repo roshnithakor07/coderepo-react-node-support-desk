@@ -10,6 +10,7 @@ import { NotificationBell } from "./features/notifications/NotificationBell.jsx"
 import { notificationApi } from "./features/notifications/notification.api.js";
 import { EditTicketModal } from "./features/tickets/EditTicketModal.jsx";
 import { NewTicketModal } from "./features/tickets/NewTicketModal.jsx";
+import { REPLY_PAGE_SIZE, followUpTitle } from "./features/tickets/reply-thread.js";
 import { ticketApi } from "./features/tickets/ticket.api.js";
 import { TicketDetail } from "./features/tickets/TicketDetail.jsx";
 import { TicketList } from "./features/tickets/TicketList.jsx";
@@ -99,6 +100,8 @@ export default function App() {
     const [isNavOpen, setIsNavOpen] = useState(false);
     const menuButtonRef = useRef(null);
     const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+    // A new ticket usually starts empty; a follow-up to a full conversation starts from that ticket.
+    const [newTicketDraft, setNewTicketDraft] = useState(null);
     const [isCreatingTicket, setIsCreatingTicket] = useState(false);
     const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
 
@@ -203,7 +206,7 @@ export default function App() {
     // A new list page counts as a new page.
     useEffect(() => {
         setIsNavOpen(false);
-        setShowNewTicketModal(false);
+        closeNewTicketModal();
         setShowEditTicketModal(false);
         contentRef.current?.scrollTo({ top: 0 });
     }, [route.path, ticketFilters.page]);
@@ -525,12 +528,34 @@ export default function App() {
         navigate(toHash(SIGN_IN_PATH));
     }
 
+    function openNewTicketModal(draft = null) {
+        setTicketCreateError("");
+        setNewTicketDraft(draft);
+        setShowNewTicketModal(true);
+    }
+
+    function closeNewTicketModal() {
+        setShowNewTicketModal(false);
+        setNewTicketDraft(null);
+    }
+
+    // A ticket whose conversation is full continues on a follow-up, so the new one opens already named
+    // after it and filed in the same category; the customer writes only what has changed.
+    function openFollowUpTicket(ticket) {
+        openNewTicketModal({ title: followUpTitle(ticket.title), category: ticket.category });
+    }
+
+    // The replies written before the oldest one on screen, for the ticket page's "Show earlier replies".
+    function loadEarlierReplies(before) {
+        return ticketApi.replies(selectedTicketId, { before, limit: REPLY_PAGE_SIZE });
+    }
+
     async function handleCreateTicket(input) {
         setIsCreatingTicket(true);
         setTicketCreateError("");
         try {
             await ticketApi.create(input);
-            setShowNewTicketModal(false);
+            closeNewTicketModal();
             pushToast("success", "Ticket created successfully.");
             loadTickets();
             loadDashboard();
@@ -760,8 +785,29 @@ export default function App() {
             .catch((error) => pushToast("error", friendlyErrorMessage(error, "Couldn't delete this template. Please try again.")));
     }
 
-    function handleMarkNotificationsRead() {
-        notificationApi.markRead().then(loadNotifications);
+    // The answer carries the list as it now stands, so the rows and the badge settle at once; a failure
+    // leaves them as they were and says so.
+    function handleMarkAllNotificationsRead() {
+        notificationApi
+            .markAllRead()
+            .then((result) => {
+                setNotifications(result.items);
+                setUnreadCount(result.unreadCount);
+            })
+            .catch(() => pushToast("error", "Couldn't mark your notifications as read. Please try again."));
+    }
+
+    // Opening a notification is what reads it: the one row, never the rest of the panel.
+    function handleOpenNotification(notification) {
+        openTicket(notification.ticketId?._id || notification.ticketId);
+        if (notification.isRead) return;
+        notificationApi
+            .markOneRead(notification._id)
+            .then((result) => {
+                setNotifications(result.items);
+                setUnreadCount(result.unreadCount);
+            })
+            .catch(() => loadNotifications());
     }
 
     function handleClearNotifications() {
@@ -871,9 +917,9 @@ export default function App() {
                         <NotificationBell
                             notifications={notifications}
                             unreadCount={unreadCount}
-                            onMarkRead={handleMarkNotificationsRead}
+                            onMarkAllRead={handleMarkAllNotificationsRead}
                             onClear={handleClearNotifications}
-                            onOpenTicket={openTicket}
+                            onOpenNotification={handleOpenNotification}
                         />
                         <button type="button" className="topbar-profile-chip" onClick={() => navigate(toHash("/profile"))}>
                             <span className="topbar-profile-avatar">{initials(currentUser.name)}</span>
@@ -890,7 +936,7 @@ export default function App() {
                             currentUser={currentUser}
                             tickets={dashboardTickets}
                             stats={dashboardStats}
-                            onNewTicket={() => setShowNewTicketModal(true)}
+                            onNewTicket={() => openNewTicketModal()}
                             isLoading={!dashboardLoaded}
                             isRefreshing={dashboardLoading && dashboardLoaded}
                             error={dashboardError}
@@ -905,7 +951,7 @@ export default function App() {
                             filters={ticketFilters}
                             onFilterChange={handleTicketFilterChange}
                             onSelectTicket={openTicket}
-                            onNewTicket={() => setShowNewTicketModal(true)}
+                            onNewTicket={() => openNewTicketModal()}
                             onClaim={handleClaimFromQueue}
                             claimingId={claimingTicketId}
                             agents={agents.filter((agent) => agent.isActive)}
@@ -915,6 +961,7 @@ export default function App() {
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
                             role={currentUser.role}
+                            currentUserId={currentUser.id}
                             categories={currentUser.categories}
                         />
                     )}
@@ -951,6 +998,8 @@ export default function App() {
                             onEditNote={handleEditNote}
                             onDeleteNote={handleDeleteNote}
                             onMerge={handleMerge}
+                            onLoadEarlierReplies={loadEarlierReplies}
+                            onOpenFollowUp={() => openFollowUpTicket(currentTicket)}
                             onEditDetails={() => {
                                 setTicketEditError("");
                                 setShowEditTicketModal(true);
@@ -1042,8 +1091,9 @@ export default function App() {
 
             {showNewTicketModal && (
                 <NewTicketModal
-                    onClose={() => setShowNewTicketModal(false)}
+                    onClose={closeNewTicketModal}
                     onCreate={handleCreateTicket}
+                    draft={newTicketDraft}
                     categories={settings?.categories}
                     error={ticketCreateError}
                     isBusy={isCreatingTicket}

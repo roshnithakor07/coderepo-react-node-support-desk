@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REPLY_PAGE_SIZE } from "./ticket-replies.js";
 import { TICKET_SORT_KEYS, ticketService } from "./ticket.service.js";
 
 const createSchema = z
@@ -29,6 +30,18 @@ const replySchema = z
     })
     .strict();
 
+// Paging back through a long conversation: `before` is the reply the page stops at (the latest page
+// when it is left out), and a page is at most REPLY_PAGE_SIZE replies.
+const replyPageQuerySchema = z
+    .object({
+        before: z
+            .string()
+            .regex(/^[a-f\d]{24}$/i, "That message id is not valid.")
+            .optional(),
+        limit: z.coerce.number().int().min(1).max(REPLY_PAGE_SIZE).optional(),
+    })
+    .strict();
+
 const assignSchema = z.object({ agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
 
 // The ids are checked here for shape only; whether each ticket exists, may be seen and may take the
@@ -50,7 +63,12 @@ const listQuerySchema = z.object({
     status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     category: z.string().optional(),
-    assignedTo: z.string().optional(),
+    // "unassigned" or a well-formed agent id. Anything else is a bad filter, answered as one rather
+    // than quietly returning an empty list.
+    assignee: z
+        .string()
+        .regex(/^(unassigned|[a-f\d]{24})$/i, 'Filter by an agent id, or by "unassigned".')
+        .optional(),
     // "unassigned" is the team's queue of tickets nobody owns; anything else is the viewer's own list.
     view: z.enum(["unassigned"]).optional(),
     search: z.string().max(140).optional(),
@@ -112,6 +130,16 @@ export async function addReply(request, response, next) {
         const input = replySchema.parse(request.body);
         const ticket = await ticketService.addReply(request.params.ticketId, request.user, input);
         response.status(201).json({ data: ticket });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function listReplies(request, response, next) {
+    try {
+        const { before, limit } = replyPageQuerySchema.parse(request.query);
+        const page = await ticketService.listReplies(request.params.ticketId, { before, limit: limit || REPLY_PAGE_SIZE }, request.user);
+        response.json({ data: page });
     } catch (error) {
         next(error);
     }

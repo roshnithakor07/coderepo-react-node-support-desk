@@ -93,6 +93,9 @@ export function reopenBlockedReason(ticket, now = new Date()) {
 // Resolving says "we answered you", so there has to be an answer the customer can read. Internal
 // notes are invisible to them and do not count.
 export function hasPublicStaffReply(ticket) {
+    // The ticket page is sent one page of the conversation at a time, and the answer may be older than
+    // that page, so a ticket presented that way carries the count instead of every reply.
+    if (typeof ticket.publicStaffReplyCount === "number") return ticket.publicStaffReplyCount > 0;
     return (ticket.replies || []).some((reply) => !reply.isInternal && replyAuthorIsStaff(reply, ticket));
 }
 

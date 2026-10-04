@@ -1,4 +1,5 @@
 import { AppError } from "../../shared/errors/app-error.js";
+import { mergeReplyLimitBlock } from "./ticket-replies.js";
 
 // Merging a duplicate into the ticket the conversation should continue on. Pure rules with no
 // database access: the service loads both tickets and applies what this module decides.
@@ -42,7 +43,9 @@ export function mergeBlock(duplicate, primary) {
             };
         }
     }
-    return null;
+    // Checked last, because it is the one reason that depends on how long the two conversations are
+    // rather than on what either ticket is.
+    return mergeReplyLimitBlock(duplicate, primary);
 }
 
 export function assertMergeAllowed(duplicate, primary) {

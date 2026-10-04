@@ -37,7 +37,7 @@ describe("malformed ids in the URL", () => {
 
 describe("malformed ids in the query string", () => {
     test("filtering tickets by a malformed assignee id returns 400", async () => {
-        expectCleanError(await api("/tickets?assignedTo=not-an-id", { token: admin.token }), 400, "INVALID_ID");
+        expectCleanError(await api("/tickets?assignee=not-an-id", { token: admin.token }), 400, "VALIDATION_ERROR");
     });
 });
 

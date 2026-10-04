@@ -28,10 +28,12 @@ status code in the table with a message written for the person who hit it, the U
 the action and shows the reason, and each has a `bun test` that proves it. Endpoints are relative to
 `/api/v1`.
 
-**At a glance:** 36 distinct product rules across seven areas (the lifecycle, SLA integrity, agent
-teams, the requester's edit window, internal notes, multi-record actions and access). Each rule is
-numbered once, with the cases that prove it listed under it, 106 in all, each with its test. The 11
-input and resilience checks at the end are listed separately and not counted as rules.
+**At a glance:** 40 distinct product rules across nine areas (the lifecycle, SLA integrity, agent
+teams, the requester's edit window, internal notes, the size of a conversation, notifications,
+multi-record actions and access). Each rule is numbered once, with the cases that prove it listed
+under it, 132 in all,
+each with its test. The 11 input and resilience checks at the end are listed separately and not
+counted as rules.
 
 **Screens that change several records at once, or move something through a status:**
 
@@ -39,11 +41,13 @@ input and resilience checks at the end are listed separately and not counted as 
 |---|---|---|
 | Ticket list, bulk bar | Select tickets (one by one or the whole page), then assign, set the status or set the priority of all of them at once, all or nothing | Acting on several records at once |
 | Ticket list, Unassigned queue (`#/tickets?view=unassigned`) | An agent claims a ticket nobody owns, limited to their team's categories | Agent teams |
+| Ticket list, filters (`#/tickets?assignee=…`) | Search, status, priority and "Assigned to" narrow the list in the database and live in the URL, so a refresh, Back and a shared link all show the same list | Access, agent teams |
 | Ticket detail, status control and history | Moves a ticket one step through `open -> in_progress -> pending -> resolved -> closed`, with every move on its status history | Ticket lifecycle, SLA integrity |
 | Ticket detail, merge | Folds a duplicate into the primary: the replies move, the duplicate closes, both histories record it | Acting on several records at once |
 | Ticket detail, requester actions | The customer closes, reopens or edits their own ticket within the rules | Ticket lifecycle, the requester's edit window |
 | Agents, deactivate | Deactivating an agent hands every open ticket to someone on the right team, or to the unassigned queue on the admin's explicit choice | Acting on several records at once |
 | Settings, categories | Removing a category is refused while agents or open tickets still use it, with the counts | Access |
+| Notification panel (bell, every role) | Opening it reads nothing; a row reads itself and opens its ticket; "Mark all as read" marks every unread one at once | Notifications |
 
 ### Ticket lifecycle
 
@@ -113,6 +117,13 @@ account created before teams existed looks like until an admin sets them on the 
 |  | An agent's categories must exist in Settings | `POST /agents`, `PATCH /agents/:id/categories` | 422 `UNKNOWN_CATEGORY` | "a category that is not in Settings is refused, and the message says where to add it" |
 |  | An agent must be on at least one category | `POST /agents`, `PATCH /agents/:id/categories` | 400 `VALIDATION_ERROR` | "an empty team is refused: an agent nothing can reach is not a team" |
 | **14.** Changing a team never moves the work an agent already holds | Changing a team never moves what the agent already holds | `PATCH /agents/:id/categories` | 200 | "an admin sets them, and what the agent already holds stays with them" |
+| **38.** The "Assigned to" filter can only narrow what the viewer may already see | An admin filters by any agent, and the count is that agent's own | `GET /tickets?assignee=<id>` | 200 | "asking for one agent returns their tickets and nobody else's", "another agent's filter returns a different set" |
+|  | It combines with the search, the status and the paging, and the page is a page of the filter | `GET /tickets?assignee=<id>&status=&search=` | 200 | "it combines with the status filter, and with the search", "a page of filtered results is a page of that filter, not of the whole list" |
+|  | An agent may ask only for themselves; another agent's name shows nothing, never their tickets | `GET /tickets?assignee=<id>` | 200 | "asking for themselves is their own list", "asking for another agent shows nothing, and never their tickets" |
+|  | "Unassigned" means what it means in the queue: unowned tickets still in play, an agent's own categories only | `GET /tickets?assignee=unassigned` | 200 | "unassigned returns the tickets nobody owns, still in play", "unassigned is their team's queue, never another team's" |
+|  | Inside the queue a named agent matches nothing, because nobody owns those tickets | `GET /tickets?view=unassigned&assignee=<id>` | 200 | "inside the queue, asking for an agent matches nothing, because nobody owns those tickets" |
+|  | A customer cannot filter by assignee at all, and their own list is untouched | `GET /tickets?assignee=<id>` | 403 `FORBIDDEN` | "a customer cannot filter by assignee at all" |
+|  | A malformed assignee is a bad filter, not an empty list | `GET /tickets?assignee=not-an-id` | 400 `VALIDATION_ERROR` | "a malformed assignee is a 400, not an empty list" |
 
 ### The requester's edit window
 
@@ -137,6 +148,53 @@ account created before teams existed looks like until an admin sets them on the 
 |  | Customers cannot reach these routes at all | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a customer cannot reach these routes at all" |
 |  | A reply id that is not on the ticket is a 404, and a malformed one a 400 | `PUT /tickets/:id/replies/:replyId` | 404 `REPLY_NOT_FOUND` / 400 | "a reply id that is not on the ticket is a 404, never a 500" |
 | **17.** A public reply is never edited or deleted | A public reply the customer has read is never edited or deleted | `PUT`/`DELETE /tickets/:id/replies/:replyId` | 403 `FORBIDDEN` | "a public reply the customer has read stays as it was sent" |
+
+### A conversation holds at most 500 replies
+
+Replies live inside the ticket document, and a MongoDB document cannot pass 16 MB, so a conversation is
+capped: public replies and internal notes together, 500 of them. The cap is applied by the write itself
+(the push matches only while the array is still under 500), so two replies sent in the same moment cannot
+both get past it without a transaction, which this single-node MongoDB does not offer. A full ticket
+refuses the next reply with the message above and the page offers the requester a follow-up ticket,
+already named after this one and filed in the same category.
+
+Reading follows the same shape: `GET /tickets/:id` carries the **latest 50** replies with `replyCount`,
+and `GET /tickets/:id/replies?before=<replyId>&limit=50` walks back through the older pages under the
+same view rules as the ticket, internal notes stripped for customers exactly as they are on it. The
+ticket page shows "Show earlier replies (N more)" above the conversation and keeps the reader's place
+when a page is added above them.
+
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **37.** A ticket holds at most 500 replies, counted together, and is read one page of 50 at a time | The 500th reply is accepted and the 501st refused, leaving the ticket at 500 | `POST /tickets/:id/replies` | 422 `REPLY_LIMIT_REACHED` | "the 500th reply is accepted and the 501st is refused, with the ticket left at 500" |
+|  | Two replies sent at the same moment on a ticket with 499 leave exactly 500 | `POST /tickets/:id/replies` | 201 + 422 `REPLY_LIMIT_REACHED` | "two replies sent at the same moment on a ticket with 499 leave exactly 500" |
+|  | A refused reply changes nothing else: the status and the SLA clock stay as they were | `POST /tickets/:id/replies` | 422 `REPLY_LIMIT_REACHED` | "the refused reply leaves the ticket's status and SLA clock alone" |
+|  | The page is told the conversation is full, so the composer is replaced by the reason and a follow-up | `GET /tickets/:id` | 200 | "the ticket page is told the conversation is full, so the composer is replaced" |
+|  | A merge that would carry the primary past the limit is refused before anything moves | `POST /tickets/:id/merge` | 422 `MERGE_REPLY_LIMIT` | "a merge that would take the primary past the limit is refused" |
+|  | The ticket carries the latest 50 replies and the count of them all | `GET /tickets/:id` | 200 | "the ticket carries the latest 50 replies and the count of them all" |
+|  | Paging before the oldest one on screen returns the previous 50, in the order written | `GET /tickets/:id/replies` | 200 | "paging before the oldest one on screen returns the previous 50, in order" |
+|  | Internal notes stay out of a customer's pages, as they do on the ticket | `GET /tickets/:id/replies` | 200 | "internal notes stay out of a customer's pages, as they do on the ticket" |
+|  | A customer cannot page another customer's conversation, and hears exactly what they hear of the ticket | `GET /tickets/:id/replies` | 403 `FORBIDDEN` | "a customer cannot page the replies of someone else's ticket, and hears what they hear of it" |
+|  | A page is at most 50; a malformed cursor is a 400 and one that is not on the ticket a 404 | `GET /tickets/:id/replies` | 400 `VALIDATION_ERROR` / 404 `REPLY_NOT_FOUND` | "the page size is capped, and a malformed or unknown cursor is a 400 or a 404" |
+|  | Resolving still needs an answer the customer can read, even when it is pages behind the latest 50 | `GET /tickets/:id` | 200 | "resolving still needs a staff reply the customer can read, even when it is pages back" |
+|  | A list row carries `replyCount` and none of the replies; a customer's count leaves out internal notes | `GET /tickets` | 200 | "a row has no replies in it, only the count", "a customer is told only the replies they can read, so the count gives no note away" |
+
+### Notifications
+
+A notification is read by being opened, not by the panel being glanced at: the bell's count is what has
+not been dealt with, so it survives opening the panel and goes down one row at a time. Both marks answer
+with the list as it then stands, so the badge and the rows settle without waiting for the next poll
+(notifications are polled every 15 seconds; there are no WebSockets, per `GUIDELINES.md:186`).
+
+| Rule | Case | Endpoint | Code | Test |
+|---|---|---|---|---|
+| **39.** A notification is read by being opened, one at a time, and only by the person it belongs to | Listing the panel marks nothing: the unread count is the same before and after | `GET /notifications` | 200 | "listing the panel changes nothing: the count is the same before and after" |
+|  | Opening one row marks that one and leaves the rest unread; re-reading it changes nothing | `PATCH /notifications/:id/read` | 200 | "opening one marks that one, and leaves the rest unread" |
+|  | "Mark all as read" clears the count in one request | `PATCH /notifications/read-all` | 200 | "mark all as read clears the count in one request" |
+|  | Somebody else's notification cannot be marked, and is not even said to exist | `PATCH /notifications/:id/read` | 404 `NOTIFICATION_NOT_FOUND` | "nobody can mark somebody else's notification, and it is not even said to exist" |
+|  | A malformed id is a 400, an unknown one a 404, and both marks need a session | `PATCH /notifications/:id/read`, `/read-all` | 400 `INVALID_ID` / 404 / 401 | "a malformed notification id is a 400, and an unknown one a 404", "both marks need a session" |
+| **40.** A reply notification names who replied; an internal note notifies nobody | A public reply reaches the requester (or the agent it is with) and names its author | `POST /tickets/:id/replies` | 201 | "a staff reply reaches the requester and says who replied" |
+|  | An internal note notifies nobody at all, least of all the customer who must not know it exists | `POST /tickets/:id/replies` | 201 | "an internal note notifies nobody, least of all the customer" |
 
 ### Acting on several records at once
 
