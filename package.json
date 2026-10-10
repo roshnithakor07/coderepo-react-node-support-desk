@@ -13,7 +13,7 @@
 		"dev:frontend": "cd frontend && bun run dev",
 		"dev:backend": "cd backend && bun run dev",
 		"seed": "cd backend && bun run seed",
-		"test": "cd backend && bun run test && cd ../frontend && bun test"
+		"test": "cd backend && for f in tests/*.test.js; do bun test --preload ./tests/setup.js \"$f\" || exit 1; done && cd ../frontend && bun test"
 	},
 	"devDependencies": {
 		"concurrently": "9.2.1"
