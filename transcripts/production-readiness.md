@@ -1659,3 +1659,10 @@ dependency) that lists `tests/*.test.js`, runs each through `Bun.spawnSync` with
 `backend/package.json`'s own `test` script now calls it directly, and the root script goes back to
 `cd backend && bun run test`. Verified with 5 consecutive runs of `bun run test` from the root plus
 one run of `cd backend && bun run test` directly — all 6 green, 0 failures.
+
+### Merge (2026-10-10)
+
+Approved by the user as built. Merged `fix/gate-findings` into `main` with `--no-ff`
+(`bf5b809`), pushed, and the branch deleted locally and on origin. Re-ran the full suite on `main`:
+backend 307 pass / 0 fail across 28 isolated-process files, frontend 38 pass / 0 fail — 345 pass,
+0 fail total. Per the standing rule, work stops here until the user's next prompt.
