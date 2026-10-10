@@ -1506,3 +1506,101 @@ Approved by the user as built. Merged with --no-ff, pushed, and the branch delet
 origin. This note is the branch's last commit, so main needs no docs-only follow-up branch. Per the
 standing rule, work stops here until the user's next prompt. Test results on main are in the log
 entry for this turn.
+
+---
+
+## Task: submission gate, dry run (2026-10-04)
+
+**Goal.** Run `skills/submission-gate/SKILL.md` end to end as a dry run, read-only, from a fresh
+clone of `origin/main`, before the real submission. Report the verdict and every failure, fix
+nothing.
+
+**Why a dry run now.** Two earlier submissions were rejected for requirements that were already
+written down. The gate exists to catch those before a reviewer does, and running it as a dry run
+first means the remaining work is known before the final steps (the video link and the transcript
+export) are taken.
+
+### Verdict
+
+**BLOCKED — 6 of 46 checks failed**, two of them the expected final-step items (#40 video link,
+#43 log copy). Full report outside the repo at `../submission-gate-report.md`.
+
+### The four real failures
+
+| Check | Failure | Smallest fix |
+|---|---|---|
+| 11 | The test suite is flaky: 3 of 13 full runs failed, 4 different tests | Per-file test isolation, or make the four tests self-contained |
+| 41 | `skills/validate` would record one S16 FAIL | Clears when 28 is fixed |
+| 28 | `TICKET_STATUSES` is exported and never used (`backend/src/features/tickets/ticket-lifecycle.js:6`) | Delete it, or import it into the controller's `z.enum` |
+| 30 | "centre" in a CSS comment (`frontend/src/styles.css:4028`) | `centre` → `center` |
+
+### Decision recorded: how to run the gate when the declared ports are busy
+
+**Options considered.**
+
+1. Stop the running dev app so the fresh clone could bind 3000/8000.
+2. Leave it running, verify the port numbers from configuration plus the identical-commit instance
+   already serving those ports, and record the limitation.
+3. Skip the runtime checks entirely and mark section C/D unverified.
+
+**Chosen: option 2.** The gate's own runtime rules say never to stop a process it did not start,
+and the working copy was at the same commit (`dd3bb1e`) with a clean tree, so the instance already
+answering on 3000 and 8000 was this exact code. Option 1 breaks the gate's rules; option 3 throws
+away checks that could be made honestly. The limitation is written into the report as a decision
+item so the final run can close it with the ports free.
+
+### Decision recorded: how to measure the layout with no dependency allowed
+
+**Options considered.**
+
+1. Re-add Playwright for the measurement. **Rejected:** `GUIDELINES.md:65` forbids it and an added
+   dependency is the first rejection reason; a gate that breaks the rule it checks is worthless.
+2. Reason about the CSS and declare the layout fine. **Rejected:** the gate counts "probably fine"
+   as a failure, and layout has now been a rejection reason twice.
+3. Drive the Chromium already cached outside the repo (`~/.cache/ms-playwright`) over the DevTools
+   protocol from plain Bun scripts in a scratch folder, using Bun's built-in WebSocket client.
+
+**Chosen: option 3.** It adds nothing to the repo, touches no manifest, and produced real numbers:
+192 page/width/theme/role combinations with zero `scrollWidth > innerWidth`, zero elements outside
+the viewport, zero console errors, plus live checks of the sub-1000px drawer, the notification
+panel, the confirmation dialog and the focus ring.
+
+### Findings I had to disprove before reporting them
+
+Three of my own probes produced false positives, and chasing each one down mattered more than the
+count of findings:
+
+- *"No backdrop behind the open drawer"* — the probe never opened the drawer; `.nav-backdrop`,
+  `inert` on `.app-main` and focus movement into the drawer are all present and were then confirmed
+  working at 900/768/600/375.
+- *"Deactivate opened no dialog"* — the Modal is a native `<dialog>` + `showModal()`, whose `dialog`
+  role is implicit, so `[role='dialog']` cannot match it.
+- *"Focus left the confirmation dialog after 2 Tabs"* — at the native wrap point headless Chromium
+  has no browser chrome to receive focus, so `activeElement` is briefly `body` while the dialog
+  stays `:modal`. The trap is the browser's own and is sound.
+
+Reporting any of the three as a defect would have sent the next branch chasing nothing.
+
+### What the gate confirms is right
+
+- Dependency diff against the reference is **empty** in both directions, lockfile included; the 23
+  lockfile version differences are all transitive bumps upward.
+- Layout clean at 1280/1024/900/768/600/375 in both themes for all three roles.
+- **Old-record SLA behaviour is correct** — the bug class that caused the PagerDuty rejection.
+  Reopening a 19-hour-old resolved ticket moved its deadline from the past (`04:10Z`) into the
+  future (`23:01Z`) and cleared `resolvedAt`; a priority change recomputes from the change moment;
+  assignment leaves the clock alone; a bulk priority change never clears a breach.
+- 40 numbered server-side rules (target 15), 9 multi-record/status screens (target 6), two kinds of
+  access rule (role **and** team-by-category), no business logic or DB access in any controller or
+  route, every one of the 28 product routes reachable from the UI.
+- No `window.confirm`/`alert`/`prompt`; no real brands; all demo mail on `@example.com`; archive
+  1.15 MB with `GUIDELINES.md` and `skills/` excluded; repo private; zero AI attribution anywhere.
+
+### Open for the user's decision
+
+Prettier tabs vs the reference's actual style; which flaky-test fix to take; relative seed dates vs
+a `SEED_NOW` anchor; one clean `bun start` with 3000/8000 free; the single GitHub web-UI commit
+(`356f560`); whether a customer should be able to close an `open` ticket (currently
+409 `INVALID_TRANSITION`, which is decision 5a as written); the dark default theme vs
+`prefers-color-scheme`; and two FYIs — the still-pending `content-team-hr` collaborator invitation
+and the missing `assets/` README screenshot.
