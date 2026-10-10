@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TICKET_STATUSES } from "./ticket-lifecycle.js";
 import { REPLY_PAGE_SIZE } from "./ticket-replies.js";
 import { TICKET_SORT_KEYS, ticketService } from "./ticket.service.js";
 
@@ -16,7 +17,7 @@ const updateSchema = z
     .object({
         title: z.string().trim().min(1).max(140).optional(),
         description: z.string().trim().min(1).max(5000).optional(),
-        status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
+        status: z.enum(TICKET_STATUSES).optional(),
         priority: z.enum(["low", "medium", "high", "critical"]).optional(),
         category: z.string().trim().max(60).optional(),
         tags: z.array(z.string().trim().max(30)).max(10).optional(),
@@ -51,7 +52,7 @@ const ticketIds = z.array(objectId).min(1, "Select at least one ticket.");
 
 const bulkAssignSchema = z.object({ ticketIds, agentId: z.string().regex(/^[a-f\d]{24}$/i, "Select a valid agent.") }).strict();
 
-const bulkStatusSchema = z.object({ ticketIds, status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]) }).strict();
+const bulkStatusSchema = z.object({ ticketIds, status: z.enum(TICKET_STATUSES) }).strict();
 
 const bulkPrioritySchema = z.object({ ticketIds, priority: z.enum(["low", "medium", "high", "critical"]) }).strict();
 
@@ -60,7 +61,7 @@ const mergeSchema = z.object({ primaryId: z.string().regex(/^[a-f\d]{24}$/i, "Ch
 const replyEditSchema = z.object({ body: z.string().trim().min(1).max(5000) }).strict();
 
 const listQuerySchema = z.object({
-    status: z.enum(["open", "in_progress", "pending", "resolved", "closed"]).optional(),
+    status: z.enum(TICKET_STATUSES).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
     category: z.string().optional(),
     // "unassigned" or a well-formed agent id. Anything else is a bad filter, answered as one rather
