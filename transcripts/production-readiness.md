@@ -1649,3 +1649,13 @@ product or repo issue.
 - `bun run build` (frontend): clean, 66 modules, no warnings.
 - Prettier `--check --no-use-tabs` on the two touched `.js`/`.css` files: clean.
 - `skills/validate`: run after these fixes, see the log entry for the result.
+
+### Follow-up: cross-platform test runner (same session, 2026-10-10)
+
+The per-file isolation fix above used a bash `for` loop in the root `test` script, which only
+works on a POSIX shell. Replaced it with `backend/tests/run-isolated.js`: a plain script (no new
+dependency) that lists `tests/*.test.js`, runs each through `Bun.spawnSync` with its own
+`--preload ./tests/setup.js` process, stops at the first failure, and prints a one-line summary.
+`backend/package.json`'s own `test` script now calls it directly, and the root script goes back to
+`cd backend && bun run test`. Verified with 5 consecutive runs of `bun run test` from the root plus
+one run of `cd backend && bun run test` directly — all 6 green, 0 failures.
