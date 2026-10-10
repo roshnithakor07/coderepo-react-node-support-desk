@@ -4025,7 +4025,7 @@ input[type="checkbox"]:disabled {
 }
 
 /* Analytics range: presets, From, To and the UTC note on one row at the control height, with the
-   labels beside their inputs so every control shares one centre line. */
+   labels beside their inputs so every control shares one center line. */
 .filter-bar-dates .preset-group {
     height: 38px;
 }
