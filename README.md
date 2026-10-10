@@ -359,7 +359,7 @@ MongoDB behavior: `setup.sh` checks `127.0.0.1:27017` and starts a local `mongod
 
 ### Formatting
 
-Source files use 4-space indentation, the same as the reference starter's code. The starter's `.prettierrc` sets `useTabs: true`, which its own source doesn't follow either, so `prettier --check` reports the same style difference on the unmodified starter files; `.prettierignore` is kept identical to the starter's.
+Source files use 4-space indentation, the same as the reference starter's code. The starter's `.prettierrc` sets `useTabs: true`, which most of its own source doesn't follow either, so `prettier --check` reports the same style difference on the unmodified starter files; `.prettierignore` is kept identical to the starter's.
 
 ### Seeded login credentials
 
