@@ -1604,3 +1604,48 @@ a `SEED_NOW` anchor; one clean `bun start` with 3000/8000 free; the single GitHu
 409 `INVALID_TRANSITION`, which is decision 5a as written); the dark default theme vs
 `prefers-color-scheme`; and two FYIs — the still-pending `content-team-hr` collaborator invitation
 and the missing `assets/` README screenshot.
+
+---
+
+## Task: fix the four real submission-gate blockers (2026-10-10)
+
+**Goal.** Clear the four real failures from the 2026-10-04 dry run (`#11` flaky tests, `#28` dead
+export, `#30` British spelling, and the `#41` `skills/validate` FAIL that `#28` causes alone), plus
+commit the gate's own transcript entry it had left unstaged.
+
+### Decision: flaky-test fix
+
+The gate report offered two options: (a) give each test file its own freshly seeded process in the
+root `test` script, one line, ~60-70s slower; or (b) make the four affected tests self-contained,
+better test design, four files to touch. **Chosen: (a)**, per the user's explicit instruction this
+session. The root `package.json` `test` script now loops over `backend/tests/*.test.js` and runs
+`bun test --preload ./tests/setup.js "$f"` once per file, so each file reseeds `support_desk_test`
+fresh and runs in its own process; no file can see another's in-flight writes or restores.
+Verified with 10 consecutive full suite runs (1 manual + 9 scripted), zero failures in any run —
+previously about 1 run in 4 failed. Runtime went from ~25-30s to ~2 minutes, matching the gate's
+estimate.
+
+### Other fixes
+
+- `#28`: `ticket.controller.js` hardcoded the five ticket statuses in three separate `z.enum()`
+  calls while `TICKET_STATUSES` (`ticket-lifecycle.js`) sat unused. Imported it and used it in all
+  three, so the list lives in one place and the dead export is no longer dead.
+- `#30`: `frontend/src/styles.css:4028`, "centre line" → "center line" (American English).
+- README: "which its own source doesn't follow either" overstated the Prettier finding (the
+  reference's own source disagrees with its `.prettierrc` on 77 files, not all of them) →
+  "which most of its own source doesn't follow either".
+- Committed the submission-gate dry-run transcript entry the gate itself had appended but could
+  not commit (it is read-only).
+
+### Environment note
+
+This session's sandbox had no MongoDB running and no `mongod` binary, unlike the gate's own run.
+Asked the user, who started MongoDB; tests then ran normally. Logged as a session fact, not a
+product or repo issue.
+
+### Verification
+
+- `bun run test`: 10/10 full runs green (307 backend + 38 frontend tests each run).
+- `bun run build` (frontend): clean, 66 modules, no warnings.
+- Prettier `--check --no-use-tabs` on the two touched `.js`/`.css` files: clean.
+- `skills/validate`: run after these fixes, see the log entry for the result.
