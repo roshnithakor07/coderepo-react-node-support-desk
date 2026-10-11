@@ -142,6 +142,8 @@ export default function App() {
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [auditTrail, setAuditTrail] = useState(null);
     const [statusHistory, setStatusHistory] = useState(null);
+    const [auditTrailError, setAuditTrailError] = useState(false);
+    const [statusHistoryError, setStatusHistoryError] = useState(false);
     const [ticketLoadError, setTicketLoadError] = useState(null);
     const [ticketReloadKey, setTicketReloadKey] = useState(0);
 
@@ -417,12 +419,28 @@ export default function App() {
 
     // The status history is part of the ticket page for every role, so it reloads with the ticket
     // and after anything that can move the status.
-    const loadStatusHistory = useCallback((id) => {
+    // A failed load is its own state (with Retry), never an empty history. `isCurrent` lets the ticket
+    // effect drop a response for a ticket the user has already left.
+    const loadStatusHistory = useCallback((id, isCurrent = () => true) => {
         if (!id) return;
+        setStatusHistoryError(false);
         ticketApi
             .history(id)
-            .then(setStatusHistory)
-            .catch(() => setStatusHistory([]));
+            .then((history) => isCurrent() && setStatusHistory(history))
+            .catch(() => {
+                if (!isCurrent()) return;
+                setStatusHistory(null);
+                setStatusHistoryError(true);
+            });
+    }, []);
+
+    const loadAuditTrail = useCallback((id, isCurrent = () => true) => {
+        if (!id) return;
+        setAuditTrailError(false);
+        ticketApi
+            .audit(id)
+            .then((trail) => isCurrent() && setAuditTrail(trail))
+            .catch(() => isCurrent() && setAuditTrailError(true));
     }, []);
 
     // The ticket in the URL is loaded whenever the URL names a different one (or Retry is pressed).
@@ -438,20 +456,12 @@ export default function App() {
             .get(selectedTicketId)
             .then((ticket) => isCurrent && setSelectedTicket(ticket))
             .catch((error) => isCurrent && setTicketLoadError({ ticketId: selectedTicketId, error }));
-        ticketApi
-            .history(selectedTicketId)
-            .then((history) => isCurrent && setStatusHistory(history))
-            .catch(() => isCurrent && setStatusHistory([]));
-        if (currentUser.role === "admin") {
-            ticketApi
-                .audit(selectedTicketId)
-                .then((trail) => isCurrent && setAuditTrail(trail))
-                .catch(() => {});
-        }
+        loadStatusHistory(selectedTicketId, () => isCurrent);
+        if (currentUser.role === "admin") loadAuditTrail(selectedTicketId, () => isCurrent);
         return () => {
             isCurrent = false;
         };
-    }, [currentUser, selectedTicketId, ticketReloadKey]);
+    }, [currentUser, selectedTicketId, ticketReloadKey, loadStatusHistory, loadAuditTrail]);
 
     const openTicket = useCallback((id) => navigate(toHash(ticketPath(id))), []);
 
@@ -989,7 +999,11 @@ export default function App() {
                             agents={agents}
                             cannedResponses={cannedResponses}
                             auditTrail={auditTrail}
+                            auditTrailError={auditTrailError}
+                            onRetryAuditTrail={() => loadAuditTrail(selectedTicketId)}
                             statusHistory={statusHistory}
+                            statusHistoryError={statusHistoryError}
+                            onRetryStatusHistory={() => loadStatusHistory(selectedTicketId)}
                             onBack={() => navigate(ticketsHref)}
                             onUpdate={handleUpdateTicket}
                             onReply={handleReply}

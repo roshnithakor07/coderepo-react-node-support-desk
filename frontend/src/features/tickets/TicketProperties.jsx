@@ -127,7 +127,19 @@ function assigneeOptionLabel(agent, category) {
     return agent.name;
 }
 
-export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUpdate, onAssign, onClaim, onOpenMerge, isUpdating }) {
+export function TicketProperties({
+    ticket,
+    currentUser,
+    agents,
+    auditTrail,
+    auditTrailError,
+    onRetryAuditTrail,
+    onUpdate,
+    onAssign,
+    onClaim,
+    onOpenMerge,
+    isUpdating,
+}) {
     const permissions = ticket.permissions || {};
     const canManage = currentUser.role === "admin" || currentUser.role === "agent";
     const isClosed = ticket.status === "closed";
@@ -242,10 +254,17 @@ export function TicketProperties({ ticket, currentUser, agents, auditTrail, onUp
                 <RequesterActions ticket={ticket} permissions={permissions} onUpdate={onUpdate} isUpdating={isUpdating} />
             )}
 
-            {currentUser.role === "admin" && auditTrail && (
+            {currentUser.role === "admin" && (auditTrail || auditTrailError) && (
                 <details className="audit-trail">
                     <summary>Audit trail</summary>
-                    {auditTrail.length === 0 ? (
+                    {auditTrailError ? (
+                        <div className="form-error" role="alert">
+                            Couldn&rsquo;t load the activity.{" "}
+                            <button type="button" className="link-button" onClick={onRetryAuditTrail}>
+                                Retry
+                            </button>
+                        </div>
+                    ) : auditTrail.length === 0 ? (
                         <p className="table-empty">No activity recorded yet.</p>
                     ) : (
                         <ul>
