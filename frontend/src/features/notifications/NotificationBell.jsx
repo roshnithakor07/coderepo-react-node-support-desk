@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "../../shared/utils/format.js";
+import { ConfirmationDialog } from "../../shared/components/ConfirmationDialog.jsx";
 import { AlertCircleIcon, ClockIcon, InboxIcon, InfoIcon, MessageIcon, TicketIcon } from "../../shared/components/Icon.jsx";
 
 const TYPE_ICONS = {
@@ -14,7 +15,10 @@ const TYPE_ICONS = {
 
 export function NotificationBell({ notifications, unreadCount, onMarkAllRead, onClear, onOpenNotification }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [isConfirmingClear, setIsConfirmingClear] = useState(false);
     const containerRef = useRef(null);
+    const bellRef = useRef(null);
+    const focusBellRef = useRef(false);
 
     // Opening the panel marks nothing: a glance at the bell is not having read anything, and a row that
     // is still unread is the only way back to what has not been dealt with.
@@ -22,8 +26,24 @@ export function NotificationBell({ notifications, unreadCount, onMarkAllRead, on
         setIsOpen((open) => !open);
     }
 
+    // Clearing deletes every notification, unread ones too, and can't be undone, so it asks first.
+    // Confirming closes the panel and puts focus back on the bell, since "Clear all" is about to go.
+    function confirmClear() {
+        setIsConfirmingClear(false);
+        setIsOpen(false);
+        focusBellRef.current = true;
+        onClear();
+    }
+
     useEffect(() => {
-        if (!isOpen) return undefined;
+        if (isConfirmingClear || !focusBellRef.current) return;
+        focusBellRef.current = false;
+        bellRef.current?.focus();
+    }, [isConfirmingClear]);
+
+    // While the dialog is up, a click in it or its Escape belongs to the dialog, not to the panel.
+    useEffect(() => {
+        if (!isOpen || isConfirmingClear) return undefined;
         function handleClickOutside(event) {
             if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
         }
@@ -36,13 +56,14 @@ export function NotificationBell({ notifications, unreadCount, onMarkAllRead, on
             document.removeEventListener("mousedown", handleClickOutside);
             document.removeEventListener("keydown", handleEscape);
         };
-    }, [isOpen]);
+    }, [isOpen, isConfirmingClear]);
 
     return (
         <div className="notification-bell" ref={containerRef}>
             <button
                 type="button"
                 className="icon-button"
+                ref={bellRef}
                 onClick={toggle}
                 aria-label="Notifications"
                 aria-haspopup="true"
@@ -62,7 +83,7 @@ export function NotificationBell({ notifications, unreadCount, onMarkAllRead, on
                                 </button>
                             )}
                             {notifications.length > 0 && (
-                                <button type="button" className="link-button" onClick={onClear}>
+                                <button type="button" className="link-button" onClick={() => setIsConfirmingClear(true)}>
                                     Clear all
                                 </button>
                             )}
@@ -101,6 +122,20 @@ export function NotificationBell({ notifications, unreadCount, onMarkAllRead, on
                         })}
                     </div>
                 </div>
+            )}
+            {isConfirmingClear && (
+                <ConfirmationDialog
+                    title="Clear all notifications?"
+                    message={
+                        notifications.length === 1
+                            ? "This removes your 1 notification. This can't be undone."
+                            : `This removes all ${notifications.length} notifications, including unread ones. This can't be undone.`
+                    }
+                    confirmLabel="Clear all"
+                    danger
+                    onCancel={() => setIsConfirmingClear(false)}
+                    onConfirm={confirmClear}
+                />
             )}
         </div>
     );

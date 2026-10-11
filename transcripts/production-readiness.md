@@ -1666,3 +1666,121 @@ Approved by the user as built. Merged `fix/gate-findings` into `main` with `--no
 (`bf5b809`), pushed, and the branch deleted locally and on origin. Re-ran the full suite on `main`:
 backend 307 pass / 0 fail across 28 isolated-process files, frontend 38 pass / 0 fail — 345 pass,
 0 fail total. Per the standing rule, work stops here until the user's next prompt.
+
+## Task: submission gate, final run on `84cf197` (2026-10-11)
+
+Read-only run of `skills/submission-gate/SKILL.md` from a fresh GitHub clone of `origin/main`
+(`84cf197`) in a temp folder, in a session that did not write the code. Full report:
+`../submission-gate-report.md` (outside the repo). **Verdict: BLOCKED, 4 ❌.**
+
+### User instructions that shaped the run
+
+- Check #9 on the real ports. At the start 3000/8000 were held by the user's working-copy dev app;
+  the gate may not stop a process it did not start, so I asked, and the user stopped it. The
+  fresh clone's `bun start` then served 3000 and 8000 itself.
+- Check #43 as a byte prefix, because the live log has grown since the export:
+  `cmp -n 289368` → identical, SHA-256 equal, and the copy ends exactly at an entry boundary.
+- Check #40 without signing in: an anonymous request opens the Drive viewer for
+  `Support-Desk-Video-Walkthrough.mp4` with no access wall.
+
+### Findings (❌)
+
+- `#30`: `ticket-lifecycle.js:151` builds "A Open ticket cannot move straight to …"; it shows on
+  every row of a refused bulk status change.
+- `#31`: `App.jsx:425,444` turn a failed status-history load into "No status changes recorded
+  yet." (false empty state, no retry); the admin audit trail is silently hidden the same way.
+- `#28`: `backend/src/scripts/seed.js:5` imports `mongoose` and never uses it (missed by the
+  Oct 4 dry run).
+- `#41`: `skills/validate` S14 and S16 FAIL, from the two items above.
+
+### Measured as passing
+
+Dependency diff empty; 3/3 test runs green (345/345); clean install, build and start on 3000/8000;
+264 layout combinations with no overflow or clipping; drawer, dialogs, focus trap, refresh,
+not-found and no-access probes; 23 error-code probes with no 5xx; 11 actions on old seeded records
+with clocks and breaches correct and no notification spam after 10+ minutes of sweeps; restart
+reset to the exact baseline; identical shape across two seeds; README rules table matches the code
+(40 rules, 132 cases, 165 test names resolved); archive 1.44 MB; repo private.
+
+### For the user to decide
+
+A future-dated log header (`log.txt:3240`, `2026-10-13T11:11:13`, out of order); re-exporting the
+log as the last commit of the fix branch; the scope of the #31 fix; and the items still open from
+the Oct 4 run.
+
+## Task: submission gate, re-run on `ef05f63` (2026-10-11)
+
+Read-only run of `skills/submission-gate/SKILL.md` from a fresh GitHub clone of `origin/main`
+(`ef05f63`) in a temp folder, in a session that did not write the code, on the real ports
+3000/8000. Full report: `../submission-gate-report.md` (outside the repo). **Verdict: BLOCKED,
+3 ❌.**
+
+### User instructions that shaped the run
+
+- Check #43 as a byte prefix of the current live log: `cmp -n 310600` → identical.
+- Check #40 without signing in: no redirect, the Drive player renders for
+  `Support-Desk-Video-Walkthrough.mp4` in a clean browser profile.
+- Previously decided items are accepted decisions, not ❌: 4-space formatting, seed dates, the
+  web-UI commit, a customer can't close an open ticket, the dark default theme, no screenshot.
+
+### Findings (❌)
+
+- `#31`: a failed ticket-list load (`App.jsx:292` only toasts) renders "0 tickets / No tickets
+  yet" (and "Nothing waiting" on the Unassigned tab) with no Retry. Found by forcing the request
+  to fail in the browser; every other page showed its error with Retry, including the status
+  history fixed in `ef3a05d`.
+- `#32`: "Clear all" in the notification panel (`NotificationBell.jsx:65`) deletes every
+  notification, unread ones included, with no confirmation (`deleteMany` on the server).
+- `#41`: `skills/validate` S14 FAIL, from the two items above.
+
+### Measured as passing
+
+Dependency diff empty; 3/3 test runs green (345/345); clean install, build and start; 264 layout
+combinations with no overflow or console error, plus 44 drawer, dialog, focus, refresh and
+sign-out probes; 27 error-code probes with no 5xx; 21 old-record actions with clocks and breaches
+correct, including a wait for the next SLA sweep (no re-breach, no new notifications); restart
+reset to the exact baseline; README rules table matches the code; archive 1.53 MB; repo private.
+
+### For the user to decide
+
+Whether the staff status select's "Closed" should also confirm; the clideo.com watermark in the
+video; the collaborator invitation to `content-team-hr` that is still pending.
+
+## Task: `fix/gate-ux`, the three UX findings from the gate re-run (2026-10-11)
+
+Fixes the two ❌ from the gate on `ef05f63` (#31, #32) and the open question about the staff close.
+Criteria improved: UI/UX (error and confirmation states), production readiness (no false empty
+state, no one-click irreversible delete), core instructions (S14 of `skills/validate`).
+
+### Decisions
+
+- **Ticket list load failure (#31).** Options: keep the toast only; or an inline error with Retry in
+  place of the table. Chosen by the user: inline "Couldn't load the tickets." with Retry on both
+  tabs, the same pattern as `AgentsPage.jsx`, with the toast kept once. Reason: every other page
+  already recovers this way, and "No tickets yet" on a failure is false.
+- **The double toast.** Found by tracing the requests in the browser: React StrictMode runs the
+  session bootstrap effect twice in development, so `currentUser` was set twice and the list was
+  fetched twice. Options: de-duplicate the toast; or stop the duplicate load. I stopped the
+  duplicate load (the effect now ignores a superseded run), because hiding the second toast would
+  have left two requests and the same race.
+- **Clear all (#32).** Shared `ConfirmationDialog`, red "Clear all", Cancel focused, `onClear` only
+  on confirm. The panel ignores outside clicks and Escape while the dialog is open, so closing the
+  dialog does not close the panel; focus returns to the bell after a confirmed clear.
+- **Staff "Closed" (the open question).** Chosen by the user: confirm first ("Close this ticket?",
+  "A closed ticket is read-only. It can be reopened within 14 days."). Cancel or Escape leaves the
+  select on the current status and sends nothing.
+- **README video link.** Replaced by the user's request, text unchanged; the old id no longer
+  appears outside `transcripts/`.
+
+### Measured
+
+Browser (headless Chromium over CDP, no package) at 1280 and 375, light and dark: with the list
+request forced to fail, both tabs show the error and one Retry, no false empty state, one request
+and one toast, Retry recovers (24 and 2 tickets); the Clear all and Close dialogs have Cancel
+focused, Escape and Cancel change nothing on the server, confirm clears or closes, focus returns;
+0 horizontal overflow, 0 console errors. `bun run test` 345 pass / 0 fail, build passes, Prettier
+passes on the changed files. `skills/validate` on a fresh clone of the branch: R01-R05 pass
+(install, build, backend check, start, health), live reads, create and delete, 401/400 errors,
+archive 1,536,000 bytes with no GUIDELINES.md or skills; S14 no longer fails. The dependency diff
+against `ef05f63` is empty. No new automated UI test: the frontend tests cover pure logic only and
+a browser test framework is not allowed.

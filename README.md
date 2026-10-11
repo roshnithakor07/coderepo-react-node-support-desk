@@ -4,7 +4,7 @@ A full-stack customer support ticketing platform. Teams create, triage, and reso
 
 ## Video walkthrough
 
-[Watch the walkthrough](https://drive.google.com/file/d/1bxCbTpeZilhNoDguLVOliRyRFVuFq1rF/view) — shows the customer, agent and admin flows, bulk actions, merge and deactivation.
+[Watch the walkthrough](https://drive.google.com/file/d/1TzRcNZNis5zJPfZPnjUlP-kVZ_yzQ-8h/view) — shows the customer, agent and admin flows, bulk actions, merge and deactivation.
 
 ## Built With
 

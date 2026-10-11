@@ -123,6 +123,8 @@ export default function App() {
     const [ticketsLoading, setTicketsLoading] = useState(false);
     // "Loaded" separates the very first load (skeletons) from a refetch (keep the old rows, dimmed).
     const [ticketsLoaded, setTicketsLoaded] = useState(false);
+    // A failed load is its own state (with Retry), never "No tickets yet".
+    const [ticketsError, setTicketsError] = useState("");
     const [ticketCreateError, setTicketCreateError] = useState("");
     const [isReplying, setIsReplying] = useState(false);
     const [isSavingNote, setIsSavingNote] = useState(false);
@@ -243,11 +245,17 @@ export default function App() {
             setIsBootstrapping(false);
             return;
         }
+        // The cleanup drops a superseded run (StrictMode mounts twice in development), so a second
+        // user object never reaches state and the page's data loads once, not twice.
+        let isCurrent = true;
         authApi
             .me()
-            .then((user) => setCurrentUser(user))
-            .catch(() => setSessionToken(""))
-            .finally(() => setIsBootstrapping(false));
+            .then((user) => isCurrent && setCurrentUser(user))
+            .catch(() => isCurrent && setSessionToken(""))
+            .finally(() => isCurrent && setIsBootstrapping(false));
+        return () => {
+            isCurrent = false;
+        };
     }, []);
 
     useEffect(() => {
@@ -282,6 +290,7 @@ export default function App() {
         const requestId = ticketsRequestRef.current;
         const isLatest = () => requestId === ticketsRequestRef.current;
         setTicketsLoading(true);
+        setTicketsError("");
         ticketApi
             .list(ticketFilters)
             .then((result) => {
@@ -289,13 +298,16 @@ export default function App() {
                 setTickets(result.tickets);
                 setTicketsTotal(result.total);
                 setTicketsFor(ticketsSearch);
-            })
-            .catch((error) => isLatest() && pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again.")))
-            .finally(() => {
-                if (!isLatest()) return;
-                setTicketsLoading(false);
                 setTicketsLoaded(true);
-            });
+            })
+            .catch((error) => {
+                if (!isLatest()) return;
+                // Not loaded, so a Retry shows skeletons rather than a moment of "No tickets yet".
+                setTicketsLoaded(false);
+                setTicketsError("Couldn't load the tickets.");
+                pushToast("error", friendlyErrorMessage(error, "Couldn't load tickets. Please try again."));
+            })
+            .finally(() => isLatest() && setTicketsLoading(false));
     }, [currentUser, ticketFilters, ticketsSearch, pushToast]);
 
     useEffect(() => {
@@ -970,6 +982,8 @@ export default function App() {
                             onBulkPriority={handleBulkPriority}
                             isLoading={!ticketsLoaded}
                             isRefreshing={ticketsLoading && ticketsLoaded}
+                            loadError={ticketsError}
+                            onRetry={loadTickets}
                             role={currentUser.role}
                             currentUserId={currentUser.id}
                             categories={currentUser.categories}
