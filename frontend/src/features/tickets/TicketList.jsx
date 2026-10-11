@@ -283,6 +283,8 @@ export function TicketList({
     onBulkPriority,
     isLoading,
     isRefreshing,
+    loadError,
+    onRetry,
     role,
     currentUserId,
     categories,
@@ -390,10 +392,12 @@ export function TicketList({
         <section className="panel">
             <div className="panel-header">
                 <div>
-                    <p className="panel-count">
-                        {total} {total === 1 ? "ticket" : "tickets"}
-                        {hasActiveFilters ? " match your filters" : ""}
-                    </p>
+                    {!loadError && (
+                        <p className="panel-count">
+                            {total} {total === 1 ? "ticket" : "tickets"}
+                            {hasActiveFilters ? " match your filters" : ""}
+                        </p>
+                    )}
                     <p className="panel-subtitle">
                         {isQueue ? (role === "agent" ? queueSubtitle(categories) : "Tickets nobody has picked up yet.") : SUBTITLES[role]}
                     </p>
@@ -474,84 +478,101 @@ export function TicketList({
                 )}
             </div>
 
-            {canBulk && !isLoading && tickets.length > 0 && (
-                <div className="bulk-select-all-line">
-                    <SelectAllCheckbox ids={pageIds} selected={selected} onSelectedChange={setSelected} disabled={isBulkBusy} showLabel />
-                </div>
-            )}
-
-            {canBulk && !isLoading && tickets.length > 0 && (
-                <BulkBar
-                    tickets={tickets}
-                    selected={selected}
-                    onSelectedChange={setSelected}
-                    isBusy={isBulkBusy}
-                    onBusyChange={setIsBulkBusy}
-                    agents={agents}
-                    onBulkAssign={onBulkAssign}
-                    onBulkStatus={onBulkStatus}
-                    onBulkPriority={onBulkPriority}
-                />
-            )}
-
-            <Table
-                rowKey={(row) => row._id}
-                rowClassName={(row) => (selected.includes(row._id) ? "is-selected" : "")}
-                onRowClick={(row) => onSelectTicket(row._id)}
-                emptyTitle={
-                    search
-                        ? `No tickets match "${search}"`
-                        : hasActiveFilters
-                          ? "No tickets match your filters"
-                          : isQueue
-                            ? "Nothing waiting"
-                            : "No tickets yet"
-                }
-                emptyDescription={
-                    hasActiveFilters
-                        ? "Try a different term, or clear the filters to see everything."
-                        : isQueue
-                          ? role === "agent"
-                              ? queueSubtitle(categories)
-                              : "Every ticket in the workspace has an agent on it."
-                          : EMPTY_DESCRIPTIONS[role]
-                }
-                emptyAction={
-                    hasActiveFilters
-                        ? { label: "Clear filters", onClick: clearFilters }
-                        : canCreate
-                          ? { label: "New ticket", onClick: onNewTicket }
-                          : undefined
-                }
-                rows={tickets}
-                isLoading={isLoading}
-                isRefreshing={isRefreshing}
-                sortValue={filters.sort || DEFAULT_SORT}
-                sortOptions={SORT_OPTIONS}
-                onSortChange={(value) => onFilterChange({ ...filters, sort: value, page: 1 })}
-                columns={visibleColumns}
-            />
-
-            {!isLoading && totalPages > 1 && (
-                <div className="pagination">
-                    <button
-                        type="button"
-                        disabled={page <= 1 || isRefreshing}
-                        onClick={() => onFilterChange({ ...filters, page: page - 1 })}
-                    >
-                        Previous
-                    </button>
-                    <span>
-                        Page {page} of {totalPages}
-                    </span>
-                    <button
-                        type="button"
-                        disabled={page >= totalPages || isRefreshing}
-                        onClick={() => onFilterChange({ ...filters, page: page + 1 })}
-                    >
-                        Next
+            {loadError ? (
+                <div className="form-error" role="alert">
+                    {loadError}{" "}
+                    <button type="button" className="link-button" onClick={onRetry}>
+                        Retry
                     </button>
                 </div>
+            ) : (
+                <>
+                    {canBulk && !isLoading && tickets.length > 0 && (
+                        <div className="bulk-select-all-line">
+                            <SelectAllCheckbox
+                                ids={pageIds}
+                                selected={selected}
+                                onSelectedChange={setSelected}
+                                disabled={isBulkBusy}
+                                showLabel
+                            />
+                        </div>
+                    )}
+
+                    {canBulk && !isLoading && tickets.length > 0 && (
+                        <BulkBar
+                            tickets={tickets}
+                            selected={selected}
+                            onSelectedChange={setSelected}
+                            isBusy={isBulkBusy}
+                            onBusyChange={setIsBulkBusy}
+                            agents={agents}
+                            onBulkAssign={onBulkAssign}
+                            onBulkStatus={onBulkStatus}
+                            onBulkPriority={onBulkPriority}
+                        />
+                    )}
+
+                    <Table
+                        rowKey={(row) => row._id}
+                        rowClassName={(row) => (selected.includes(row._id) ? "is-selected" : "")}
+                        onRowClick={(row) => onSelectTicket(row._id)}
+                        emptyTitle={
+                            search
+                                ? `No tickets match "${search}"`
+                                : hasActiveFilters
+                                  ? "No tickets match your filters"
+                                  : isQueue
+                                    ? "Nothing waiting"
+                                    : "No tickets yet"
+                        }
+                        emptyDescription={
+                            hasActiveFilters
+                                ? "Try a different term, or clear the filters to see everything."
+                                : isQueue
+                                  ? role === "agent"
+                                      ? queueSubtitle(categories)
+                                      : "Every ticket in the workspace has an agent on it."
+                                  : EMPTY_DESCRIPTIONS[role]
+                        }
+                        emptyAction={
+                            hasActiveFilters
+                                ? { label: "Clear filters", onClick: clearFilters }
+                                : canCreate
+                                  ? { label: "New ticket", onClick: onNewTicket }
+                                  : undefined
+                        }
+                        rows={tickets}
+                        isLoading={isLoading}
+                        isRefreshing={isRefreshing}
+                        sortValue={filters.sort || DEFAULT_SORT}
+                        sortOptions={SORT_OPTIONS}
+                        onSortChange={(value) => onFilterChange({ ...filters, sort: value, page: 1 })}
+                        columns={visibleColumns}
+                    />
+
+                    {!isLoading && totalPages > 1 && (
+                        <div className="pagination">
+                            <button
+                                type="button"
+                                disabled={page <= 1 || isRefreshing}
+                                onClick={() => onFilterChange({ ...filters, page: page - 1 })}
+                            >
+                                Previous
+                            </button>
+                            <span>
+                                Page {page} of {totalPages}
+                            </span>
+                            <button
+                                type="button"
+                                disabled={page >= totalPages || isRefreshing}
+                                onClick={() => onFilterChange({ ...filters, page: page + 1 })}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </section>
     );
