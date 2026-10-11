@@ -2,6 +2,10 @@
 
 A full-stack customer support ticketing platform. Teams create, triage, and resolve support tickets with role-based access control, SLA tracking and breach alerts, canned responses, a full activity log, and an analytics dashboard.
 
+## Video walkthrough
+
+[Watch the walkthrough](https://drive.google.com/file/d/1bxCbTpeZilhNoDguLVOliRyRFVuFq1rF/view) — shows the customer, agent and admin flows, bulk actions, merge and deactivation.
+
 ## Built With
 
 - [React 19](https://react.dev/) + [Vite 8](https://vite.dev/) — frontend UI, built with plain CSS (no component library)
