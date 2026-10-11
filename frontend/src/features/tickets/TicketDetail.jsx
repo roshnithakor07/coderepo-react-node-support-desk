@@ -113,7 +113,11 @@ export function TicketDetail({
     agents,
     cannedResponses,
     auditTrail,
+    auditTrailError,
+    onRetryAuditTrail,
     statusHistory,
+    statusHistoryError,
+    onRetryStatusHistory,
     onBack,
     onUpdate,
     onReply,
@@ -537,6 +541,8 @@ export function TicketDetail({
                             currentUser={currentUser}
                             agents={agents}
                             auditTrail={auditTrail}
+                            auditTrailError={auditTrailError}
+                            onRetryAuditTrail={onRetryAuditTrail}
                             onUpdate={onUpdate}
                             onAssign={onAssign}
                             onClaim={onClaim}
@@ -546,7 +552,12 @@ export function TicketDetail({
                     </aside>
 
                     <aside className="ticket-detail-history-column" aria-label="Status history">
-                        <StatusHistory entries={statusHistory || []} isLoading={!statusHistory} />
+                        <StatusHistory
+                            entries={statusHistory || []}
+                            isLoading={!statusHistory && !statusHistoryError}
+                            hasError={statusHistoryError}
+                            onRetry={onRetryStatusHistory}
+                        />
                     </aside>
                 </div>
             </div>

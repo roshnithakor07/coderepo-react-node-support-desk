@@ -3319,3 +3319,251 @@ branch=docs/final-submission
 repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
 worktree=main
 parent_agent=none
+
+## [2026-10-11T07:14:20+00:00] docs/final-submission: build, tests, archive size, push results
+
+User Prompt (verbatim, secrets redacted):
+(continuation of the same turn: "Then build, tests, git archive size, push." plus a mid-turn message "how much time will take now")
+
+Agent Response Summary:
+Committed transcripts/log.txt (unedited copy of this log file) as the second and last commit on docs/final-submission; cmp confirmed byte-identical to the source. Then ran bun install (no changes), the full test suite, the frontend production build, measured the git archive size for HEAD, and pushed the branch to origin. No further commits were made after the transcripts/log.txt commit, per instruction.
+
+Actions:
+* git add transcripts/log.txt && git commit -m "docs(transcripts): export the AGENTS.md log, unedited" (4d961a2)
+* bun install -> no changes (152 installs across 175 packages)
+* bun run test (root) -> backend 307 pass / 0 fail across 28 isolated-process files; frontend 38 pass / 0 fail (2 files) -> 345 pass, 0 fail total
+* cd frontend && bun run build -> vite build, 66 modules transformed, built in 735ms, no warnings/errors
+* git archive --format=tar HEAD | wc -c -> 1,505,280 bytes; piped through gzip -> 363,388 bytes
+* git push -u origin docs/final-submission -> new branch pushed, tracking set up
+
+Files changed: README.md (commit 7c7edae), transcripts/log.txt (commit 4d961a2, new file).
+
+Commands run and their results: see Actions above; all succeeded, no failures.
+
+Tests: 345 pass / 0 fail (307 backend across 28 isolated files + 38 frontend), single full run post-build.
+
+Git: branch docs/final-submission, 2 commits (7c7edae README video link, 4d961a2 transcripts/log.txt export), both authored Roshni Thakor <thakorroshni104@gmail.com>; pushed to origin with upstream tracking set. No merge into main yet; awaiting "approved" per standing rule 2.
+
+Decisions: none new this turn.
+
+Questions asked: user asked mid-turn "how much time will take now" -- answered inline that only the log/report step remained, under a minute.
+
+Open issues / next step: per standing rule 5 and the user's explicit "stop and wait for my next prompt," stopping here. docs/final-submission is pushed and awaiting "approved" before merge --no-ff into main. Still open from earlier sessions: the gate report's "Needs your decision" items (Prettier tabs, seed dates, the one GitHub web-UI commit, customer close-on-open, dark default theme, content-team-hr invitation, assets/ screenshot).
+
+Rule check: [OK] Acceptable. Docs-only branch, no dependency change, no AI attribution in commits, git identity confirmed Roshni Thakor <thakorroshni104@gmail.com> on both commits, build and full test suite green, branch pushed and stopped for approval per the standing rules.
+
+Context:
+tool=claude-code (claude-sonnet-5)
+branch=docs/final-submission
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T07:18:09+00:00] Merge docs/final-submission approved; branch deleted; main tests green
+
+User Prompt (verbatim, secrets redacted):
+approved. Merge docs/final-submission with --no-ff, push main, delete the branch locally and on origin, run all tests on main and report the counts. This time do NOT add a transcript note commit before or after the merge; transcripts/log.txt must stay the last content change. Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Agent Response Summary:
+Merged docs/final-submission into main with --no-ff (merge commit 84cf197). Pushed main to origin (d48a380..84cf197). Deleted the branch locally and on origin. Ran the full test suite on main: 307 backend pass + 38 frontend pass = 345 pass, 0 fail. No transcript note commit was made before or after the merge, per the user's explicit instruction; transcripts/log.txt (4d961a2) remains the last content change on main.
+
+Actions:
+* git checkout main
+* git merge --no-ff docs/final-submission -m "Merge branch 'docs/final-submission'" -> 84cf197, 2 files changed, 3325 insertions
+* git push origin main -> d48a380..84cf197
+* git branch -d docs/final-submission -> deleted; git push origin --delete docs/final-submission -> deleted
+* bun run test -> backend 307 pass / 0 fail (28 isolated-process files), frontend 38 pass / 0 fail -> 345 pass, 0 fail total
+
+Files changed: none (merge only; content changes were in the branch's own commits).
+
+Tests: 345 pass / 0 fail (307 backend + 38 frontend), single run on main after merge.
+
+Git: docs/final-submission merged --no-ff into main at 84cf197, pushed; branch deleted locally and on origin. git log -1 --format='%an <%ae>' = Roshni Thakor <thakorroshni104@gmail.com>.
+
+Decisions: no transcript note commit added per explicit user instruction; accepted as a standing rule update for this branch.
+
+Questions asked: none.
+
+Open issues / next step: stopping and waiting for the user's next prompt, per standing rule 5.
+
+Rule check: [OK] Acceptable. Clean merge, correct authorship, full test suite green, no AI attribution, no transcript note commit as instructed.
+
+Context:
+tool=claude-code (claude-sonnet-5)
+branch=main
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T07:20:04+00:00] SESSION START
+
+Agent: claude-code (claude-opus-5-5)
+Repo Root: /home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+Branch: main
+Worktree: main
+Parent Agent: none
+Stack: node
+
+## [2026-10-11T07:51:18+00:00] Submission gate final run on 84cf197: BLOCKED, 4 x FAIL
+
+User Prompt (verbatim, secrets redacted):
+New session. Read AGENTS.md (do the SESSION START log entry), ../support-desk-rules.md and ../project_fullstack_node_app.md before starting.
+
+Run the final submission gate: follow skills/submission-gate/SKILL.md exactly, read-only, from a fresh clone of origin/main (84cf197) in a temp folder outside the repo. Ports 3000/8000 are free now, so check #9 with the real ports. Write the report to ../submission-gate-report.md.
+
+For #43: the source log has grown since the export because later sessions (including this one) appended entries. Check that transcripts/log.txt is byte-identical to the BEGINNING of the current source log (an unedited prefix, e.g. cmp -n <size of the copy>), and report the result that way.
+
+For #40: open the README video link and confirm it is reachable without signing in (if your tools can't load Drive, mark it "needs manual check" rather than ❌).
+
+Don't fix anything and don't commit; a transcript entry for this run may stay unstaged. Send me the verdict, every ❌ with file:line and the smallest fix, and any item needing my decision.
+Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Mid-turn messages (verbatim): "how much time will take" / "ok i stopped both 3000 and 8000"
+
+Agent Response Summary:
+Ran all 46 gate checks read-only against a fresh GitHub clone of origin/main (84cf197) in the session scratchpad. Verdict BLOCKED with 4 FAIL:
+- #30: ticket-lifecycle.js:151 renders "A Open ticket cannot move straight to ...", visible on refused bulk status changes.
+- #31: App.jsx:425 and :444 show a failed status-history load as "No status changes recorded yet." with no retry.
+- #28: unused mongoose import at seed.js:5.
+- #41: validate S14 and S16 FAIL as a result of the two above.
+Ports 3000/8000 were not free at the start (the working-copy dev app, started 04:30:52). I did not stop it; I told the user, who stopped it, and #9 then passed on the real ports. #43 passed as a byte prefix (cmp -n 289368, SHA-256 equal, ends at an entry boundary). #40 passed: an anonymous request opens the Drive viewer with no access wall (playback itself not streamed). Answered "how much time" mid-turn: about 45-60 minutes.
+
+Actions:
+* Read AGENTS.md, ../support-desk-rules.md, ../project_fullstack_node_app.md, the gate skill, GUIDELINES.md, README.md, skills/validate + references; appended SESSION START (07:20:04).
+* git clone (GitHub) -> scratchpad/gate/clone at 84cf197; reference clone at a671eef (fetched).
+* bun install && bash setup.sh --seed (exit 0); frontend bun run build (exit 0); bun run test x3 (345/345 each); bun start (3000/8000 owned by the clone, health connected).
+* Scratch scripts outside the repo (no packages): deps.js, deadcode.js, coverage.js, rules.js, probes.js (76 live API probes incl. direct MongoDB reads), layout.js (264-combo CDP sweep + overlay/focus/drawer/sign-out probes), sla-recheck.js, snapshot.js.
+* Restart-reset check (stopped and re-ran bun start), second seed for determinism, anonymous curl of the Drive link, git archive, gh api visibility.
+* Wrote ../submission-gate-report.md (overwrote the 2026-10-04 dry-run report, as instructed).
+* Appended a transcript entry to transcripts/production-readiness.md (unstaged, per the user).
+
+Files changed:
+* /home/imroshni/hackerrank-project/submission-gate-report.md (outside the repo)
+* /home/imroshni/hackerrank-project/coderepo-react-node-support-desk/transcripts/production-readiness.md (appended, unstaged)
+* this log
+
+Commands run and their results:
+* Install, build, start: all clean.
+* Layout sweep: 264 combinations, 0 bad.
+* Probes: 1 probe FAIL was my own expectation error (bulk priority to the same priority is "unchanged" by rule 19), not an app defect.
+* First two layout runs hit harness bugs (same-document hash navigation kept the old session/theme; dialog opened by JS click had no trigger focus). Fixed in the script and re-run; the two leftover headless Chromium instances were stopped afterwards.
+
+Tests: bun run test x3 in the fresh clone: each backend 307 pass across 28 isolated files + frontend 38 pass = 345 pass, 0 fail.
+
+Git: no commit, push, branch change or merge. Working copy on main at 84cf197; only transcripts/production-readiness.md modified (unstaged). git log -1 --format='%an <%ae>' = Roshni Thakor <thakorroshni104@gmail.com>.
+
+Decisions: none taken by the agent. Options are in the report.
+
+Questions asked (in the report):
+1. How to correct the future-dated log header at line 3240 (2026-10-13T11:11:13, out of order); recommended an appended correction entry.
+2. Whether to re-export the log as the last commit of the fix branch.
+3. The scope of the #31 fix (status history only, or also the audit trail).
+4. The still-open items from the Oct 4 run (Prettier, SEED_NOW, web-UI commit, customer close-on-open, dark default theme, assets/ screenshot).
+5. An optional README nit ("routing unit tests").
+
+Open issues / next step: stop and wait for the user's next prompt (standing rule 5). Fixes belong on a branch, then a full gate re-run.
+
+Rule check: [OK] Acceptable. Read-only gate. No dependency added (the scripts use Bun built-ins and the cached Chromium). No process stopped that the gate did not start (the user stopped their own dev app). support_desk_db was reseeded by the declared install/start flow and is at the seeded baseline.
+
+Context:
+tool=claude-code (claude-opus-5-5)
+branch=main
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T07:56:42+00:00] SESSION START
+
+Agent: claude-code (claude-sonnet-5-5)
+Repo Root: /home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+Branch: main
+Worktree: main
+Parent Agent: none
+Stack: node
+
+## [2026-10-11T08:02:24+00:00] Correction: the entry headed 2026-10-13T11:11:13+00:00 (log.txt line 3240) has a wrong timestamp
+
+User Prompt (verbatim, secrets redacted):
+Append (never edit) a log entry correcting the wrongly dated entry at log.txt:3240 (2026-10-13T11:11:13).
+
+Agent Response Summary:
+Correction only; nothing above was edited. The entry at line 3240, titled "Acknowledge the direct-to-main commit; workflow correction for next time", is headed 2026-10-13T11:11:13+00:00. That timestamp is wrong: it is two days after the date this correction was written. The correct time is not known. The entry belongs between its neighbors: after the 2026-10-10 entry before it (commit d48a380, the direct-to-main commit it acknowledges, is dated 2026-10-10T05:44:00+00:00) and before the 2026-10-11T06:55:48+00:00 SESSION START that follows it. Entries after line 3240 are in the right order.
+
+Actions:
+* Appended this correction to the live log only. transcripts/log.txt is not hand-edited; it is re-copied from the live log in the last commit of fix/final-gate.
+
+Context:
+tool=claude-code (claude-sonnet-5-5)
+branch=fix/final-gate
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T08:09:45+00:00] fix/final-gate: message wording, history/audit error states, seed import, README row, log correction
+
+User Prompt (verbatim, secrets redacted):
+New session. Read AGENTS.md (do the SESSION START log entry), ../support-desk-rules.md, ../project_fullstack_node_app.md and ../submission-gate-report.md before starting.
+
+Branch fix/final-gate from latest main, separate commits:
+1. backend/src/features/tickets/ticket-lifecycle.js:151: rephrase the INVALID_TRANSITION message so it is correct for every status: "This ticket is <Status>, so it can't move straight to <Next>. From here it can only move to <options>." Update tests that assert the old text, and add one assertion on the new message.
+2. frontend/src/App.jsx:425, :444 (status history) and :449 (admin audit trail): on a failed load, show "Couldn't load the status history." / "Couldn't load the activity." with a Retry button that calls the existing loader; never show the empty state on an error. Check both in the browser by forcing a failure, at 1280 and 375.
+3. backend/src/scripts/seed.js:5: delete the unused mongoose import; confirm bun start still seeds.
+4. README Commands table: describe the frontend tests as "frontend unit tests (routing, reply thread)".
+5. Append (never edit) a log entry correcting the wrongly dated entry at log.txt:3240 (2026-10-13T11:11:13): state the correct time if known, otherwise that the timestamp is wrong and the entry belongs between its neighbors.
+Then: tests, build, skills/validate 0 FAIL.
+6. Last commit: write this turn's log entry, then re-copy the AGENTS.md log into transcripts/log.txt unedited and confirm with cmp. No commits after it, no transcript note.
+Push.
+Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Agent Response Summary:
+Did the five items as four separate commits on fix/final-gate (cut from main at 84cf197), plus the log correction (live log only, it is not tracked). The transition message now reads "This ticket is <Status>, so it can't move straight to <Next>. From here it can only move to <options>."; the status history and the admin audit trail show an error with Retry on a failed load instead of an empty state; the unused mongoose import is gone from seed.js; the README Commands row says "frontend unit tests (routing, reply thread; ...)". The wrongly dated entry's real time is not known; the correction says it falls after 2026-10-10T05:44 and before 2026-10-11T06:55:48. Tests, build and a skills/validate run are all clean (details below). This entry is followed only by the transcripts/log.txt copy commit.
+
+Actions:
+* Read AGENTS.md, ../support-desk-rules.md, ../project_fullstack_node_app.md, ../submission-gate-report.md; appended SESSION START (07:56:42).
+* git checkout -b fix/final-gate from main (84cf197). Commits: 4b36e50 fix(tickets) message; ef3a05d fix(tickets) load error + Retry; 059938b chore(seed) import; 910cfb5 docs(readme) row. The final commit (log copy) follows this entry.
+* ticket-lifecycle.js: new INVALID_TRANSITION text. Tests: bulk-actions.test.js now expects "can't move straight to Closed"; ticket-lifecycle.test.js "an open ticket cannot jump to closed" now asserts the full message.
+* App.jsx: loadStatusHistory(id, isCurrent) sets statusHistoryError instead of []; new loadAuditTrail(id, isCurrent) sets auditTrailError instead of swallowing the failure; the ticket effect calls both (stale responses still dropped); Retry calls the same loaders. StatusHistory.jsx, TicketProperties.jsx, TicketDetail.jsx take the new props. No empty state on an error; the audit trail panel appears on error so the message and Retry are reachable.
+* Browser check over CDP (Fetch.failRequest on /tickets/:id/history and /audit), admin, 1280 and 375: both errors and both Retry buttons visible, no false empty state, scrollWidth <= innerWidth, 0 exceptions; Retry while still failing stays on the error; Retry after recovery shows 2 history entries and 3 audit rows. First 375 attempt gave a blank screenshot because my script screenshotted before render; fixed the script (wait for the panel) and re-ran.
+* seed.js line 5 deleted. bun start re-seeded: 10 users, 24 tickets (11 breached), 73 audit logs, 24 notifications, 5 canned responses, no error/warn line.
+* README.md: Commands row.
+* Appended the correction entry for log.txt:3240 at 08:02:24.
+* skills/validate run by hand against this branch (S01-S19, R01-R12), report at ../validation-report-fix-final-gate.md (outside the repo, not committed).
+* Wrote ../validation-report-fix-final-gate.md.
+
+Files changed:
+* backend/src/features/tickets/ticket-lifecycle.js, backend/tests/bulk-actions.test.js, backend/tests/ticket-lifecycle.test.js
+* frontend/src/App.jsx, frontend/src/features/tickets/{StatusHistory,TicketProperties,TicketDetail}.jsx
+* backend/src/scripts/seed.js, README.md
+* transcripts/log.txt (final commit)
+* outside the repo: ../validation-report-fix-final-gate.md, this log
+* transcripts/production-readiness.md still has the gate's unstaged entry from the previous session; I did not stage or touch it.
+
+Commands run and their results:
+* backend lifecycle and bulk test files in their isolated process: 20 and 21 pass. A first plain "bun test" on them failed with "fetch() URL is invalid" because the files need the isolated runner's preload (tests/setup.js); not a code problem.
+* bunx prettier@3 --check --no-use-tabs on every changed js/jsx: pass.
+* bun run test: PASS 28 backend files (307 tests) + 38 frontend = 345 pass, 0 fail.
+* cd frontend && bun run build: exit 0 (root has no build script; hackerrank.yml declares none).
+* bun install && bash setup.sh --seed: exit 0, no warn/error.
+* Dependency diff vs reference: identical; lock 0 older. deadcode.js: unused imports 0. coverage.js: 37 routes / 37 clients, 0 problems. git archive: 1,505,280 bytes.
+* Live probes: 40 checks (logins, 12 reads, history/audit, the new message single and bulk, error codes, create/edit/follow-up, canned create/delete). First two runs had failures that were my own script (the gate's old probes.js hardcodes ticket ids from an earlier seed so every lookup 404s; wrong query/field names dateFrom and body; and 11 logins in a minute tripped the 10-per-minute login limiter, 429 RATE_LIMITED, which is the app working). Fixed the script, restarted, re-ran: all pass; agent5 403 and wrong password 401 confirmed after the limiter window reset.
+* Restart reset: 25 tickets / 75 audit logs with a validation ticket -> after bun start 24 / 73 and the ticket 404.
+* A broad "pkill" I ran to stop the dev app also ended my own shell once (exit 144); no data effect. Ports were verified free afterwards and the later stops used the listener pids.
+
+Tests: 345 pass, 0 fail (307 backend + 38 frontend). One new assertion (full INVALID_TRANSITION message). The frontend has no component-test harness (no new dependency allowed), so the error states are covered by the forced-failure browser check, not a unit test.
+
+Git: branch fix/final-gate, 4 commits above plus the log-copy commit that follows this entry (its hash cannot appear here); author Roshni Thakor <thakorroshni104@gmail.com> on all, no Co-Authored-By or AI attribution. The push happens after this entry and its result is reported in chat, not here. No merge, nothing deleted.
+
+Decisions: none taken by the agent beyond the user's instructions. Small calls made inside them: (a) the README cell reads "(routing, reply thread; `bun test` in `frontend`)" to avoid two bracket pairs in a row; (b) the audit-trail panel now renders when it has failed so the error is not hidden; (c) no browser-side unit test (no test dependency allowed).
+
+Questions asked: none.
+
+Open issues / next step: stop and wait for the user's next prompt (standing rule 5). Branch is pushed, not merged; the gate should be re-run on it. The user's "approved" is needed before merge --no-ff. Still open from earlier gate runs and untouched here: Prettier tabs, SEED_NOW, web-UI commit 356f560, customer close-on-open, dark default theme, assets/ screenshot. Note: the user said no transcript note this turn, so transcripts/production-readiness.md was not updated (this differs from the earlier "transcript note as the branch's last commit" rule, by instruction).
+
+Rule check: [OK] Acceptable. No dependency added or removed, no forbidden tool, no layout change, repo stays private. Customer-facing wording and error-state fixes only.
+
+Context:
+tool=claude-code (claude-sonnet-5-5)
+branch=fix/final-gate
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none

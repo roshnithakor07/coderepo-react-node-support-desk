@@ -55,13 +55,20 @@ function Entry({ entry }) {
 
 // Every move the ticket has made, for whoever can see the ticket. Internal notes and field edits
 // stay out of it; the admin-only audit trail covers those.
-export function StatusHistory({ entries, isLoading }) {
+export function StatusHistory({ entries, isLoading, hasError, onRetry }) {
     return (
         <div className="properties-card status-history">
             <div className="properties-card-header">
                 <h4>Status history</h4>
             </div>
-            {isLoading ? (
+            {hasError ? (
+                <div className="form-error" role="alert">
+                    Couldn&rsquo;t load the status history.{" "}
+                    <button type="button" className="link-button" onClick={onRetry}>
+                        Retry
+                    </button>
+                </div>
+            ) : isLoading ? (
                 <div className="status-history-loading">
                     <span className="skeleton skeleton-block" style={{ height: "40px" }} />
                     <span className="skeleton skeleton-block" style={{ height: "40px" }} />

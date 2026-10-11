@@ -148,7 +148,7 @@ export function assertTransitionAllowed(ticket, next, actor, now = new Date()) {
         throw new AppError(
             409,
             "INVALID_TRANSITION",
-            `A ${STATUS_LABELS[current]} ticket cannot move straight to ${STATUS_LABELS[next]}. From here it can only move to ${options}.`,
+            `This ticket is ${STATUS_LABELS[current]}, so it can't move straight to ${STATUS_LABELS[next]}. From here it can only move to ${options}.`,
         );
     }
 

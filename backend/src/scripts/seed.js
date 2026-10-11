@@ -2,7 +2,6 @@ import dotenv from "dotenv";
 dotenv.config({ quiet: true });
 
 import bcrypt from "bcryptjs";
-import mongoose from "mongoose";
 import { AuditLog } from "../features/audit-logs/audit-log.model.js";
 import { RevokedToken } from "../features/auth/revoked-token.model.js";
 import { User } from "../features/auth/user.model.js";
