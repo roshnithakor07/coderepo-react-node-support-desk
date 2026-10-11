@@ -69,7 +69,9 @@ describe("the lifecycle runs one step at a time", () => {
         const { status, body } = await update(ticket._id, { status: "closed" }, admin.token);
         expect(status).toBe(409);
         expect(body.error.code).toBe("INVALID_TRANSITION");
-        expect(body.error.message).toContain("In Progress");
+        expect(body.error.message).toBe(
+            "This ticket is Open, so it can't move straight to Closed. From here it can only move to In Progress.",
+        );
     });
 
     test("an open ticket cannot be resolved without going through in progress", async () => {

@@ -158,7 +158,7 @@ describe("bulk status moves several tickets in one action", () => {
         expect(rejections.map((entry) => entry.title).sort()).toEqual(["Bulk reasons A", "Bulk reasons B"]);
         for (const entry of rejections) {
             expect(entry.code).toBe("INVALID_TRANSITION");
-            expect(entry.message).toContain("cannot move straight to Closed");
+            expect(entry.message).toContain("can't move straight to Closed");
         }
     });
 
