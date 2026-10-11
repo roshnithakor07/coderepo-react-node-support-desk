@@ -23,7 +23,10 @@ function PropertyRow({ label, htmlFor, children, hint }) {
 
 // The status control offers only the moves the API will accept, and says why anything missing is
 // missing. `permissions` comes from the server, so the two can never drift apart.
+// Closing makes the ticket read-only, so that one choice asks first; the select stays on the current
+// status until it is confirmed, which is also where Cancel leaves it.
 function StatusControl({ ticket, permissions, canManage, onUpdate, isUpdating }) {
+    const [isConfirmingClose, setIsConfirmingClose] = useState(false);
     const nextStatuses = permissions.nextStatuses || [];
     const blockedResolve = permissions.resolveBlockedReason;
     // The banner above already says a closed ticket is locked, so only the reasons it does not
@@ -43,7 +46,9 @@ function StatusControl({ ticket, permissions, canManage, onUpdate, isUpdating })
             <select
                 id="ticket-status"
                 value={ticket.status}
-                onChange={(event) => onUpdate({ status: event.target.value })}
+                onChange={(event) =>
+                    event.target.value === "closed" ? setIsConfirmingClose(true) : onUpdate({ status: event.target.value })
+                }
                 disabled={isUpdating}
             >
                 <option value={ticket.status}>{titleCase(ticket.status)}</option>
@@ -58,6 +63,19 @@ function StatusControl({ ticket, permissions, canManage, onUpdate, isUpdating })
                     </option>
                 )}
             </select>
+            {isConfirmingClose && (
+                <ConfirmationDialog
+                    title="Close this ticket?"
+                    message="A closed ticket is read-only. It can be reopened within 14 days."
+                    confirmLabel="Close ticket"
+                    danger
+                    onCancel={() => setIsConfirmingClose(false)}
+                    onConfirm={() => {
+                        setIsConfirmingClose(false);
+                        onUpdate({ status: "closed" });
+                    }}
+                />
+            )}
         </PropertyRow>
     );
 }
