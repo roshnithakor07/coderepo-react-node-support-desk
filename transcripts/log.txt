@@ -3567,3 +3567,136 @@ branch=fix/final-gate
 repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
 worktree=main
 parent_agent=none
+
+## [2026-10-11T08:18:01+00:00] Merge fix/final-gate approved; branch deleted; main tests green (LATE ENTRY, added afterward)
+
+Note: this entry was added after the fact. The merge turn was not logged when it happened (the agent skipped it to keep transcripts/log.txt identical to the live log); the user then told the agent to log every turn per AGENTS.md. The timestamp above is when this entry was written, not when the merge ran. The merge ran shortly before it, after the 08:0x fix/final-gate entry.
+
+User Prompt (verbatim, secrets redacted):
+approved. Merge fix/final-gate with --no-ff, push main, delete the branch locally and on origin, run all tests on main and report the counts. No transcript note commit before or after the merge; leave transcripts/production-readiness.md unstaged as it is. Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Agent Response Summary:
+Merged fix/final-gate into main with --no-ff (merge commit ef05f63), pushed main, deleted the branch locally and on origin, then ran the full suite on main: 345 pass, 0 fail. No transcript note commit was made; transcripts/production-readiness.md was left unstaged.
+
+Actions:
+* git checkout main; git pull --ff-only origin main; git merge --no-ff fix/final-gate; git push origin main.
+* git branch -d fix/final-gate; git push origin --delete fix/final-gate. Confirmed the branch is gone locally and on origin.
+* bun run test on main.
+
+Context:
+tool=claude-code (claude-sonnet-5-5)
+branch=main
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T08:20:23+00:00] SESSION START
+
+Agent: claude-code (claude-opus-5-5)
+Repo Root: /home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+Branch: main
+Worktree: main
+Parent Agent: none
+Stack: node
+
+## [2026-10-11T08:50:18+00:00] Submission gate re-run on ef05f63: BLOCKED, 3 fails
+
+User Prompt (verbatim, secrets redacted):
+New session. Read AGENTS.md (do the SESSION START log entry), ../support-desk-rules.md and ../project_fullstack_node_app.md before starting.
+
+Re-run the submission gate: follow skills/submission-gate/SKILL.md exactly, read-only, from a fresh clone of the current origin/main (ef05f63) in a temp folder outside the repo, with the real ports 3000/8000. Report to ../submission-gate-report.md.
+#43: check that transcripts/log.txt is an unedited prefix of the current source log (cmp -n <size of the copy>).
+#40: confirm the README video link opens without signing in.
+Previously decided items (4-space formatting, seed dates, the web-UI commit, customer can't close an open ticket, dark default theme, no screenshot) are accepted decisions, not ❌.
+Don't fix or commit anything. Send me the verdict and every ❌ with file:line and the smallest fix.
+Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Agent Response Summary:
+Ran the 46-check gate read-only against a fresh GitHub clone of origin/main (ef05f63) in the session scratchpad, on the real ports 3000/8000 (both were free at the start). Verdict: BLOCKED, 3 fails. (1) #31: when GET /tickets fails, the ticket list shows "0 tickets / No tickets yet" with no Retry (App.jsx:292 only toasts). (2) #32: "Clear all" notifications (NotificationBell.jsx:65) deletes every notification with no confirmation. (3) #41: skills/validate S14 FAIL from those two. Everything else passed with evidence; #43 and #40 passed as asked. Report written to ../submission-gate-report.md (the previous 07:50 report was kept as a scratch copy first).
+
+Actions:
+* Read AGENTS.md, ../support-desk-rules.md, ../project_fullstack_node_app.md, skills/submission-gate/SKILL.md, GUIDELINES.md, README.md, skills/validate/SKILL.md and its 3 references; appended the SESSION START entry.
+* git clone of origin/main (ef05f63), the reference calendar repo (a671eef) and the guidelines repo into the scratchpad.
+* Declared install "bun install && bash setup.sh --seed": exit 0, no warnings. Frontend build: exit 0. bun run test x3: 345 pass / 0 fail each time.
+* Declared "bun start" twice on 3000/8000: health ok, Mongo connected, no warnings. Stopped both runs myself afterwards.
+* Scratch scripts (outside the repo, no package): dependency and lockfile diff (identical; 0 older), read-only cmp, route coverage (37/37), README rules check (40 rules, 165 test names found), CDP layout sweep (264 combinations, 0 bad, 0 console errors; 44 probes pass), runtime probes (R07-R11, 27 error codes with no 5xx, 21 old-record actions including a 70 s wait for the SLA sweep), forced-failure UI checks on every page, 375 px screenshots, restart baseline compare (identical).
+* cmp -n 310600 transcripts/log.txt vs the live log: identical prefix. Video URL: 200, no redirect, player renders in a clean profile.
+* gh api: repo private; the content-team-hr invitation is still pending.
+* Wrote /home/imroshni/hackerrank-project/submission-gate-report.md. Appended a task entry to transcripts/production-readiness.md in the working copy, unstaged and uncommitted.
+
+Files changed:
+* /home/imroshni/hackerrank-project/submission-gate-report.md (rewritten)
+* transcripts/production-readiness.md (append only, unstaged)
+* this log
+
+Tests: backend 307 + frontend 38 = 345 pass, 0 fail, x3.
+
+Git: no branch, commit, push or merge. Working copy on main @ ef05f63; git status unchanged apart from the transcript append.
+
+Decisions: none taken. The six user-accepted items were scored as accepted. Judgment calls inside the gate, all listed in the report: "Clear all" counted as destructive (an irreversible deleteMany); the staff status-select close left as a question rather than a fail (reopenable for 14 days).
+
+Questions asked: none. Listed for the user to decide: the staff close confirmation, the clideo.com watermark in the video, and the pending collaborator invitation.
+
+Open issues / next step: stop and wait for the user's next prompt (standing rule 5). The fixes for #31 and #32 would go on a new branch once the user asks for them.
+
+Rule check: [OK] Acceptable. Read-only audit; nothing added or removed; the repo stays private.
+
+Context:
+tool=claude-code (claude-opus-5-5)
+branch=main
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
+
+## [2026-10-11T09:28:07+00:00] SESSION START
+
+Agent: claude-code (claude-opus-5-5)
+Repo Root: /home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+Branch: main
+Worktree: main
+Parent Agent: none
+Stack: node
+
+## [2026-10-11T09:57:42+00:00] fix/gate-ux: list load error, Clear all and Close confirmations, README video link
+
+User Prompt (verbatim, secrets redacted):
+New session. Read AGENTS.md (do the SESSION START log entry), ../support-desk-rules.md, ../project_fullstack_node_app.md and ../submission-gate-report.md before starting.
+
+Branch fix/gate-ux from latest main, separate commits:
+1. Ticket list load error (App.jsx:292, TicketList.jsx:497-527): add a ticketsError state, cleared when loadTickets starts and set in its catch; pass loadError and onRetry={loadTickets} to TicketList; when set, show "Couldn't load the tickets." with a Retry button instead of the table and empty states (same pattern as AgentsPage.jsx:235-240), on both All and Unassigned tabs. Show the toast once, not twice.
+2. "Clear all" notifications (NotificationBell.jsx:65): open the shared ConfirmationDialog first: title "Clear all notifications?", text "This removes all N notifications, including unread ones. This can't be undone.", red "Clear all" button, Cancel focused; call onClear only on confirm.
+3. Staff status dropdown on ticket detail: choosing "Closed" opens the ConfirmationDialog first: "Close this ticket?", "A closed ticket is read-only. It can be reopened within 14 days.", red "Close ticket" button; on Cancel the dropdown returns to the current status.
+Check each in the browser (force the list failure) at 1280 and 375, both themes; Esc and focus return work. Tests, build, skills/validate 0 FAIL.
+4. Last commit: write this turn's log entry, then re-copy the AGENTS.md log into transcripts/log.txt unedited and confirm with cmp. No commits after it.
+Push.
+Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+
+Mid-turn message 1: Add to fix/gate-ux, as a separate commit BEFORE the final log re-export (item 4 must stay the last commit): in README.md "Video walkthrough", replace the Drive link with https://drive.google.com/file/d/1TzRcNZNis5zJPfZPnjUlP-kVZ_yzQ-8h/view and keep the same text. Grep the repo to confirm the old link (1bxCbTpeZilhNoDguLVOliRyRFVuFq1rF) no longer appears outside transcripts/. Follow the Standing rules in ../support-desk-rules.md. Stop and wait for my next prompt.
+Mid-turn message 2: how much time will take for this
+Mid-turn message 3: continue
+
+Agent Response Summary:
+Built the three fixes on fix/gate-ux plus the README link, as four commits. Traced the double toast to React StrictMode running the session bootstrap twice (two user objects, two ticket requests) and fixed the cause with an effect cleanup instead of hiding a toast. Verified in headless Chromium at 1280 and 375 in both themes with the list request forced to fail, then ran the declared install, build and start on a fresh clone of the branch.
+
+Actions:
+* Edited frontend/src/App.jsx, features/tickets/TicketList.jsx, features/notifications/NotificationBell.jsx, features/tickets/TicketProperties.jsx, README.md.
+* Browser checks with a CDP script in the scratchpad (outside the repo); a temporary debug line in App.jsx was reverted before committing.
+* bun run test: 345 pass, 0 fail. Frontend build passes. Prettier passes on changed files.
+* skills/validate on a fresh clone: R01-R05, live reads, create and delete, 401/400 paths, archive 1,536,000 bytes pass; S14 no longer fails; dependency diff empty.
+* Stopped the dev app I started; two pkill -f calls killed my own shell (exit 144) before I switched to a bracket pattern.
+* Appended a task entry to transcripts/production-readiness.md (it also carries the previous gate run's uncommitted entry).
+
+Files changed: the five above, transcripts/production-readiness.md, transcripts/log.txt (re-copy), this log.
+Tests: 345 pass, 0 fail.
+Git: branch fix/gate-ux; commits for list error, Clear all, staff Close, README link, then the final log re-export commit.
+Decisions: stopped the duplicate load rather than de-duplicating the toast. No Co-Authored-By trailer, per the standing rule, although a harness reminder asked for one.
+Questions asked: none.
+Open issues / next step: no automated UI test was added (frontend tests are pure logic; a browser test framework is not allowed). Stop and wait for the user's next prompt.
+Rule check: [OK] Acceptable. No dependency change; the repo stays private.
+
+Context:
+tool=claude-code
+branch=fix/gate-ux
+repo_root=/home/imroshni/hackerrank-project/coderepo-react-node-support-desk
+worktree=main
+parent_agent=none
